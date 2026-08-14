@@ -1,7 +1,21 @@
+/**
+ * Core domain model for Logica.
+ *
+ * A design is a registry of component *definitions* (`ComponentDef`). A composite
+ * definition describes its internals as a graph of *instances* wired together by
+ * *connections*. Definitions are types; instances are concrete usages. Everything
+ * here is plain data with no UI or framework dependencies.
+ */
+
 export type Signal = 0 | 1 | 'x'
 
 export type PortDirection = 'input' | 'output'
 
+/**
+ * A named terminal on a component. `id` is stable (referenced by connections);
+ * `name` is a user-facing label. Order within `ComponentDef.ports` (inputs first,
+ * then outputs) determines their layout on the left/right edges.
+ */
 export interface Port {
   id: string
   name: string
@@ -27,6 +41,11 @@ export interface Instance {
   pos: { x: number; y: number }
 }
 
+/**
+ * A connection endpoint: either a pin on a specific instance, or one of the
+ * composite's *own* ports. The `port` variant lets a composite input fan out to
+ * several internal inputs, and lets internal outputs drive a composite output.
+ */
 export type PinRef =
   | { kind: 'instance'; instanceId: string; portId: string }
   | { kind: 'port'; portId: string }
@@ -54,6 +73,11 @@ export function outputPorts(def: ComponentDef): Port[] {
   return def.ports.filter((p) => p.direction === 'output')
 }
 
+/**
+ * Produce a fresh, unused port id of the given direction. Used by the ports editor
+ * so that added ports never collide with existing ids (which may have gaps after
+ * removals).
+ */
 export function nextPortId(def: ComponentDef, direction: PortDirection): string {
   const prefix = direction === 'input' ? 'in' : 'out'
   const used = def.ports

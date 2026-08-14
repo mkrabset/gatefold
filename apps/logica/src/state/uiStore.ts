@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+/**
+ * UI preferences, persisted to localStorage under the key `logica-ui`. Keep this
+ * store limited to pure presentation state (theme, panel sizes) — document/editing
+ * state lives in `editorStore`.
+ */
+
 export type Theme = 'light' | 'dark'
 
 interface UiState {

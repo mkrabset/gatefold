@@ -1,16 +1,28 @@
 import type { ComponentDef, Connection, Design, PinRef, Port } from './types'
 import { inputPortId, outputPortId } from './types'
 
+/**
+ * Pure "group into composite" logic.
+ *
+ * Grouping turns a selection of instances inside a composite into a new composite
+ * definition: the selected instances move into the new def, wires that stay within
+ * the selection become internal, and wires crossing the boundary are routed through
+ * the new component's input/output ports. `inferGroup` inspects the current design
+ * (used to populate the naming dialog); `applyGroup` produces the transformed design.
+ */
+
 export interface InstancePin {
   instanceId: string
   portId: string
 }
 
+/** An inferred input: one external net feeding one or more selected input pins. */
 export interface InferredInput {
   source: PinRef
   targets: InstancePin[]
 }
 
+/** An inferred output: one selected output pin driving one or more external pins. */
 export interface InferredOutput {
   source: InstancePin
   targets: PinRef[]
@@ -26,6 +38,8 @@ function pinKey(ref: PinRef): string {
   return ref.kind === 'instance' ? `${ref.instanceId}:${ref.portId}` : `port:${ref.portId}`
 }
 
+// Produce a name/id that is unique against a set of existing ones, e.g. "component",
+// "component-2", "component-3"…
 function nextId(existing: Set<string>, base: string): string {
   if (!existing.has(base)) return base
   let i = 2
@@ -33,6 +47,8 @@ function nextId(existing: Set<string>, base: string): string {
   return `${base}-${i}`
 }
 
+// The transformation below clones the design so `applyGroup` stays a pure function
+// (no mutation of its input). These helpers do a manual deep clone of the model.
 function clonePinRef(ref: PinRef): PinRef {
   return ref.kind === 'instance'
     ? { kind: 'instance', instanceId: ref.instanceId, portId: ref.portId }
@@ -71,9 +87,13 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
     const fromSel = c.from.kind === 'instance' && selected.has(c.from.instanceId)
     const toSel = c.to.kind === 'instance' && selected.has(c.to.instanceId)
 
+    // Three cases: fully inside the selection (internal), crossing into it (input),
+    // or leaving it (output). Connections that don't touch the selection are ignored.
     if (fromSel && toSel) {
       internal.push(c)
     } else if (toSel && c.to.kind === 'instance') {
+      // An external source feeding a selected input pin. Group by the source net so
+      // several pins driven by the same net collapse into a single input port.
       const key = pinKey(c.from)
       const entry = inputs.get(key) ?? { source: clonePinRef(c.from), targets: [] }
       entry.targets.push({ instanceId: c.to.instanceId, portId: c.to.portId })
@@ -113,6 +133,8 @@ export function applyGroup(
   const defName = nextId(existingNames, 'component')
   const newDefId = nextId(new Set(Object.keys(result.defs)), defName)
 
+  // Build the new composite's ports from the inferred inputs/outputs, using the
+  // user-supplied names in order.
   const ports: Port[] = []
   inferred.inputs.forEach((_, i) => {
     ports.push({ id: inputPortId(i), name: inputNames[i] || `in${i + 1}`, direction: 'input' })
@@ -121,6 +143,8 @@ export function applyGroup(
     ports.push({ id: outputPortId(i), name: outputNames[i] || `out${i + 1}`, direction: 'output' })
   })
 
+  // Internal connections move over verbatim; boundary wiring is re-expressed as
+  // connections between the new component's ports and the internal pins.
   const connections: Connection[] = inferred.internal.map((c) => ({
     id: c.id,
     from: clonePinRef(c.from),
@@ -146,6 +170,8 @@ export function applyGroup(
     })
   })
 
+  // Keep the moved instances at their current positions and place the new instance
+  // in the parent at the selection's centroid.
   const movedInstances = def.instances?.filter((i) => selected.has(i.id)) ?? []
   const cx = movedInstances.reduce((s, i) => s + i.pos.x, 0) / (movedInstances.length || 1)
   const cy = movedInstances.reduce((s, i) => s + i.pos.y, 0) / (movedInstances.length || 1)
@@ -163,6 +189,8 @@ export function applyGroup(
   const instName = nextId(new Set(remaining.map((i) => i.name)), defName)
   const instId = nextId(new Set(remaining.map((i) => i.id)), `${defName}-i`)
 
+  // Re-wire the parent: each external input net now drives the new instance's input
+  // port, and each external target is now driven by the new instance's output port.
   const external: Connection[] = []
   let extCounter = 0
   const genExt = () => `e-${++extCounter}`

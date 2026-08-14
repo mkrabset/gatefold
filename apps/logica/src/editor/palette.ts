@@ -1,3 +1,9 @@
+/**
+ * Color palettes for the canvas renderer. The DOM UI is themed separately via CSS
+ * variables; these constants cover only what is drawn on the `<canvas>`. The renderer
+ * receives the active palette as a parameter so it stays independent of the theme store.
+ */
+
 export interface Palette {
   bg: string
   grid: string

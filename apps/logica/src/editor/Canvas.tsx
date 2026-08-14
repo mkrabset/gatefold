@@ -6,6 +6,18 @@ import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { Viewport } from '../state/editorStore'
 
+/**
+ * The schematic canvas. Owns the `<canvas>` element, its sizing (HiDPI-aware), and
+ * all pointer/wheel interaction. Redraws are imperative: the component subscribes to
+ * the stores and re-runs `drawScene` on change, avoiding React re-renders during
+ * pan/zoom/drag.
+ */
+
+/**
+ * The active pointer gesture. A single discriminated union drives the interaction
+ * state machine; `shiftClick` upgrades to `pan` once the pointer moves past a
+ * threshold, which is what lets shift-click toggle selection while shift-drag pans.
+ */
 type Drag =
   | { type: 'pan'; startX: number; startY: number; vp: Viewport }
   | { type: 'move'; ids: string[]; startX: number; startY: number; origins: { x: number; y: number }[] }
@@ -53,6 +65,8 @@ export function Canvas() {
 
     let drag: Drag | null = null
 
+    // World coordinates place (0,0) at the viewport center; `viewport.x/y` is the
+    // world point shown at the center of the canvas. Invert for screen → world.
     const toWorld = (sx: number, sy: number) => {
       const { viewport } = useEditorStore.getState()
       const rect = wrap.getBoundingClientRect()
@@ -121,6 +135,9 @@ export function Canvas() {
           return
         }
         case 'shiftClick': {
+          // A shift press on a component is ambiguous: it is either a click (toggle
+          // selection) or the start of a pan. Resolve it once movement exceeds the
+          // threshold; otherwise the toggle happens on pointer-up.
           if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > DRAG_THRESHOLD) {
             drag = { type: 'pan', startX: d.startX, startY: d.startY, vp: d.vp }
             canvas.style.cursor = 'grabbing'
@@ -137,12 +154,14 @@ export function Canvas() {
         case 'marquee': {
           const rect = wrap.getBoundingClientRect()
           const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+          // Normalize to a min/max rect regardless of drag direction.
           const x0 = Math.min(d.startWorld.x, cur.x)
           const x1 = Math.max(d.startWorld.x, cur.x)
           const y0 = Math.min(d.startWorld.y, cur.y)
           const y1 = Math.max(d.startWorld.y, cur.y)
           state.setMarquee({ x0, y0, x1, y1 })
           const instances = currentInstances()
+          // Axis-aligned rectangle intersection test against each instance's bounds.
           const selected = instances
             .filter((inst) => {
               const b = instanceBounds(inst, state.design.defs[inst.defId])
@@ -175,6 +194,8 @@ export function Canvas() {
       const rect = wrap.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
+      // Zoom anchored at the cursor: keep the world point under the pointer fixed by
+      // recomputing the viewport center after the zoom change.
       const w0x = vp.x + (mx - rect.width / 2) / vp.zoom
       const w0y = vp.y + (my - rect.height / 2) / vp.zoom
       state.setViewport({

@@ -184,6 +184,8 @@ Notes:
 
 ## 7. Grouping into composite components
 
+> Implemented (see `docs/ARCHITECTURE.md` §6). The workflow below documents the design.
+
 Turn a selection of components into a reusable named component (e.g. build a full/half
 adder from gates).
 
@@ -201,7 +203,7 @@ adder from gates).
    (auto-names `in1`, `out1`). Confirm to create.
 6. `applyGroup` then:
    - creates the new `ComponentDef` (unique name, inferred `ports`, moved `instances`
-     relative to the selection bounding box, and internal connections);
+     kept at their current positions, and internal connections);
    - removes the selected instances and all touching connections from the parent;
    - inserts a single instance of the new def at the bounding-box center;
    - re-adds external connections to that instance's ports (auto-rewire).
@@ -243,16 +245,21 @@ included so a load restores the schematic exactly.
 
 ```
 /workspace
+├── README.md               # user-facing doc
+├── PLAN.md                 # this roadmap
+├── docs/ARCHITECTURE.md    # as-built design summary
 ├── apps/
 │   └── logica/src/
-│       ├── model/      (thin re-exports, or moved entirely into @logica/model)
-│       ├── sim/        engine.ts, events.ts, clock.ts, flatten.ts
-│       ├── state/      editorStore.ts, simStore.ts, uiStore.ts
-│       ├── editor/     geometry.ts, renderer.ts, routing.ts, Canvas.tsx
-│       └── ui/         App.tsx, Toolbar.tsx, Sidebar.tsx, LibraryPanel.tsx, ResizeHandle.tsx
+│       ├── editor/     geometry.ts, renderer.ts, routing.ts, palette.ts, Canvas.tsx
+│       ├── state/      editorStore.ts, uiStore.ts
+│       ├── ui/         App.tsx, Toolbar.tsx, Sidebar.tsx, LibraryPanel.tsx,
+│       │               ResizeHandle.tsx, GroupDialog.tsx
+│       ├── main.tsx
+│       └── index.css
 ├── packages/
-│   └── model/src/      types.ts, primitives.ts, group.ts, serialize.ts, validate.ts
-└── docs/               ARCHITECTURE.md
+│   └── model/src/      types.ts, primitives.ts, group.ts, index.ts
+│       └── test/       primitives.test.ts, group.test.ts
+└── (planned) sim/       engine.ts, events.ts, clock.ts, flatten.ts
 ```
 
 ---
@@ -262,10 +269,10 @@ included so a load restores the schematic exactly.
 | # | Phase | Status |
 |---|-------|--------|
 | 1 | Scaffold — pnpm monorepo, Vite + React + TS, Zustand/immer, Vitest, base layout | ✅ done |
-| 2 | Data model — types + primitives (done); migrate to `ports: Port[]` + `PinRef`; JSON serialize/validate | ⏳ in progress |
+| 2 | Data model — types + primitives + `ports: Port[]`/`PinRef` migration (done); JSON serialize/validate | ⏳ in progress |
 | 3 | Simulation core — combinational → clocked/sequential → hierarchy flattening + cycle detection | ⏳ pending |
 | 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move (done); wire drawing | ⏳ in progress |
-| 5 | Component model UX — descend/ascend (done); **group into composite** + ports editor | ⏳ pending |
+| 5 | Component model UX — descend/ascend, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
-| 8 | Refinements — bezier wires (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |
+| 8 | Refinements — bezier wires, port terminals, theming, tooltips (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |

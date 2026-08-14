@@ -5,11 +5,24 @@ import { wirePath } from './routing'
 import type { Palette } from './palette'
 import type { Rect, Viewport } from '../state/editorStore'
 
+/**
+ * Canvas renderer. `drawScene` is a pure-ish function of the current design,
+ * viewport, selection, and palette — it reads no store state directly so it can be
+ * redrawn deterministically. Draw order: background → grid → wires → port terminals
+ * → instances → marquee.
+ */
+
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
 const TERMINAL_MARGIN = 48
 
+/**
+ * Stroke one cubic-bezier wire segment. Called twice per wire: once thick in the
+ * background color (the "halo") and once thin in the wire color. Because wires are
+ * drawn in source order, a later wire's halo cuts through an earlier wire, so
+ * crossings read as pass-over rather than junctions.
+ */
 function strokeWire(
   ctx: CanvasRenderingContext2D,
   s: { x: number; y: number },
@@ -59,6 +72,7 @@ interface Bounds {
   h: number
 }
 
+/** Bounding box of all instances in a composite, used to place its port terminals. */
 function contentBounds(instances: Instance[], design: Design): Bounds {
   if (instances.length === 0) {
     return { x: -120, y: -80, w: 240, h: 160 }
@@ -77,6 +91,10 @@ function contentBounds(instances: Instance[], design: Design): Bounds {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
 }
 
+/**
+ * Position of a composite's *own* port terminal (used when editing inside it):
+ * inputs sit just left of the content bounds, outputs just right, evenly spaced.
+ */
 function portTerminalPosition(def: ComponentDef, portId: string, bounds: Bounds): { x: number; y: number } {
   const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
@@ -231,7 +249,10 @@ function drawInstance(
     ctx.font = `${12 * vp.zoom}px system-ui, sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(def.name, s.x, s.y)
+    // The instance name is the unique identifier; the type is shown above the box.
+    ctx.fillText(instance.name, s.x, s.y)
+    ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
+    ctx.fillText(def.name, s.x, s.y - (h / 2) * vp.zoom - 8 * vp.zoom)
 
     ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
     ctx.fillStyle = p.text
@@ -249,6 +270,7 @@ function drawInstance(
     }
   } else {
     drawGateBody(ctx, def.primitive ?? '', s.x, s.y, w * vp.zoom, h * vp.zoom, p)
+    // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
     if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
       ctx.fillStyle = p.text
       ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
@@ -256,11 +278,18 @@ function drawInstance(
       ctx.textBaseline = 'middle'
       ctx.fillText(def.name, s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
     }
+    // Instance name below the gate.
+    ctx.fillStyle = p.text
+    ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
   }
 
   drawPorts(ctx, instance, def, cw, ch, vp, p)
 }
 
+/** Render a composite's own ports as terminals, labeled, beside the content bounds. */
 function drawPortTerminals(
   ctx: CanvasRenderingContext2D,
   def: ComponentDef,
@@ -344,6 +373,8 @@ export function drawScene(
       c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
       e: w2s(path.end.x, path.end.y, cw, ch, vp),
     }
+    // Group by source so fan-out wires render as one bundle (all halos, then all
+    // lines) rather than cutting into each other at their shared terminal.
     const key = pinKey(conn.from)
     const group = groups.get(key)
     if (group) group.push(trace)

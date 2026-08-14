@@ -1,3 +1,8 @@
+/**
+ * Wire routing. Kept isolated so alternative routers (orthogonal, buses) can be
+ * swapped in without touching the renderer. Everything is in world space.
+ */
+
 export interface Point {
   x: number
   y: number

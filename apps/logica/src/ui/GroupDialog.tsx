@@ -1,5 +1,11 @@
 import { useEditorStore } from '../state/editorStore'
 
+/**
+ * Modal shown after clicking "Group". Lists the inferred input/output ports with
+ * editable names; "Create" commits the transformation via `confirmGroup`. Renders
+ * nothing while `pendingGroup` is null.
+ */
+
 export function GroupDialog() {
   const pendingGroup = useEditorStore((s) => s.pendingGroup)
   const setGroupInputName = useEditorStore((s) => s.setGroupInputName)

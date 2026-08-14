@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
+
+/**
+ * Left sidebar: a component tree for the current definition (double-click a
+ * composite to descend into it) plus a properties panel for the current selection
+ * and a ports editor for the currently-viewed composite.
+ */
 
 interface TreeItemProps {
   label: string
@@ -151,7 +157,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
     <div className="props">
       <label className="field">
         <span>Name</span>
-        <input defaultValue={inst.name} />
+        <NameField key={inst.id} id={inst.id} initial={inst.name} />
       </label>
       <label className="field">
         <span>Type</span>
@@ -187,6 +193,31 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   )
 }
 
+/** Instance name input that commits on Enter or blur. */
+function NameField({ id, initial }: { id: string; initial: string }) {
+  const renameInstance = useEditorStore((s) => s.renameInstance)
+  const ref = useRef<HTMLInputElement>(null)
+
+  const commit = () => {
+    const value = ref.current?.value.trim()
+    if (value) renameInstance(id, value)
+  }
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+        }
+      }}
+      onBlur={commit}
+    />
+  )
+}
+
 function PortsEditor() {
   const design = useEditorStore((s) => s.design)
   const renamePort = useEditorStore((s) => s.renamePort)
@@ -199,12 +230,12 @@ function PortsEditor() {
     <div className="ports-group">
       <div className="ports-group-header">
         <span>{title}</span>
-        <button className="mini-btn" onClick={() => addPort(direction)}>+</button>
+        <button className="mini-btn" title={`Add ${direction}`} onClick={() => addPort(direction)}>+</button>
       </div>
       {ports.map((p) => (
         <div className="port-row" key={p.id}>
-          <input value={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
-          <button className="mini-btn" onClick={() => removePort(p.id)}>−</button>
+          <input value={p.name} title={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
+          <button className="mini-btn" title={`Remove ${p.name}`} onClick={() => removePort(p.id)}>−</button>
         </div>
       ))}
     </div>

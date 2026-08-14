@@ -2,6 +2,12 @@ import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import type { Tool } from '../state/editorStore'
 
+/**
+ * Top toolbar: brand, tool selector, group action, simulation controls
+ * (placeholders), breadcrumb navigation, JSON save/load (placeholders), and theme
+ * toggle. Buttons are dumb presenters that call into the stores.
+ */
+
 function IconButton(props: {
   title: string
   active?: boolean
@@ -42,9 +48,9 @@ const ResetIcon = () => (
   </svg>
 )
 
-function ToolButton({ tool, active, onClick, children }: { tool: Tool; active: boolean; onClick: (t: Tool) => void; children: React.ReactNode }) {
+function ToolButton({ tool, title, active, onClick, children }: { tool: Tool; title: string; active: boolean; onClick: (t: Tool) => void; children: React.ReactNode }) {
   return (
-    <button className={`tb-btn${active ? ' active' : ''}`} onClick={() => onClick(tool)}>
+    <button className={`tb-btn${active ? ' active' : ''}`} title={title} onClick={() => onClick(tool)}>
       {children}
     </button>
   )
@@ -107,13 +113,13 @@ export function Toolbar() {
       </div>
 
       <div className="tb-group">
-        <ToolButton tool="select" active={tool === 'select'} onClick={setTool}>
+        <ToolButton tool="select" title="Select (click components, drag to marquee)" active={tool === 'select'} onClick={setTool}>
           <SelectIcon />
         </ToolButton>
-        <ToolButton tool="wire" active={tool === 'wire'} onClick={setTool}>
+        <ToolButton tool="wire" title="Wire" active={tool === 'wire'} onClick={setTool}>
           <WireIcon />
         </ToolButton>
-        <ToolButton tool="pan" active={tool === 'pan'} onClick={setTool}>
+        <ToolButton tool="pan" title="Pan (or Shift + drag)" active={tool === 'pan'} onClick={setTool}>
           <PanIcon />
         </ToolButton>
       </div>

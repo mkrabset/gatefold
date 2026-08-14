@@ -13,6 +13,13 @@ import {
   primitiveDef,
 } from '@logica/model'
 
+/**
+ * The document and editing state, in one Zustand store (with immer for ergonomic
+ * mutation of the nested design). Holds the `Design`, the navigation stack into
+ * composites, the viewport, and the selection/marquee. Undo/redo (zundo) is not yet
+ * attached.
+ */
+
 export type Tool = 'select' | 'wire' | 'pan'
 
 export interface Viewport {
@@ -28,6 +35,7 @@ export interface Rect {
   y1: number
 }
 
+/** Names captured in the group dialog while awaiting confirmation. */
 interface PendingGroup {
   inputs: string[]
   outputs: string[]
@@ -55,12 +63,14 @@ interface EditorState {
   confirmGroup: () => void
   cancelGroup: () => void
   renamePort: (portId: string, name: string) => void
+  renameInstance: (id: string, name: string) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
 }
 
 const iref = (instanceId: string, portId: string): PinRef => ({ kind: 'instance', instanceId, portId })
 
+/** A small demo design so the app has content to render before save/load exists. */
 function createDemoDesign(): Design {
   const defs: Record<string, ComponentDef> = {}
   for (const spec of PRIMITIVE_LIBRARY) {
@@ -158,6 +168,8 @@ export const useEditorStore = create<EditorState>()(
       }),
     openGroupDialog: () =>
       set((s) => {
+        // Infer the ports from the current selection and seed default names for the
+        // dialog; the actual transformation happens on `confirmGroup`.
         const g = inferGroup(s.design, currentDefId(s), s.selectedIds)
         s.pendingGroup = {
           inputs: g.inputs.map((_, i) => `in${i + 1}`),
@@ -177,6 +189,8 @@ export const useEditorStore = create<EditorState>()(
         if (!s.pendingGroup) return
         const defId = currentDefId(s)
         const { inputs, outputs } = s.pendingGroup
+        // applyGroup returns a fresh design (pure); assign it wholesale and select
+        // the newly created instance, which is appended last in the parent.
         s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs)
         s.pendingGroup = null
         const def = s.design.defs[defId]
@@ -190,6 +204,12 @@ export const useEditorStore = create<EditorState>()(
         const port = def.ports.find((p) => p.id === portId)
         if (port) port.name = name
       }),
+    renameInstance: (id, name) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const inst = def.instances?.find((x) => x.id === id)
+        if (inst) inst.name = name
+      }),
     addPort: (direction) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
@@ -200,6 +220,7 @@ export const useEditorStore = create<EditorState>()(
           name: direction === 'input' ? `in${count + 1}` : `out${count + 1}`,
           direction,
         }
+        // Keep the ports array ordered: inputs first, then outputs.
         if (direction === 'input') {
           const outStart = def.ports.findIndex((p) => p.direction === 'output')
           if (outStart === -1) def.ports.push(port)
@@ -213,6 +234,7 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         if (def.kind !== 'composite') return
         def.ports = def.ports.filter((p) => p.id !== portId)
+        // Drop any connections that referenced this composite port.
         def.connections = (def.connections ?? []).filter((c) => {
           const touches = (r: PinRef) => r.kind === 'port' && r.portId === portId
           return !touches(c.from) && !touches(c.to)
@@ -221,6 +243,7 @@ export const useEditorStore = create<EditorState>()(
   })),
 )
 
+/** The definition currently being viewed/edited (top of the navigation stack). */
 export function currentDefId(state: EditorState): string {
   return state.navStack[state.navStack.length - 1]
 }

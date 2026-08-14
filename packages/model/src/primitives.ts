@@ -1,6 +1,15 @@
 import type { ComponentDef, Port, PrimitiveKind } from './types'
 import { inputPortId, outputPortId } from './types'
 
+/**
+ * The built-in primitive components and their behavior metadata.
+ *
+ * Primitives have no `instances`/`connections` — their behavior is implicit in
+ * their `PrimitiveKind` and evaluated directly by the simulator. `PrimitiveSpec`
+ * is the display/arity info used by the library UI; `primitiveDef` turns it into a
+ * full `ComponentDef`.
+ */
+
 export interface PrimitiveSpec {
   kind: PrimitiveKind
   label: string
@@ -19,6 +28,7 @@ export const PRIMITIVE_LIBRARY: PrimitiveSpec[] = [
 
 const INPUT_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 
+// Build the ordered port list for a primitive: inputs A/B/C…, then output(s).
 function buildPorts(kind: PrimitiveKind, inputs: number, outputs: number): Port[] {
   const ports: Port[] = []
   for (let i = 0; i < inputs; i++) {

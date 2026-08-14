@@ -1,6 +1,11 @@
 import type { ComponentDef, Instance, PrimitiveKind } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
 
+/**
+ * Geometry helpers for the canvas: component sizes, port placement, and hit-testing.
+ * All coordinates are in world space (pre-zoom); the renderer converts to screen space.
+ */
+
 const PRIMITIVE_SIZE: Record<PrimitiveKind, { w: number; h: number }> = {
   and: { w: 64, h: 44 },
   or: { w: 64, h: 44 },
@@ -16,6 +21,11 @@ export function defBodySize(def: ComponentDef): { w: number; h: number } {
   return { w: 88, h: 56 }
 }
 
+/**
+ * World position of a port pin on an instance. Inputs are distributed along the left
+ * edge and outputs along the right edge. A single port sits at the vertical center;
+ * otherwise ports are evenly spaced with equal gaps above/below the first and last.
+ */
 export function portPosition(
   instance: Instance,
   def: ComponentDef,
@@ -51,6 +61,7 @@ export function instanceBounds(instance: Instance, def: ComponentDef, pad = 0): 
   }
 }
 
+/** Return the topmost instance whose padded bounds contain the world point, if any. */
 export function hitTest(
   wx: number,
   wy: number,

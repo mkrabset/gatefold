@@ -87,7 +87,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
   )
 }
 
-export function Sidebar() {
+export function Sidebar({ width }: { width: number }) {
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
   const selectedIds = useEditorStore((s) => s.selectedIds)
@@ -98,7 +98,7 @@ export function Sidebar() {
   const current = design.defs[currentDefId(useEditorStore.getState())]
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width }}>
       <div className="side-section">
         <div className="side-title">Components</div>
         <div className="tree">

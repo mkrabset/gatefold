@@ -5,6 +5,25 @@ import type { Palette } from './palette'
 import type { Rect, Viewport } from '../state/editorStore'
 
 const GRID = 24
+const WIRE_WIDTH = 1.5
+const HALO_WIDTH = 2.5
+
+function strokeWire(
+  ctx: CanvasRenderingContext2D,
+  s: { x: number; y: number },
+  c1: { x: number; y: number },
+  c2: { x: number; y: number },
+  e: { x: number; y: number },
+  color: string,
+  width: number,
+) {
+  ctx.beginPath()
+  ctx.moveTo(s.x, s.y)
+  ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+  ctx.strokeStyle = color
+  ctx.lineWidth = width
+  ctx.stroke()
+}
 
 function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vp: Viewport, p: Palette) {
   ctx.fillStyle = p.grid
@@ -208,6 +227,14 @@ export function drawScene(
   const instances = def.instances ?? []
   const byId = new Map(instances.map((i) => [i.id, i]))
 
+  interface Trace {
+    s: { x: number; y: number }
+    c1: { x: number; y: number }
+    c2: { x: number; y: number }
+    e: { x: number; y: number }
+  }
+
+  const groups = new Map<string, Trace[]>()
   for (const conn of def.connections ?? []) {
     const from = byId.get(conn.from.instanceId)
     const to = byId.get(conn.to.instanceId)
@@ -217,16 +244,21 @@ export function drawScene(
     const a = portPosition(from, fromDef, conn.from.portId)
     const b = portPosition(to, toDef, conn.to.portId)
     const path = wirePath(a, b)
-    const s = w2s(path.start.x, path.start.y, cw, ch, vp)
-    const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
-    const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)
-    const e = w2s(path.end.x, path.end.y, cw, ch, vp)
-    ctx.beginPath()
-    ctx.moveTo(s.x, s.y)
-    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
-    ctx.strokeStyle = p.wire
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    const trace: Trace = {
+      s: w2s(path.start.x, path.start.y, cw, ch, vp),
+      c1: w2s(path.c1.x, path.c1.y, cw, ch, vp),
+      c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
+      e: w2s(path.end.x, path.end.y, cw, ch, vp),
+    }
+    const key = `${conn.from.instanceId}:${conn.from.portId}`
+    const group = groups.get(key)
+    if (group) group.push(trace)
+    else groups.set(key, [trace])
+  }
+
+  for (const traces of groups.values()) {
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, WIRE_WIDTH + HALO_WIDTH * 2)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH)
   }
 
   for (const inst of instances) {

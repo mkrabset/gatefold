@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { PRIMITIVE_LIBRARY } from '@logica/model'
 
-export function LibraryPanel() {
+export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
 
   return (
-    <aside className="library">
+    <aside className="library" style={{ width }}>
       <div className="side-title">Library</div>
       <div className="lib-section-label">Primitives</div>
       <div className="lib-grid">

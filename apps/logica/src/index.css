@@ -190,7 +190,6 @@ body {
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 260px;
   flex-shrink: 0;
   background: var(--panel);
   border-right: 1px solid var(--border);
@@ -349,9 +348,21 @@ body {
   cursor: default;
 }
 
+.resize-handle {
+  flex-shrink: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent);
+}
+
 /* ---------- Library ---------- */
 .library {
-  width: 180px;
   flex-shrink: 0;
   background: var(--panel);
   border-left: 1px solid var(--border);

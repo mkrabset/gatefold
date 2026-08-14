@@ -5,6 +5,9 @@ TypeScript, React, and Zustand. Circuits are composed of components (gates, cloc
 sources, and user-defined sub-circuits) wired together and simulated with sequential
 (clocked) behavior.
 
+> The current "as-built" state is tracked separately in `docs/ARCHITECTURE.md`. This
+> document is the forward-looking roadmap.
+
 ---
 
 ## 1. Goals
@@ -21,8 +24,11 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ## 2. Tech stack & tooling
 
-- **Vite + React 18 + TypeScript** (strict mode).
-- **Zustand** (state management) + **immer** (immutable updates) + **zundo** (undo/redo).
+- **pnpm monorepo**: `apps/logica` (`@logica/app`) + `packages/model` (`@logica/model`),
+  where `@logica/model` holds the pure domain model (no UI deps) and is consumed as source.
+- **Vite + React 19 + TypeScript** (strict mode).
+- **Zustand** (state management) + **immer** (immutable updates) + **zundo** (undo/redo,
+  planned).
 - **HTML5 `<canvas>`** for the schematic editor, backed by a retained scene-graph model with
   manual hit-testing.
 - **Vitest** for unit tests (simulator and data model are the correctness-critical parts).
@@ -30,14 +36,14 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ---
 
-## 3. Core data model (`src/model`)
+## 3. Core data model (`@logica/model`)
 
 The model cleanly separates **definitions** (types) from **instances** (usages).
 
 ```ts
 type Signal = 0 | 1 | 'x'; // 3-state logic (0, 1, unknown)
 
-type Port = { id: string; name: string; direction: 'input' | 'output' };
+interface Port { id: string; name: string; direction: 'input' | 'output' }
 
 type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock';
 
@@ -46,8 +52,7 @@ interface ComponentDef {
   name: string;                 // unique within its scope
   kind: 'primitive' | 'composite';
   primitive?: PrimitiveKind;    // present when kind === 'primitive'
-  inputs: number;               // number of input ports (AND/OR/XOR default 2, NOT = 1, CLOCK = 0)
-  outputs: number;              // number of output ports (gates/CLOCK = 1)
+  ports: Port[];                // ordered: inputs first (in:0..n-1), then outputs (out:0..m-1)
   // Composite internals:
   instances?: Instance[];       // sub-components
   connections?: Connection[];   // netlist wiring internal pins
@@ -60,10 +65,15 @@ interface Instance {
   pos: { x: number; y: number }; // canvas placement
 }
 
+// A connection endpoint is either an instance's pin or the composite's own port.
+type PinRef =
+  | { kind: 'instance'; instanceId: string; portId: string }
+  | { kind: 'port'; portId: string };
+
 interface Connection {
   id: string;
-  from: { instanceId: string; portId: string }; // output pin, or a top-level input
-  to:   { instanceId: string; portId: string }; // input pin, or a top-level output
+  from: PinRef;                 // output pin, or a composite input port
+  to: PinRef;                   // input pin, or a composite output port
 }
 
 interface Design {
@@ -78,11 +88,14 @@ interface Design {
 - A composite's internal instance names are unique **within that composite**.
 - Component definition names are unique **within the design** (flat registry is sufficient
   for the MVP; namespacing can be added later).
+- Composites may nest arbitrarily; cycle detection in the instance graph is deferred until
+  the simulation engine needs it.
 
 ### Port conventions
 
-- Ports are implicitly indexed: inputs `0..n-1` are rendered on the **left** edge of the
-  component, outputs `0..m-1` on the **right** edge (see §6).
+- Ports are **named** (`Port.name`) and ordered (`ports` array). `id`s stay index-based
+  (`in:0..n-1`, `out:0..m-1`) so wiring is stable under renames.
+- Inputs are rendered on the **left** edge, outputs on the **right** edge (see §6).
 
 ---
 
@@ -90,9 +103,9 @@ interface Design {
 
 The palette of primitives, initially:
 
-- **AND** (default 2 inputs, 1 output)
-- **OR** (default 2 inputs, 1 output)
-- **XOR** (default 2 inputs, 1 output)
+- **AND** (2 inputs, 1 output)
+- **OR** (2 inputs, 1 output)
+- **XOR** (2 inputs, 1 output)
 - **NOT** (1 input, 1 output)
 - **CLOCK** (0 inputs, 1 output)
 
@@ -132,20 +145,26 @@ Notes:
 
 - Inputs are always on the **left** edge, outputs on the **right** edge, vertically
   distributed; the gate body is drawn between them.
+- Composite *instances* render as a box with ports on left/right; port names are shown
+  next to the pins.
 
 ### Wires
 
-- **Straight lines** for the MVP.
-- Later we will switch to **cubic-bezier curves**. A routing abstraction layer isolates this
-  change so it stays local.
+- **Cubic-bezier curves** routed by `routing.ts` (`wirePath`), with horizontal tangents at
+  both ends and control-point offset `abs(dx) / 2`.
+- A background-color **halo** stroke under each wire makes crossings read as pass-over.
+- Wires sharing a source terminal are grouped (all halos, then all lines) so fan-out renders
+  as a single bundle.
 
 ### Interactions
 
-- **Click + drag on a component** → move the component (update `Instance.pos`).
-- **Click + drag on the background** → pan the viewport.
+- **Drag a component** → move it; if part of a multi-selection, the whole selection moves.
+- **Drag on empty background** (no modifier) → marquee (rubber-band) selection.
+- **Shift + click a component** → toggle it in/out of the selection.
+- **Shift + drag** → pan the viewport (a small threshold distinguishes click from drag).
 - **Mouse wheel** → zoom in/out (anchored at the cursor).
-- **Drag from an output pin to an input pin** → create a wire.
-- Select, delete, and otherwise manipulate wires and components.
+- **Drag from an output pin to an input pin** → create a wire (planned; the "wire" tool is
+  currently a placeholder).
 - During simulation, wires/pins are colored live by their signal value (`0`/`1`/`X`).
 
 ### Panels
@@ -154,25 +173,65 @@ Notes:
   - Component tree (composite → instances → ports).
   - Click selects; **double-click a composite instance descends** into its definition;
     a breadcrumb trail ascends back up.
-  - **Properties panel** shows/edits: name, port count, primitive kind, clock period, etc.
-- **Library panel:** palette to pick a component to place.
-- **Toolbar:** run/stop/step simulation, save/load JSON, zoom controls.
+  - **Properties panel** shows/edits name, port names, primitive kind, clock period, etc.
+  - **Ports editor** for the currently-viewed composite: add/remove/rename its ports.
+- **Library panel:** palette to pick a component to place, plus the user's composite
+  components (derived from the design, not hardcoded).
+- **Toolbar:** tools, simulation controls (run/step/stop/reset), save/load JSON, theme
+  toggle, and a **Group** action.
 
 ---
 
-## 7. State management (`src/state`)
+## 7. Grouping into composite components
+
+Turn a selection of components into a reusable named component (e.g. build a full/half
+adder from gates).
+
+### Workflow
+
+1. Multi-select **2+ instances** in the current def.
+2. Click **Group** (toolbar, enabled only when the selection qualifies).
+3. Classify each connection: both endpoints selected → **internal**; otherwise → a
+   **boundary crossing**.
+4. **Infer ports** from the boundary crossings:
+   - inputs = distinct *external nets* feeding selected input pins (one net → one input,
+     fanned out internally to all the pins it feeds);
+   - outputs = distinct selected output pins feeding outside.
+5. Show a **review dialog** listing the inferred inputs/outputs with editable names
+   (auto-names `in1`, `out1`). Confirm to create.
+6. `applyGroup` then:
+   - creates the new `ComponentDef` (unique name, inferred `ports`, moved `instances`
+     relative to the selection bounding box, and internal connections);
+   - removes the selected instances and all touching connections from the parent;
+   - inserts a single instance of the new def at the bounding-box center;
+   - re-adds external connections to that instance's ports (auto-rewire).
+7. The new component appears in the Library's "My components" list.
+
+### Editing later
+
+- The composite's ports remain fully editable: add/remove/rename via the **ports editor**.
+  Adding/removing a port adds/removes the corresponding port terminal.
+- Manually rewiring port↔pin connections depends on the **wire tool** becoming functional.
+
+### Deferred
+
+- Cycle detection for nested composites, undo/redo integration, name-uniqueness validation.
+
+---
+
+## 8. State management (`src/state`)
 
 Zustand stores, split by concern:
 
-- `designStore` — the `Design` document (definitions, instances, connections) via immer,
-  wrapped in zundo for undo/redo.
-- `editorStore` — active tool (select/wire/place), selection, viewport (pan/zoom).
-- `simStore` — running/paused, simulated time, current pin values, clock state.
-- `uiStore` — sidebar selection/navigation path, panel visibility.
+- `editorStore` — the `Design` document (definitions, instances, connections) via immer,
+  plus tool, viewport, multi-selection, marquee, and navigation stack. (zundo to be attached
+  for undo/redo.)
+- `uiStore` — theme, panel widths, and other persisted UI preferences.
+- `simStore` — (planned) running/paused, simulated time, current pin values, clock state.
 
 ---
 
-## 8. JSON file format
+## 9. JSON file format
 
 The `Design` object is serialized verbatim, with a schema `version` field for future
 migration. Primitive definitions are referenced by stable kind strings; layout positions are
@@ -180,33 +239,33 @@ included so a load restores the schematic exactly.
 
 ---
 
-## 9. Project structure
+## 10. Project structure
 
 ```
-logica/
-  src/
-    model/      types.ts, primitives.ts, serialize.ts, validate.ts
-    sim/        engine.ts, events.ts, clock.ts, flatten.ts
-    state/      designStore.ts, editorStore.ts, simStore.ts, uiStore.ts
-    editor/     scene.ts, renderer.ts, interactions.ts, routing.ts
-    ui/         App.tsx, Canvas.tsx, Sidebar.tsx, PropertiesPanel.tsx, LibraryPanel.tsx, Toolbar.tsx
-    util/       id.ts, math.ts
-  tests/        sim/*.test.ts, model/*.test.ts
+/workspace
+├── apps/
+│   └── logica/src/
+│       ├── model/      (thin re-exports, or moved entirely into @logica/model)
+│       ├── sim/        engine.ts, events.ts, clock.ts, flatten.ts
+│       ├── state/      editorStore.ts, simStore.ts, uiStore.ts
+│       ├── editor/     geometry.ts, renderer.ts, routing.ts, Canvas.tsx
+│       └── ui/         App.tsx, Toolbar.tsx, Sidebar.tsx, LibraryPanel.tsx, ResizeHandle.tsx
+├── packages/
+│   └── model/src/      types.ts, primitives.ts, group.ts, serialize.ts, validate.ts
+└── docs/               ARCHITECTURE.md
 ```
 
 ---
 
-## 10. Roadmap
+## 11. Roadmap
 
-1. **Scaffold** — Vite + React + TS, Zustand/immer/zundo, Vitest, base layout
-   (canvas + sidebar + toolbar).
-2. **Data model** — types, primitives, JSON serialize/deserialize + validation, unit tests.
-3. **Simulation core** — combinational engine first, then clocked/sequential + hierarchy
-   flattening + cycle detection; thorough unit tests.
-4. **Canvas editor** — render gates/wires, pan/zoom, place/drag/select, wire drawing.
-5. **Component model UX** — create composite, define ports, descend/ascend navigation,
-   properties panel.
-6. **Simulation UI** — run/step, clock source, live signal coloring.
-7. **Save/load** — JSON import/export, file download/upload.
-8. **Refinements** — cubic-bezier wires, multi-bit buses, more primitives (JK flip-flop,
-   latch, counter, etc.), truth-table view, nicer gate shapes.
+| # | Phase | Status |
+|---|-------|--------|
+| 1 | Scaffold — pnpm monorepo, Vite + React + TS, Zustand/immer, Vitest, base layout | ✅ done |
+| 2 | Data model — types + primitives (done); migrate to `ports: Port[]` + `PinRef`; JSON serialize/validate | ⏳ in progress |
+| 3 | Simulation core — combinational → clocked/sequential → hierarchy flattening + cycle detection | ⏳ pending |
+| 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move (done); wire drawing | ⏳ in progress |
+| 5 | Component model UX — descend/ascend (done); **group into composite** + ports editor | ⏳ pending |
+| 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
+| 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
+| 8 | Refinements — bezier wires (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |

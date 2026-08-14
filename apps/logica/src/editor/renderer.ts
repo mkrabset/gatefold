@@ -2,7 +2,7 @@ import type { ComponentDef, Design, Instance } from '@logica/model'
 import { defBodySize, instanceBounds, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
-import type { Viewport } from '../state/editorStore'
+import type { Rect, Viewport } from '../state/editorStore'
 
 const GRID = 24
 
@@ -193,8 +193,9 @@ export function drawScene(
   ch: number,
   design: Design,
   vp: Viewport,
-  selectedId: string | null,
+  selectedIds: string[],
   defId: string,
+  marquee: Rect | null,
   p: Palette,
 ) {
   ctx.fillStyle = p.bg
@@ -230,6 +231,18 @@ export function drawScene(
 
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
-    drawInstance(ctx, inst, instDef, cw, ch, vp, inst.id === selectedId, p)
+    drawInstance(ctx, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+  }
+
+  if (marquee) {
+    const tl = w2s(Math.min(marquee.x0, marquee.x1), Math.min(marquee.y0, marquee.y1), cw, ch, vp)
+    const br = w2s(Math.max(marquee.x0, marquee.x1), Math.max(marquee.y0, marquee.y1), cw, ch, vp)
+    ctx.fillStyle = 'rgba(79, 140, 255, 0.08)'
+    ctx.fillRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y)
+    ctx.strokeStyle = p.selection
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 3])
+    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y)
+    ctx.setLineDash([])
   }
 }

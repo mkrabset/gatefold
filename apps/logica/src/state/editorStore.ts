@@ -11,16 +11,26 @@ export interface Viewport {
   zoom: number
 }
 
+export interface Rect {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
 interface EditorState {
   tool: Tool
   viewport: Viewport
-  selectedId: string | null
+  selectedIds: string[]
+  marquee: Rect | null
   navStack: string[]
   design: Design
   setTool: (tool: Tool) => void
   setViewport: (viewport: Viewport) => void
-  select: (id: string | null) => void
-  moveInstance: (id: string, pos: { x: number; y: number }) => void
+  setSelection: (ids: string[]) => void
+  toggleSelected: (id: string) => void
+  setInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
+  setMarquee: (rect: Rect | null) => void
   navigateTo: (defId: string) => void
   navigateUp: () => void
 }
@@ -78,30 +88,42 @@ export const useEditorStore = create<EditorState>()(
   immer((set) => ({
     tool: 'select',
     viewport: { x: 400, y: 250, zoom: 1 },
-    selectedId: null,
+    selectedIds: [],
+    marquee: null,
     navStack: ['main'],
     design: createDemoDesign(),
     setTool: (tool) => set((s) => void (s.tool = tool)),
     setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
-    select: (id) => set((s) => void (s.selectedId = id)),
-    moveInstance: (id, pos) =>
+    setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
+    toggleSelected: (id) =>
+      set((s) => {
+        const i = s.selectedIds.indexOf(id)
+        if (i >= 0) s.selectedIds.splice(i, 1)
+        else s.selectedIds.push(id)
+      }),
+    setInstancesPosition: (ids, positions) =>
       set((s) => {
         const def = s.design.defs[s.navStack[s.navStack.length - 1]]
-        const inst = def.instances?.find((i) => i.id === id)
-        if (inst) {
-          inst.pos = pos
-        }
+        ids.forEach((id, i) => {
+          const inst = def.instances?.find((x) => x.id === id)
+          if (inst) {
+            inst.pos = positions[i]
+          }
+        })
       }),
+    setMarquee: (rect) => set((s) => void (s.marquee = rect)),
     navigateTo: (defId) =>
       set((s) => {
         s.navStack.push(defId)
-        s.selectedId = null
+        s.selectedIds = []
+        s.marquee = null
       }),
     navigateUp: () =>
       set((s) => {
         if (s.navStack.length > 1) {
           s.navStack.pop()
-          s.selectedId = null
+          s.selectedIds = []
+          s.marquee = null
         }
       }),
   })),

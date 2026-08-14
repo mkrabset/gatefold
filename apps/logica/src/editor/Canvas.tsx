@@ -1,17 +1,20 @@
 import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { hitTest } from './geometry'
+import { hitTest, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { Viewport } from '../state/editorStore'
 
 type Drag =
   | { type: 'pan'; startX: number; startY: number; vp: Viewport }
-  | { type: 'move'; id: string; startX: number; startY: number; orig: { x: number; y: number } }
+  | { type: 'move'; ids: string[]; startX: number; startY: number; origins: { x: number; y: number }[] }
+  | { type: 'marquee'; startX: number; startY: number; startWorld: { x: number; y: number } }
+  | { type: 'shiftClick'; id: string; startX: number; startY: number; vp: Viewport }
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
+const DRAG_THRESHOLD = 4
 
 export function Canvas() {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -28,7 +31,7 @@ export function Canvas() {
       const palette = theme === 'dark' ? darkPalette : lightPalette
       const cw = wrap.clientWidth
       const ch = wrap.clientHeight
-      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedId, currentDefId(state), palette)
+      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), state.marquee, palette)
     }
 
     const resize = () => {
@@ -59,49 +62,105 @@ export function Canvas() {
       }
     }
 
-    const onPointerDown = (e: PointerEvent) => {
-      const rect = wrap.getBoundingClientRect()
-      const sx = e.clientX - rect.left
-      const sy = e.clientY - rect.top
-      const w = toWorld(sx, sy)
+    const currentInstances = () => {
       const state = useEditorStore.getState()
-      const def = state.design.defs[currentDefId(state)]
-      const hit = hitTest(w.x, w.y, def.instances ?? [], state.design.defs)
+      return state.design.defs[currentDefId(state)].instances ?? []
+    }
+
+    const onPointerDown = (e: PointerEvent) => {
+      const state = useEditorStore.getState()
+      const rect = wrap.getBoundingClientRect()
+      const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+      const instances = currentInstances()
+      const hit = hitTest(w.x, w.y, instances, state.design.defs)
+
+      if (e.shiftKey) {
+        if (hit) {
+          drag = { type: 'shiftClick', id: hit.id, startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
+        } else {
+          drag = { type: 'pan', startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
+          canvas.style.cursor = 'grabbing'
+        }
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
 
       if (hit) {
-        useEditorStore.getState().select(hit.id)
-        drag = { type: 'move', id: hit.id, startX: e.clientX, startY: e.clientY, orig: { ...hit.pos } }
+        const selected = state.selectedIds.includes(hit.id)
+        const ids = selected ? state.selectedIds : [hit.id]
+        const byId = new Map(instances.map((i) => [i.id, i]))
+        const origins = ids.map((id) => ({ ...byId.get(id)!.pos }))
+        if (!selected) {
+          state.setSelection([hit.id])
+        }
+        drag = { type: 'move', ids, startX: e.clientX, startY: e.clientY, origins }
         canvas.style.cursor = 'grabbing'
+        canvas.setPointerCapture(e.pointerId)
       } else {
-        useEditorStore.getState().select(null)
-        drag = { type: 'pan', startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
-        canvas.style.cursor = 'grabbing'
+        state.setSelection([])
+        drag = { type: 'marquee', startX: e.clientX, startY: e.clientY, startWorld: w }
+        canvas.style.cursor = 'crosshair'
+        canvas.setPointerCapture(e.pointerId)
       }
-      canvas.setPointerCapture(e.pointerId)
     }
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!drag) return
+      const d = drag
+      if (!d) return
       const state = useEditorStore.getState()
-      if (drag.type === 'pan') {
-        const dx = e.clientX - drag.startX
-        const dy = e.clientY - drag.startY
-        state.setViewport({
-          x: drag.vp.x - dx / drag.vp.zoom,
-          y: drag.vp.y - dy / drag.vp.zoom,
-          zoom: drag.vp.zoom,
-        })
-      } else {
-        const dx = e.clientX - drag.startX
-        const dy = e.clientY - drag.startY
-        state.moveInstance(drag.id, {
-          x: drag.orig.x + dx / state.viewport.zoom,
-          y: drag.orig.y + dy / state.viewport.zoom,
-        })
+
+      switch (d.type) {
+        case 'pan': {
+          const dx = e.clientX - d.startX
+          const dy = e.clientY - d.startY
+          state.setViewport({
+            x: d.vp.x - dx / d.vp.zoom,
+            y: d.vp.y - dy / d.vp.zoom,
+            zoom: d.vp.zoom,
+          })
+          return
+        }
+        case 'shiftClick': {
+          if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > DRAG_THRESHOLD) {
+            drag = { type: 'pan', startX: d.startX, startY: d.startY, vp: d.vp }
+            canvas.style.cursor = 'grabbing'
+          }
+          return
+        }
+        case 'move': {
+          const dx = (e.clientX - d.startX) / state.viewport.zoom
+          const dy = (e.clientY - d.startY) / state.viewport.zoom
+          const positions = d.ids.map((_, i) => ({ x: d.origins[i].x + dx, y: d.origins[i].y + dy }))
+          state.setInstancesPosition(d.ids, positions)
+          return
+        }
+        case 'marquee': {
+          const rect = wrap.getBoundingClientRect()
+          const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+          const x0 = Math.min(d.startWorld.x, cur.x)
+          const x1 = Math.max(d.startWorld.x, cur.x)
+          const y0 = Math.min(d.startWorld.y, cur.y)
+          const y1 = Math.max(d.startWorld.y, cur.y)
+          state.setMarquee({ x0, y0, x1, y1 })
+          const instances = currentInstances()
+          const selected = instances
+            .filter((inst) => {
+              const b = instanceBounds(inst, state.design.defs[inst.defId])
+              return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
+            })
+            .map((inst) => inst.id)
+          state.setSelection(selected)
+        }
       }
     }
 
     const onPointerUp = (e: PointerEvent) => {
+      if (drag?.type === 'shiftClick') {
+        useEditorStore.getState().toggleSelected(drag.id)
+      }
+      if (drag?.type === 'marquee') {
+        useEditorStore.getState().setMarquee(null)
+      }
       drag = null
       canvas.style.cursor = 'default'
       canvas.releasePointerCapture(e.pointerId)

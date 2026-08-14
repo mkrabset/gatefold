@@ -52,9 +52,8 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
   selectId: (id: string) => void
   onOpen: (id: string) => void
 }) {
-  const selectedId = useEditorStore((s) => s.selectedId)
+  const selectedIds = useEditorStore((s) => s.selectedIds)
   const design = useEditorStore((s) => s.design)
-  const current = currentDefId(useEditorStore.getState())
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   return (
@@ -71,7 +70,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
               depth={depth}
               icon={icon}
               kind={childDef?.primitive ? childDef.primitive : 'composite'}
-              selected={selectedId === inst.id && current === currentDefId(useEditorStore.getState())}
+              selected={selectedIds.includes(inst.id)}
               expandable={isComposite}
               expanded={isExpanded}
               onToggle={() => setExpanded((m) => ({ ...m, [inst.id]: !m[inst.id] }))}
@@ -91,8 +90,8 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
 export function Sidebar() {
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
-  const selectedId = useEditorStore((s) => s.selectedId)
-  const select = useEditorStore((s) => s.select)
+  const selectedIds = useEditorStore((s) => s.selectedIds)
+  const setSelection = useEditorStore((s) => s.setSelection)
   const navigateTo = useEditorStore((s) => s.navigateTo)
 
   const rootDef = design.defs[design.root]
@@ -111,11 +110,11 @@ export function Sidebar() {
             selected={false}
             expandable
             expanded
-            onSelect={() => select(null)}
+            onSelect={() => setSelection([])}
             onOpen={() => navigateTo(rootDef.id)}
           />
           <div className="tree">
-            <CompositeChildren def={current} depth={1} selectId={select} onOpen={navigateTo} />
+            <CompositeChildren def={current} depth={1} selectId={(id) => setSelection([id])} onOpen={navigateTo} />
           </div>
         </div>
         {navStack.length > 0 && (
@@ -125,19 +124,22 @@ export function Sidebar() {
 
       <div className="side-section grow">
         <div className="side-title">Properties</div>
-        <PropertiesPanel selectedId={selectedId} />
+        <PropertiesPanel selectedIds={selectedIds} />
       </div>
     </aside>
   )
 }
 
-function PropertiesPanel({ selectedId }: { selectedId: string | null }) {
+function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   const design = useEditorStore((s) => s.design)
-  if (!selectedId) {
+  if (selectedIds.length === 0) {
     return <div className="props-empty">Nothing selected</div>
   }
+  if (selectedIds.length > 1) {
+    return <div className="props-empty">{selectedIds.length} components selected</div>
+  }
   const current = design.defs[currentDefId(useEditorStore.getState())]
-  const inst = current.instances?.find((i) => i.id === selectedId)
+  const inst = current.instances?.find((i) => i.id === selectedIds[0])
   if (!inst) {
     return <div className="props-empty">Nothing selected</div>
   }

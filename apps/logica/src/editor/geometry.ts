@@ -1,4 +1,5 @@
 import type { ComponentDef, Instance, PrimitiveKind } from '@logica/model'
+import { inputPorts, outputPorts } from '@logica/model'
 
 const PRIMITIVE_SIZE: Record<PrimitiveKind, { w: number; h: number }> = {
   and: { w: 64, h: 44 },
@@ -15,25 +16,21 @@ export function defBodySize(def: ComponentDef): { w: number; h: number } {
   return { w: 88, h: 56 }
 }
 
-export function portIndex(portId: string): number {
-  return Number(portId.split(':')[1])
-}
-
 export function portPosition(
   instance: Instance,
   def: ComponentDef,
   portId: string,
 ): { x: number; y: number } {
   const { w, h } = defBodySize(def)
-  const [side, idxStr] = portId.split(':')
-  const idx = Number(idxStr)
-  if (side === 'in') {
-    const total = def.inputs
-    const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((idx + 1) * h) / (total + 1)
+  const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
+  if (inIdx >= 0) {
+    const total = inputPorts(def).length
+    const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((inIdx + 1) * h) / (total + 1)
     return { x: instance.pos.x - w / 2, y }
   }
-  const total = def.outputs
-  const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((idx + 1) * h) / (total + 1)
+  const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
+  const total = outputPorts(def).length
+  const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((outIdx + 1) * h) / (total + 1)
   return { x: instance.pos.x + w / 2, y }
 }
 

@@ -4,6 +4,7 @@ import { Toolbar } from './ui/Toolbar'
 import { Sidebar } from './ui/Sidebar'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ResizeHandle } from './ui/ResizeHandle'
+import { GroupDialog } from './ui/GroupDialog'
 import { useUiStore } from './state/uiStore'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
         <ResizeHandle value={libraryWidth} min={140} max={400} direction={-1} onChange={setLibraryWidth} />
         <LibraryPanel width={libraryWidth} />
       </div>
+      <GroupDialog />
     </div>
   )
 }

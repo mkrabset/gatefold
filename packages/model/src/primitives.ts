@@ -1,4 +1,5 @@
-import type { ComponentDef, PrimitiveKind } from './types'
+import type { ComponentDef, Port, PrimitiveKind } from './types'
+import { inputPortId, outputPortId } from './types'
 
 export interface PrimitiveSpec {
   kind: PrimitiveKind
@@ -16,15 +17,27 @@ export const PRIMITIVE_LIBRARY: PrimitiveSpec[] = [
   { kind: 'clock', label: 'CLOCK', inputs: 0, outputs: 1, glyph: '∿' },
 ]
 
+const INPUT_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+
+function buildPorts(kind: PrimitiveKind, inputs: number, outputs: number): Port[] {
+  const ports: Port[] = []
+  for (let i = 0; i < inputs; i++) {
+    ports.push({ id: inputPortId(i), name: INPUT_NAMES[i] ?? `in${i + 1}`, direction: 'input' })
+  }
+  for (let i = 0; i < outputs; i++) {
+    ports.push({ id: outputPortId(i), name: kind === 'clock' ? 'CLK' : 'Y', direction: 'output' })
+  }
+  return ports
+}
+
 export function primitiveDef(kind: PrimitiveKind): ComponentDef {
-  const spec = PRIMITIVE_LIBRARY.find((p) => p.kind === kind)!
+  const spec = specOf(kind)
   return {
-    id: `def-${kind}`,
+    id: kind,
     name: spec.label,
     kind: 'primitive',
     primitive: kind,
-    inputs: spec.inputs,
-    outputs: spec.outputs,
+    ports: buildPorts(kind, spec.inputs, spec.outputs),
   }
 }
 

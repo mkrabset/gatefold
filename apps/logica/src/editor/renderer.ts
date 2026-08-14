@@ -1,4 +1,5 @@
-import type { ComponentDef, Design, Instance } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
+import { inputPorts, outputPorts } from '@logica/model'
 import { defBodySize, instanceBounds, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
@@ -7,6 +8,7 @@ import type { Rect, Viewport } from '../state/editorStore'
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
+const TERMINAL_MARGIN = 48
 
 function strokeWire(
   ctx: CanvasRenderingContext2D,
@@ -48,6 +50,44 @@ function w2s(wx: number, wy: number, w: number, h: number, vp: Viewport) {
     x: w / 2 + (wx - vp.x) * vp.zoom,
     y: h / 2 + (wy - vp.y) * vp.zoom,
   }
+}
+
+interface Bounds {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function contentBounds(instances: Instance[], design: Design): Bounds {
+  if (instances.length === 0) {
+    return { x: -120, y: -80, w: 240, h: 160 }
+  }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const inst of instances) {
+    const b = instanceBounds(inst, design.defs[inst.defId])
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + b.w)
+    maxY = Math.max(maxY, b.y + b.h)
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+function portTerminalPosition(def: ComponentDef, portId: string, bounds: Bounds): { x: number; y: number } {
+  const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
+  if (inIdx >= 0) {
+    const total = inputPorts(def).length
+    const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((inIdx + 1) * bounds.h) / (total + 1)
+    return { x: bounds.x - TERMINAL_MARGIN, y }
+  }
+  const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
+  const total = outputPorts(def).length
+  const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((outIdx + 1) * bounds.h) / (total + 1)
+  return { x: bounds.x + bounds.w + TERMINAL_MARGIN, y }
 }
 
 function drawGateBody(
@@ -137,17 +177,17 @@ function drawPorts(
   vp: Viewport,
   p: Palette,
 ) {
-  for (let i = 0; i < def.inputs; i++) {
-    const port = portPosition(instance, def, `in:${i}`)
-    const s = w2s(port.x, port.y, w, h, vp)
+  for (const port of inputPorts(def)) {
+    const pos = portPosition(instance, def, port.id)
+    const s = w2s(pos.x, pos.y, w, h, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
     ctx.fillStyle = p.pin
     ctx.fill()
   }
-  for (let i = 0; i < def.outputs; i++) {
-    const port = portPosition(instance, def, `out:${i}`)
-    const s = w2s(port.x, port.y, w, h, vp)
+  for (const port of outputPorts(def)) {
+    const pos = portPosition(instance, def, port.id)
+    const s = w2s(pos.x, pos.y, w, h, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
     ctx.fillStyle = p.pinHover
@@ -192,6 +232,21 @@ function drawInstance(
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(def.name, s.x, s.y)
+
+    ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
+    ctx.fillStyle = p.text
+    for (const port of inputPorts(def)) {
+      const pos = portPosition(instance, def, port.id)
+      const ps = w2s(pos.x, pos.y, cw, ch, vp)
+      ctx.textAlign = 'right'
+      ctx.fillText(port.name, ps.x - 6 * vp.zoom, ps.y)
+    }
+    for (const port of outputPorts(def)) {
+      const pos = portPosition(instance, def, port.id)
+      const ps = w2s(pos.x, pos.y, cw, ch, vp)
+      ctx.textAlign = 'left'
+      ctx.fillText(port.name, ps.x + 6 * vp.zoom, ps.y)
+    }
   } else {
     drawGateBody(ctx, def.primitive ?? '', s.x, s.y, w * vp.zoom, h * vp.zoom, p)
     if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
@@ -204,6 +259,39 @@ function drawInstance(
   }
 
   drawPorts(ctx, instance, def, cw, ch, vp, p)
+}
+
+function drawPortTerminals(
+  ctx: CanvasRenderingContext2D,
+  def: ComponentDef,
+  bounds: Bounds,
+  cw: number,
+  ch: number,
+  vp: Viewport,
+  p: Palette,
+) {
+  ctx.font = `${11 * vp.zoom}px system-ui, sans-serif`
+  ctx.textBaseline = 'middle'
+  for (const port of def.ports) {
+    const pos = portTerminalPosition(def, port.id, bounds)
+    const s = w2s(pos.x, pos.y, cw, ch, vp)
+    ctx.beginPath()
+    ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
+    ctx.fillStyle = port.direction === 'input' ? p.pin : p.pinHover
+    ctx.fill()
+    ctx.fillStyle = p.text
+    if (port.direction === 'input') {
+      ctx.textAlign = 'right'
+      ctx.fillText(port.name, s.x - 8 * vp.zoom, s.y)
+    } else {
+      ctx.textAlign = 'left'
+      ctx.fillText(port.name, s.x + 8 * vp.zoom, s.y)
+    }
+  }
+}
+
+function pinKey(ref: PinRef): string {
+  return ref.kind === 'instance' ? `${ref.instanceId}:${ref.portId}` : `port:${ref.portId}`
 }
 
 export function drawScene(
@@ -226,6 +314,16 @@ export function drawScene(
 
   const instances = def.instances ?? []
   const byId = new Map(instances.map((i) => [i.id, i]))
+  const bounds = contentBounds(instances, design)
+
+  const resolveEndpoint = (ref: PinRef): { x: number; y: number } | null => {
+    if (ref.kind === 'instance') {
+      const inst = byId.get(ref.instanceId)
+      if (!inst) return null
+      return portPosition(inst, design.defs[inst.defId], ref.portId)
+    }
+    return portTerminalPosition(def, ref.portId, bounds)
+  }
 
   interface Trace {
     s: { x: number; y: number }
@@ -236,13 +334,9 @@ export function drawScene(
 
   const groups = new Map<string, Trace[]>()
   for (const conn of def.connections ?? []) {
-    const from = byId.get(conn.from.instanceId)
-    const to = byId.get(conn.to.instanceId)
-    if (!from || !to) continue
-    const fromDef = design.defs[from.defId]
-    const toDef = design.defs[to.defId]
-    const a = portPosition(from, fromDef, conn.from.portId)
-    const b = portPosition(to, toDef, conn.to.portId)
+    const a = resolveEndpoint(conn.from)
+    const b = resolveEndpoint(conn.to)
+    if (!a || !b) continue
     const path = wirePath(a, b)
     const trace: Trace = {
       s: w2s(path.start.x, path.start.y, cw, ch, vp),
@@ -250,7 +344,7 @@ export function drawScene(
       c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
       e: w2s(path.end.x, path.end.y, cw, ch, vp),
     }
-    const key = `${conn.from.instanceId}:${conn.from.portId}`
+    const key = pinKey(conn.from)
     const group = groups.get(key)
     if (group) group.push(trace)
     else groups.set(key, [trace])
@@ -259,6 +353,10 @@ export function drawScene(
   for (const traces of groups.values()) {
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, WIRE_WIDTH + HALO_WIDTH * 2)
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH)
+  }
+
+  if (def.kind === 'composite') {
+    drawPortTerminals(ctx, def, bounds, cw, ch, vp, p)
   }
 
   for (const inst of instances) {

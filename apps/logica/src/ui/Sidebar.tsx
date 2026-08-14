@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance } from '@logica/model'
+import { inputPorts, outputPorts } from '@logica/model'
 
 interface TreeItemProps {
   label: string
@@ -125,6 +126,8 @@ export function Sidebar({ width }: { width: number }) {
       <div className="side-section grow">
         <div className="side-title">Properties</div>
         <PropertiesPanel selectedIds={selectedIds} />
+        <div className="side-title">Ports</div>
+        <PortsEditor />
       </div>
     </aside>
   )
@@ -157,11 +160,11 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
       <div className="field-row">
         <label className="field">
           <span>Inputs</span>
-          <input defaultValue={def.inputs} readOnly />
+          <input defaultValue={inputPorts(def).length} readOnly />
         </label>
         <label className="field">
           <span>Outputs</span>
-          <input defaultValue={def.outputs} readOnly />
+          <input defaultValue={outputPorts(def).length} readOnly />
         </label>
       </div>
       {def.primitive === 'clock' && (
@@ -180,6 +183,37 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
           <input defaultValue={Math.round(inst.pos.y)} />
         </label>
       </div>
+    </div>
+  )
+}
+
+function PortsEditor() {
+  const design = useEditorStore((s) => s.design)
+  const renamePort = useEditorStore((s) => s.renamePort)
+  const addPort = useEditorStore((s) => s.addPort)
+  const removePort = useEditorStore((s) => s.removePort)
+  const current = design.defs[currentDefId(useEditorStore.getState())]
+  if (current.kind !== 'composite') return null
+
+  const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => (
+    <div className="ports-group">
+      <div className="ports-group-header">
+        <span>{title}</span>
+        <button className="mini-btn" onClick={() => addPort(direction)}>+</button>
+      </div>
+      {ports.map((p) => (
+        <div className="port-row" key={p.id}>
+          <input value={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
+          <button className="mini-btn" onClick={() => removePort(p.id)}>−</button>
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="props">
+      {renderGroup('Inputs', inputPorts(current), 'input')}
+      {renderGroup('Outputs', outputPorts(current), 'output')}
     </div>
   )
 }

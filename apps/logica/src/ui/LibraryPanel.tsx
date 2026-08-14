@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { PRIMITIVE_LIBRARY } from '@logica/model'
+import { useEditorStore } from '../state/editorStore'
 
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
+  const design = useEditorStore((s) => s.design)
+  const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root)
 
   return (
     <aside className="library" style={{ width }}>
@@ -21,13 +24,19 @@ export function LibraryPanel({ width }: { width: number }) {
           </button>
         ))}
       </div>
-      <div className="lib-section-label">My components</div>
-      <div className="lib-grid">
-        <button className={`lib-card${active === 'half-adder' ? ' active' : ''}`} onClick={() => setActive('half-adder')}>
-          <span className="lib-glyph">▣</span>
-          <span className="lib-label">half-adder</span>
-        </button>
-      </div>
+      {composites.length > 0 && (
+        <>
+          <div className="lib-section-label">My components</div>
+          <div className="lib-grid">
+            {composites.map((d) => (
+              <button key={d.id} className={`lib-card${active === d.id ? ' active' : ''}`} onClick={() => setActive(d.id)}>
+                <span className="lib-glyph">▣</span>
+                <span className="lib-label">{d.name}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </aside>
   )
 }

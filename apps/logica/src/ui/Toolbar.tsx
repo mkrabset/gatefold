@@ -5,6 +5,7 @@ import type { Tool } from '../state/editorStore'
 function IconButton(props: {
   title: string
   active?: boolean
+  disabled?: boolean
   onClick?: () => void
   children: React.ReactNode
 }) {
@@ -13,6 +14,7 @@ function IconButton(props: {
       className={`tb-btn${props.active ? ' active' : ''}`}
       title={props.title}
       onClick={props.onClick}
+      disabled={props.disabled}
     >
       {props.children}
     </button>
@@ -79,6 +81,13 @@ const MoonIcon = () => (
   </svg>
 )
 
+const GroupIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="3" width="7" height="7" rx="1" />
+    <rect x="7" y="6" width="7" height="7" rx="1" />
+  </svg>
+)
+
 export function Toolbar() {
   const tool = useEditorStore((s) => s.tool)
   const setTool = useEditorStore((s) => s.setTool)
@@ -87,6 +96,8 @@ export function Toolbar() {
   const design = useEditorStore((s) => s.design)
   const theme = useUiStore((s) => s.theme)
   const toggleTheme = useUiStore((s) => s.toggleTheme)
+  const selectedIds = useEditorStore((s) => s.selectedIds)
+  const openGroupDialog = useEditorStore((s) => s.openGroupDialog)
 
   return (
     <header className="toolbar">
@@ -106,6 +117,12 @@ export function Toolbar() {
           <PanIcon />
         </ToolButton>
       </div>
+
+      <div className="tb-divider" />
+
+      <IconButton title="Group into component" disabled={selectedIds.length < 2} onClick={openGroupDialog}>
+        <GroupIcon />
+      </IconButton>
 
       <div className="tb-divider" />
 

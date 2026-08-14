@@ -1,0 +1,47 @@
+import { useEditorStore } from '../state/editorStore'
+
+export function GroupDialog() {
+  const pendingGroup = useEditorStore((s) => s.pendingGroup)
+  const setGroupInputName = useEditorStore((s) => s.setGroupInputName)
+  const setGroupOutputName = useEditorStore((s) => s.setGroupOutputName)
+  const confirmGroup = useEditorStore((s) => s.confirmGroup)
+  const cancelGroup = useEditorStore((s) => s.cancelGroup)
+
+  if (!pendingGroup) return null
+
+  return (
+    <div className="dialog-overlay" onClick={cancelGroup}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-title">Group into component</div>
+        <div className="dialog-section">
+          <div className="dialog-section-title">Inputs</div>
+          {pendingGroup.inputs.map((name, i) => (
+            <input
+              key={`in-${i}`}
+              className="dialog-input"
+              value={name}
+              onChange={(e) => setGroupInputName(i, e.target.value)}
+            />
+          ))}
+          {pendingGroup.inputs.length === 0 && <div className="dialog-empty">no inputs</div>}
+        </div>
+        <div className="dialog-section">
+          <div className="dialog-section-title">Outputs</div>
+          {pendingGroup.outputs.map((name, i) => (
+            <input
+              key={`out-${i}`}
+              className="dialog-input"
+              value={name}
+              onChange={(e) => setGroupOutputName(i, e.target.value)}
+            />
+          ))}
+          {pendingGroup.outputs.length === 0 && <div className="dialog-empty">no outputs</div>}
+        </div>
+        <div className="dialog-actions">
+          <button className="dialog-btn" onClick={cancelGroup}>Cancel</button>
+          <button className="dialog-btn primary" onClick={confirmGroup}>Create</button>
+        </div>
+      </div>
+    </div>
+  )
+}

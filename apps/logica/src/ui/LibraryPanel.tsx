@@ -11,7 +11,7 @@ import { useEditorStore } from '../state/editorStore'
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
   const design = useEditorStore((s) => s.design)
-  const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root)
+  const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
 
   return (
     <aside className="library" style={{ width }}>

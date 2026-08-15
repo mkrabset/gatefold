@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
-import { inputPorts, outputPorts } from '@logica/model'
+import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, outputPorts } from '@logica/model'
 import { SortablePortList } from './SortablePortList'
 
 /**
@@ -83,7 +83,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
               expanded={isExpanded}
               onToggle={() => setExpanded((m) => ({ ...m, [inst.id]: !m[inst.id] }))}
               onSelect={() => selectId(inst.id)}
-              onOpen={isComposite ? () => onOpen(inst.defId) : undefined}
+              onOpen={childDef && isNavigableDef(childDef) ? () => onOpen(inst.defId) : undefined}
             />
             {isComposite && isExpanded && (
               <CompositeChildren def={childDef} depth={depth + 1} selectId={selectId} onOpen={onOpen} />
@@ -226,7 +226,7 @@ function PortsEditor() {
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
   const current = design.defs[currentDefId(useEditorStore.getState())]
-  if (current.kind !== 'composite') return null
+  const renameAllowed = allowRenameTerminals(current)
 
   // A port is connected if any wire touches its pin on the port group.
   const isConnected = (port: Port): boolean => {
@@ -239,22 +239,34 @@ function PortsEditor() {
     )
   }
 
-  const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => (
-    <div className="ports-group">
-      <div className="ports-group-header">
-        <span>{title}</span>
-        <button className="mini-btn" title={`Add ${direction}`} onClick={() => addPort(direction)}>+</button>
+  const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => {
+    const fixed = isArityFixed(current, direction)
+    return (
+      <div className="ports-group">
+        <div className="ports-group-header">
+          <span>{title}</span>
+          <button
+            className="mini-btn"
+            title={fixed ? `The number of ${direction}s is fixed` : `Add ${direction}`}
+            disabled={fixed}
+            onClick={() => addPort(direction)}
+          >
+            +
+          </button>
+        </div>
+        <SortablePortList
+          direction={direction}
+          ports={ports}
+          fixed={fixed}
+          renameAllowed={renameAllowed}
+          isConnected={isConnected}
+          onRename={renamePort}
+          onRemove={removePort}
+          onReorder={setPortOrder}
+        />
       </div>
-      <SortablePortList
-        direction={direction}
-        ports={ports}
-        isConnected={isConnected}
-        onRename={renamePort}
-        onRemove={removePort}
-        onReorder={setPortOrder}
-      />
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="props">

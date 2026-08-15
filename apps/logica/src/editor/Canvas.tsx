@@ -5,7 +5,7 @@ import { hitTest, hitTestPort, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
-import { findConnectionTo, pinRefEquals } from '@logica/model'
+import { findConnectionTo, isNavigableDef, pinRefEquals } from '@logica/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -136,6 +136,8 @@ export function Canvas() {
         if (!selected) {
           state.setSelection([hit.id])
         }
+        // Pause undo tracking so the whole drag is recorded as a single step.
+        useEditorStore.temporal.getState().pause()
         drag = { type: 'move', ids, startX: e.clientX, startY: e.clientY, origins }
         canvas.style.cursor = 'grabbing'
         canvas.setPointerCapture(e.pointerId)
@@ -228,13 +230,23 @@ export function Canvas() {
     }
 
     const onPointerUp = (e: PointerEvent) => {
-      if (drag?.type === 'shiftClick') {
-        useEditorStore.getState().toggleSelected(drag.id)
+      const d = drag
+      if (d?.type === 'shiftClick') {
+        useEditorStore.getState().toggleSelected(d.id)
       }
-      if (drag?.type === 'marquee') {
+      if (d?.type === 'marquee') {
         useEditorStore.getState().setMarquee(null)
       }
-      if (drag?.type === 'wire') {
+      if (d?.type === 'move') {
+        // Resume undo tracking and record the final position as a single step.
+        const state = useEditorStore.getState()
+        useEditorStore.temporal.getState().resume()
+        const dx = (e.clientX - d.startX) / state.viewport.zoom
+        const dy = (e.clientY - d.startY) / state.viewport.zoom
+        const positions = d.ids.map((_, i) => ({ x: d.origins[i].x + dx, y: d.origins[i].y + dy }))
+        state.setInstancesPosition(d.ids, positions)
+      }
+      if (d?.type === 'wire') {
         const state = useEditorStore.getState()
         const rect = wrap.getBoundingClientRect()
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
@@ -243,16 +255,16 @@ export function Canvas() {
         const port = hitTestPort(w.x, w.y, instances, state.design, def)
 
         if (port && port.role === 'sink') {
-          if (drag.originalTo && pinRefEquals(port.ref, drag.originalTo)) {
+          if (d.originalTo && pinRefEquals(port.ref, d.originalTo)) {
             // Released back onto the original target — no change.
-          } else if (drag.originalId) {
-            state.retargetConnection(drag.originalId, port.ref)
+          } else if (d.originalId) {
+            state.retargetConnection(d.originalId, port.ref)
           } else {
-            state.addConnection(drag.from, port.ref)
+            state.addConnection(d.from, port.ref)
           }
-        } else if (drag.originalId) {
+        } else if (d.originalId) {
           // Released on empty space — delete the grabbed wire.
-          state.removeConnection(drag.originalId)
+          state.removeConnection(d.originalId)
         }
         state.setPendingWire(null)
       }
@@ -281,14 +293,15 @@ export function Canvas() {
       })
     }
 
-    // Double-click a composite on the canvas to descend into it.
+    // Double-click a component on the canvas to enter it (composites and gates alike).
     const onDblClick = (e: MouseEvent) => {
       const state = useEditorStore.getState()
       const rect = wrap.getBoundingClientRect()
       const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
       const def = state.design.defs[currentDefId(state)]
       const hit = hitTest(w.x, w.y, currentInstances(), state.design, def)
-      if (hit && state.design.defs[hit.defId]?.kind === 'composite') {
+      const hitDef = hit && state.design.defs[hit.defId]
+      if (hit && hitDef && isNavigableDef(hitDef)) {
         state.navigateTo(hit.defId)
       }
     }
@@ -308,9 +321,19 @@ export function Canvas() {
       }
     }
 
+    // A cancelled drag must also resume undo tracking (otherwise it stays paused).
+    const onPointerCancel = () => {
+      if (drag?.type === 'move') {
+        useEditorStore.temporal.getState().resume()
+      }
+      drag = null
+      canvas.style.cursor = 'default'
+    }
+
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
+    canvas.addEventListener('pointercancel', onPointerCancel)
     canvas.addEventListener('pointerenter', onPointerEnter)
     canvas.addEventListener('pointerleave', onPointerExit)
     canvas.addEventListener('dblclick', onDblClick)
@@ -321,9 +344,11 @@ export function Canvas() {
       ro.disconnect()
       unsub()
       unsubTheme()
+      useEditorStore.temporal.getState().resume()
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
+      canvas.removeEventListener('pointercancel', onPointerCancel)
       canvas.removeEventListener('pointerenter', onPointerEnter)
       canvas.removeEventListener('pointerleave', onPointerExit)
       canvas.removeEventListener('dblclick', onDblClick)

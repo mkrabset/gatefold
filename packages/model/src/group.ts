@@ -55,7 +55,8 @@ function clonePinRef(ref: PinRef): PinRef {
   return { instanceId: ref.instanceId, portId: ref.portId }
 }
 
-function cloneDef(def: ComponentDef): ComponentDef {
+/** Deep-clone a single component definition. */
+export function cloneDef(def: ComponentDef): ComponentDef {
   return {
     ...def,
     ports: def.ports.map((p) => ({ ...p, terminal: p.terminal ? { ...p.terminal } : undefined })),
@@ -64,7 +65,8 @@ function cloneDef(def: ComponentDef): ComponentDef {
   }
 }
 
-function cloneDesign(design: Design): Design {
+/** Deep-clone a whole design. */
+export function cloneDesign(design: Design): Design {
   return {
     version: design.version,
     root: design.root,

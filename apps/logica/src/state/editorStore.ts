@@ -1,27 +1,36 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
+import { temporal } from 'zundo'
 import type { ComponentDef, Design, PinRef, Port, PortDirection } from '@logica/model'
 import {
   PRIMITIVE_LIBRARY,
+  allowRenameTerminals,
   applyGroup,
+  captureClipboard,
+  cloneDef,
+  copyDefSubgraph,
   findConnectionTo,
   inferGroup,
   inputPortDef,
   inputPortId,
   inputPorts,
+  instantiateClipboard,
+  isArityFixed,
   nextPortId,
+  nextPrimitiveInputName,
   outputPortDef,
   outputPortId,
   outputPorts,
   primitiveDef,
 } from '@logica/model'
+import type { Clipboard } from '@logica/model'
 import { instanceBounds } from '../editor/geometry'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
- * mutation of the nested design). Holds the `Design`, the navigation stack into
- * composites, the viewport, and the selection/marquee. Undo/redo (zundo) is not yet
- * attached.
+ * mutation of the nested design, and zundo for undo/redo over the design). Holds the
+ * `Design`, the navigation stack into composites, the viewport, and the
+ * selection/marquee.
  */
 
 export interface Viewport {
@@ -95,9 +104,16 @@ interface EditorState {
   addConnection: (from: PinRef, to: PinRef) => void
   retargetConnection: (id: string, to: PinRef) => void
   removeConnection: (id: string) => void
+  deleteSelection: () => void
+  copySelection: () => void
+  paste: () => void
 }
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
+
+// In-memory clipboard (not part of the undoable design state).
+let clipboard: Clipboard | null = null
+let pasteOffset = 0
 
 // Small helper for generating a name/id that is unique among a set of existing ones.
 function uniqueAgainst(existing: Set<string>, base: string): string {
@@ -130,6 +146,16 @@ function portPlacement(def: ComponentDef, design: Design, direction: PortDirecti
   }
   const cy = (minY + maxY) / 2
   return { x: direction === 'input' ? minX - 80 : maxX + 80, y: cy }
+}
+
+/** Copy a template def into a variant (instance-local) def, returning the new id. */
+function variantize(defs: Record<string, ComponentDef>, templateId: string, suffix: string): string {
+  const copyId = `${templateId}~${suffix}`
+  const copy = cloneDef(defs[templateId])
+  copy.id = copyId
+  copy.variant = true
+  defs[copyId] = copy
+  return copyId
 }
 
 /** A small demo design so the app has content to render before save/load exists. */
@@ -166,12 +192,12 @@ function createDemoDesign(): Design {
     kind: 'composite',
     ports: [],
     instances: [
-      { id: 'clk', name: 'clk', defId: 'clock', pos: { x: 100, y: 200 } },
-      { id: 'inv1', name: 'inv1', defId: 'not', pos: { x: 300, y: 100 } },
-      { id: 'and1', name: 'and1', defId: 'and', pos: { x: 300, y: 330 } },
-      { id: 'xor1', name: 'xor1', defId: 'xor', pos: { x: 500, y: 150 } },
-      { id: 'ha1', name: 'ha1', defId: 'half-adder', pos: { x: 500, y: 360 } },
-      { id: 'or1', name: 'or1', defId: 'or', pos: { x: 730, y: 250 } },
+      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 } },
+      { id: 'inv1', name: 'inv1', defId: variantize(defs, 'not', 'inv1'), pos: { x: 300, y: 100 } },
+      { id: 'and1', name: 'and1', defId: variantize(defs, 'and', 'and1'), pos: { x: 300, y: 330 } },
+      { id: 'xor1', name: 'xor1', defId: variantize(defs, 'xor', 'xor1'), pos: { x: 500, y: 150 } },
+      { id: 'ha1', name: 'ha1', defId: variantize(defs, 'half-adder', 'ha1'), pos: { x: 500, y: 360 } },
+      { id: 'or1', name: 'or1', defId: variantize(defs, 'or', 'or1'), pos: { x: 730, y: 250 } },
     ],
     connections: [
       { id: 'c1', from: iref('clk', 'out:0'), to: iref('inv1', 'in:0') },
@@ -190,10 +216,11 @@ function createDemoDesign(): Design {
 }
 
 export const useEditorStore = create<EditorState>()(
-  immer((set) => ({
-    viewport: { x: 400, y: 250, zoom: 1 },
-    selectedIds: [],
-    marquee: null,
+  temporal(
+    immer((set, get) => ({
+      viewport: { x: 400, y: 250, zoom: 1 },
+      selectedIds: [],
+      marquee: null,
     pendingWire: null,
     hoverPort: null,
     notice: null,
@@ -271,9 +298,18 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId]
         const last = def.instances?.[def.instances.length - 1]
         if (last) {
+          // Copy-on-place: the grouped instance gets its own variant, leaving the
+          // template in the library pristine.
+          const template = s.design.defs[last.defId]
+          const copyId = uniqueAgainst(new Set(Object.keys(s.design.defs)), `${template.id}~${last.id}`)
+          const copy = cloneDef(template)
+          copy.id = copyId
+          copy.variant = true
+          s.design.defs[copyId] = copy
+          last.defId = copyId
           // Place the new composite's port groups relative to its components: inputs
           // left of the leftmost input pin, outputs right of the rightmost output pin.
-          const newDef = s.design.defs[last.defId]
+          const newDef = s.design.defs[copyId]
           for (const inst of newDef.instances ?? []) {
             if (inst.defId === 'input-port') inst.pos = portPlacement(newDef, s.design, 'input')
             else if (inst.defId === 'output-port') inst.pos = portPlacement(newDef, s.design, 'output')
@@ -285,6 +321,7 @@ export const useEditorStore = create<EditorState>()(
     renamePort: (portId, name) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (!allowRenameTerminals(def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (port) port.name = name
       }),
@@ -297,31 +334,31 @@ export const useEditorStore = create<EditorState>()(
     addPort: (direction) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
-        if (def.kind !== 'composite') return
+        if (isArityFixed(def, direction)) return
         const count = direction === 'input' ? inputPorts(def).length : outputPorts(def).length
         const portId = nextPortId(def, direction)
-        const name = direction === 'input' ? `in${count + 1}` : `out${count + 1}`
-        if (!def.instances) def.instances = []
-        const groupDefId = direction === 'input' ? 'input-port' : 'output-port'
-        let group = def.instances.find((i) => i.defId === groupDefId)
-        if (!group) {
-          group = {
-            id: uniqueAgainst(
-              new Set(def.instances.map((i) => i.id)),
-              direction === 'input' ? 'port-in' : 'port-out',
-            ),
-            name: '',
-            defId: groupDefId,
-            pos: portPlacement(def, s.design, direction),
+        const name = direction === 'input' ? nextPrimitiveInputName(def) ?? `in${count + 1}` : `out${count + 1}`
+        let terminal: Port['terminal']
+        // For composites, back the port with a pin on the port-group instance.
+        if (def.kind === 'composite') {
+          if (!def.instances) def.instances = []
+          const groupDefId = direction === 'input' ? 'input-port' : 'output-port'
+          let group = def.instances.find((i) => i.defId === groupDefId)
+          if (!group) {
+            group = {
+              id: uniqueAgainst(
+                new Set(def.instances.map((i) => i.id)),
+                direction === 'input' ? 'port-in' : 'port-out',
+              ),
+              name: '',
+              defId: groupDefId,
+              pos: portPlacement(def, s.design, direction),
+            }
+            def.instances.push(group)
           }
-          def.instances.push(group)
+          terminal = { instanceId: group.id, pinId: portId }
         }
-        const port: Port = {
-          id: portId,
-          name,
-          direction,
-          terminal: { instanceId: group.id, pinId: portId },
-        }
+        const port: Port = { id: portId, name, direction, terminal }
         // Keep the ports array ordered: inputs first, then outputs.
         if (direction === 'input') {
           const outStart = def.ports.findIndex((p) => p.direction === 'output')
@@ -334,9 +371,10 @@ export const useEditorStore = create<EditorState>()(
     removePort: (portId) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
-        if (def.kind !== 'composite') return
         const port = def.ports.find((p) => p.id === portId)
+        if (port && isArityFixed(def, port.direction)) return
         def.ports = def.ports.filter((p) => p.id !== portId)
+        if (def.kind !== 'composite') return
         const instId = port?.terminal?.instanceId
         if (instId) {
           // Drop any connections touching this port's group pin.
@@ -355,7 +393,6 @@ export const useEditorStore = create<EditorState>()(
     setPortOrder: (direction, ids) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
-        if (def.kind !== 'composite') return
         const byId = new Map(def.ports.map((p) => [p.id, p]))
         const ordered = ids.map((id) => byId.get(id)).filter((p): p is Port => !!p)
         const inputs = inputPorts(def)
@@ -371,7 +408,15 @@ export const useEditorStore = create<EditorState>()(
         const base = srcDef.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'component'
         const name = uniqueAgainst(new Set(def.instances.map((i) => i.name)), base)
         const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), name)
-        def.instances.push({ id, name, defId, pos: { x: pos.x, y: pos.y } })
+        // Deep copy-on-place: the instance gets its own variant def *and* a copy of
+        // its whole internal hierarchy, independent of the library template.
+        const usedIds = new Set(Object.keys(s.design.defs))
+        const { defs, idMap } = copyDefSubgraph(s.design.defs, [defId], usedIds)
+        for (const [copyId, d] of Object.entries(defs)) {
+          s.design.defs[copyId] = d
+        }
+        const newDefId = idMap.get(defId) ?? defId
+        def.instances.push({ id, name, defId: newDefId, pos: { x: pos.x, y: pos.y } })
         s.selectedIds = [id]
       }),
     addConnection: (from, to) =>
@@ -406,7 +451,45 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         def.connections = (def.connections ?? []).filter((c) => c.id !== id)
       }),
-  })),
+    deleteSelection: () =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const deleted = new Set<string>()
+        for (const id of s.selectedIds) {
+          const inst = def.instances?.find((i) => i.id === id)
+          if (!inst) continue
+          const instDef = s.design.defs[inst.defId]
+          const isPortGroup = instDef.primitive === 'input-port' || instDef.primitive === 'output-port'
+          if (!isPortGroup) deleted.add(id)
+        }
+        def.instances = (def.instances ?? []).filter((i) => !deleted.has(i.id))
+        def.connections = (def.connections ?? []).filter(
+          (c) => !deleted.has(c.from.instanceId) && !deleted.has(c.to.instanceId),
+        )
+        s.selectedIds = []
+      }),
+    copySelection: () => {
+      const s = get()
+      const clip = captureClipboard(s.design, currentDefId(s), s.selectedIds)
+      if (clip) {
+        clipboard = clip
+        pasteOffset = 0
+      }
+    },
+    paste: () =>
+      set((s) => {
+        if (!clipboard) return
+        pasteOffset += 24
+        const { design, newIds } = instantiateClipboard(s.design, currentDefId(s), clipboard, {
+          x: pasteOffset,
+          y: pasteOffset,
+        })
+        s.design = design
+        s.selectedIds = newIds
+      }),
+    })),
+    { limit: 100, partialize: (state) => ({ design: state.design }) },
+  ),
 )
 
 /** The definition currently being viewed/edited (top of the navigation stack). */

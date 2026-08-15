@@ -1,6 +1,6 @@
-import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
-import { defBodySize, instanceBounds, portPosition } from './geometry'
+import { defBodySize, instanceBounds, portGroupSize, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
 import type { PendingWire, Rect, Viewport } from '../state/editorStore'
@@ -266,7 +266,24 @@ function drawPortGroup(
 ) {
   const isInput = def.primitive === 'input-port'
   const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
-  const b = instanceBounds(parentDef, instance, def)
+  drawPortGroupBox(ctx, isInput, ports, instance.pos, cw, ch, vp, selected, p)
+}
+
+/** Core port-group drawing, given the pins and the group's world position. */
+function drawPortGroupBox(
+  ctx: CanvasRenderingContext2D,
+  isInput: boolean,
+  ports: Port[],
+  pos: { x: number; y: number },
+  cw: number,
+  ch: number,
+  vp: Viewport,
+  selected: boolean,
+  p: Palette,
+) {
+  const n = ports.length
+  const { w, h } = portGroupSize(n)
+  const b = { x: pos.x - w / 2, y: pos.y - h / 2, w, h }
 
   if (selected) {
     const tl = w2s(b.x - 6, b.y - 6, cw, ch, vp)
@@ -287,9 +304,10 @@ function drawPortGroup(
 
   ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
   ctx.textBaseline = 'middle'
-  for (const port of ports) {
-    const pos = portPosition(parentDef, instance, def, port.id)
-    const s = w2s(pos.x, pos.y, cw, ch, vp)
+  ports.forEach((port, idx) => {
+    const y = n <= 1 ? pos.y : pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
+    const x = pos.x + (isInput ? w / 2 : -w / 2)
+    const s = w2s(x, y, cw, ch, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
     ctx.fillStyle = isInput ? p.pinHover : p.pin
@@ -302,7 +320,7 @@ function drawPortGroup(
       ctx.textAlign = 'left'
       ctx.fillText(port.name, s.x + 6 * vp.zoom, s.y)
     }
-  }
+  })
 }
 
 function pinKey(ref: PinRef): string {
@@ -328,6 +346,31 @@ export function drawScene(
 
   const def = design.defs[defId]
   if (!def) return
+
+  // Primitives have no editable internals — show a centered placeholder plus their
+  // input/output port groups.
+  if (def.kind === 'primitive') {
+    const W = 220
+    const H = 100
+    const s = w2s(vp.x, vp.y, cw, ch, vp)
+    ctx.beginPath()
+    ctx.roundRect(s.x - (W / 2) * vp.zoom, s.y - (H / 2) * vp.zoom, W * vp.zoom, H * vp.zoom, 8 * vp.zoom)
+    ctx.fillStyle = p.compositeFill
+    ctx.fill()
+    ctx.strokeStyle = p.gateStroke
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+    ctx.fillStyle = p.text
+    ctx.font = `${14 * vp.zoom}px system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('Internal circuitry', s.x, s.y)
+
+    const margin = 60
+    drawPortGroupBox(ctx, true, inputPorts(def), { x: vp.x - W / 2 - margin, y: vp.y }, cw, ch, vp, false, p)
+    drawPortGroupBox(ctx, false, outputPorts(def), { x: vp.x + W / 2 + margin, y: vp.y }, cw, ch, vp, false, p)
+    return
+  }
 
   const instances = def.instances ?? []
   const byId = new Map(instances.map((i) => [i.id, i]))

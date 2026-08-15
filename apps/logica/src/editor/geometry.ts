@@ -29,7 +29,7 @@ function isPortGroup(def: ComponentDef): boolean {
 }
 
 /** Size of a port-group rectangle given its pin count. */
-function portGroupSize(n: number): { w: number; h: number } {
+export function portGroupSize(n: number): { w: number; h: number } {
   return { w: PORT_GROUP_W, h: Math.max(28, n * PORT_GROUP_SPACING) }
 }
 

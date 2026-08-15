@@ -1,5 +1,5 @@
-import type { ComponentDef, Port, PrimitiveKind } from './types'
-import { inputPortId, outputPortId } from './types'
+import type { ComponentDef, Port, PortDirection, PrimitiveKind } from './types'
+import { inputPortId, inputPorts, outputPortId } from './types'
 
 /**
  * The built-in primitive components and their behavior metadata.
@@ -16,14 +16,20 @@ export interface PrimitiveSpec {
   inputs: number
   outputs: number
   glyph: string
+  /** Whether the number of input terminals is fixed (not user-editable). */
+  fixedInputs: boolean
+  /** Whether the number of output terminals is fixed (not user-editable). */
+  fixedOutputs: boolean
+  /** Whether terminal names can be renamed by the user. */
+  allowRenameTerminals: boolean
 }
 
 export const PRIMITIVE_LIBRARY: PrimitiveSpec[] = [
-  { kind: 'and', label: 'AND', inputs: 2, outputs: 1, glyph: '&' },
-  { kind: 'or', label: 'OR', inputs: 2, outputs: 1, glyph: '≥1' },
-  { kind: 'xor', label: 'XOR', inputs: 2, outputs: 1, glyph: '=1' },
-  { kind: 'not', label: 'NOT', inputs: 1, outputs: 1, glyph: '1' },
-  { kind: 'clock', label: 'CLOCK', inputs: 0, outputs: 1, glyph: '∿' },
+  { kind: 'and', label: 'AND', inputs: 2, outputs: 1, glyph: '&', fixedInputs: false, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'or', label: 'OR', inputs: 2, outputs: 1, glyph: '≥1', fixedInputs: false, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'xor', label: 'XOR', inputs: 2, outputs: 1, glyph: '=1', fixedInputs: false, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'not', label: 'NOT', inputs: 1, outputs: 1, glyph: '1', fixedInputs: true, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'clock', label: 'CLOCK', inputs: 0, outputs: 1, glyph: '∿', fixedInputs: true, fixedOutputs: true, allowRenameTerminals: false },
 ]
 
 const INPUT_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -53,6 +59,33 @@ export function primitiveDef(kind: PrimitiveKind): ComponentDef {
 
 export function specOf(kind: PrimitiveKind): PrimitiveSpec {
   return PRIMITIVE_LIBRARY.find((p) => p.kind === kind)!
+}
+
+/**
+ * Whether the arity of `def` in the given direction is fixed. Composites are always
+ * editable; primitives read their spec (the internal port-group primitives are fixed).
+ */
+export function isArityFixed(def: ComponentDef, direction: PortDirection): boolean {
+  if (def.kind === 'composite') return false
+  if (!def.primitive || def.primitive === 'input-port' || def.primitive === 'output-port') return true
+  const spec = specOf(def.primitive)
+  return direction === 'input' ? spec.fixedInputs : spec.fixedOutputs
+}
+
+/** Whether the terminals of `def` can be renamed by the user. */
+export function allowRenameTerminals(def: ComponentDef): boolean {
+  if (def.kind === 'composite') return true
+  if (!def.primitive || def.primitive === 'input-port' || def.primitive === 'output-port') return false
+  return specOf(def.primitive).allowRenameTerminals
+}
+
+/**
+ * The suggested name for a newly-added input terminal of a primitive (the next
+ * letter after the existing inputs), or null for composites (they use `inN`).
+ */
+export function nextPrimitiveInputName(def: ComponentDef): string | null {
+  if (def.kind !== 'primitive') return null
+  return INPUT_NAMES[inputPorts(def).length] ?? null
 }
 
 /**

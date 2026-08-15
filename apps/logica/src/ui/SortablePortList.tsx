@@ -7,6 +7,8 @@ import type { Port } from '@logica/model'
 interface SortablePortListProps {
   direction: 'input' | 'output'
   ports: Port[]
+  fixed: boolean
+  renameAllowed: boolean
   isConnected: (port: Port) => boolean
   onRename: (id: string, name: string) => void
   onRemove: (id: string) => void
@@ -18,7 +20,7 @@ interface SortablePortListProps {
  * @dnd-kit (items slide out of the way during the drag); the final order is committed
  * to the store on drop, computed from the store's current order.
  */
-export function SortablePortList({ direction, ports, isConnected, onRename, onRemove, onReorder }: SortablePortListProps) {
+export function SortablePortList({ direction, ports, fixed, renameAllowed, isConnected, onRename, onRemove, onReorder }: SortablePortListProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const items = ports.map((p) => p.id)
 
@@ -42,6 +44,8 @@ export function SortablePortList({ direction, ports, isConnected, onRename, onRe
             id={port.id}
             port={port}
             connected={isConnected(port)}
+            fixed={fixed}
+            renameAllowed={renameAllowed}
             onRename={onRename}
             onRemove={onRemove}
           />
@@ -55,12 +59,16 @@ function SortablePortRow({
   id,
   port,
   connected,
+  fixed,
+  renameAllowed,
   onRename,
   onRemove,
 }: {
   id: string
   port: Port
   connected: boolean
+  fixed: boolean
+  renameAllowed: boolean
   onRename: (id: string, name: string) => void
   onRemove: (id: string) => void
 }) {
@@ -71,16 +79,26 @@ function SortablePortRow({
     opacity: isDragging ? 0.85 : 1,
     zIndex: isDragging ? 1 : undefined,
   }
+  const removeTitle = fixed
+    ? `The number of terminals is fixed`
+    : connected
+      ? `${port.name} is connected`
+      : `Remove ${port.name}`
   return (
     <div ref={setNodeRef} style={style} className="port-row">
       <span ref={setActivatorNodeRef} {...attributes} {...listeners} className="drag-handle" title="Drag to reorder">
         ⣿
       </span>
-      <input value={port.name} title={port.name} onChange={(e) => onRename(port.id, e.target.value)} />
+      <input
+        value={port.name}
+        title={port.name}
+        readOnly={!renameAllowed}
+        onChange={(e) => onRename(port.id, e.target.value)}
+      />
       <button
         className="mini-btn"
-        title={connected ? `${port.name} is connected` : `Remove ${port.name}`}
-        disabled={connected}
+        title={removeTitle}
+        disabled={fixed || connected}
         onClick={() => onRemove(port.id)}
       >
         −

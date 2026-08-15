@@ -36,6 +36,8 @@ export interface ComponentDef {
   ports: Port[]
   instances?: Instance[]
   connections?: Connection[]
+  /** True when this def is an instance-local fork (hidden from the library). */
+  variant?: boolean
 }
 
 export interface Instance {
@@ -96,6 +98,15 @@ export function nextPortId(def: ComponentDef, direction: PortDirection): string 
 /** Structural equality for connection endpoints. */
 export function pinRefEquals(a: PinRef, b: PinRef): boolean {
   return a.instanceId === b.instanceId && a.portId === b.portId
+}
+
+/**
+ * Whether a definition can be "entered" for editing. Composites are always
+ * enterable; primitives are enterable except the internal port-group primitives.
+ */
+export function isNavigableDef(def: ComponentDef): boolean {
+  if (def.kind === 'composite') return true
+  return def.primitive !== 'input-port' && def.primitive !== 'output-port'
 }
 
 /**

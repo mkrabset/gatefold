@@ -7,6 +7,18 @@ import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
+import { useEditorStore } from './state/editorStore'
+
+/** True when the event targets a text entry, where editor shortcuts should be ignored. */
+function isTextInput(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  )
+}
 
 /**
  * Root layout: toolbar on top, then a three-column main area (sidebar | canvas |
@@ -23,6 +35,36 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+
+  // Global editor shortcuts: copy, paste, delete, undo, redo.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isTextInput(e.target)) return
+      const mod = e.ctrlKey || e.metaKey
+      const key = e.key.toLowerCase()
+      if (mod && key === 'c') {
+        e.preventDefault()
+        useEditorStore.getState().copySelection()
+      } else if (mod && key === 'v') {
+        e.preventDefault()
+        useEditorStore.getState().paste()
+      } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault()
+        useEditorStore.getState().deleteSelection()
+      } else if (mod && key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        useEditorStore.temporal.getState().redo()
+      } else if (mod && key === 'y') {
+        e.preventDefault()
+        useEditorStore.temporal.getState().redo()
+      } else if (mod && key === 'z') {
+        e.preventDefault()
+        useEditorStore.temporal.getState().undo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   return (
     <div className="app">

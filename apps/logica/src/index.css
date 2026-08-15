@@ -398,6 +398,11 @@ body {
   border-color: var(--accent);
 }
 
+.port-row input[readonly] {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 .mini-btn {
   display: grid;
   place-items: center;

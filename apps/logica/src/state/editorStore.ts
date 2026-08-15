@@ -90,6 +90,7 @@ interface EditorState {
   renameInstance: (id: string, name: string) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
+  setPortOrder: (direction: PortDirection, ids: string[]) => void
   addInstance: (defId: string, pos: { x: number; y: number }) => void
   addConnection: (from: PinRef, to: PinRef) => void
   retargetConnection: (id: string, to: PinRef) => void
@@ -350,6 +351,17 @@ export const useEditorStore = create<EditorState>()(
             def.instances = (def.instances ?? []).filter((i) => i.id !== instId)
           }
         }
+      }),
+    setPortOrder: (direction, ids) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
+        const byId = new Map(def.ports.map((p) => [p.id, p]))
+        const ordered = ids.map((id) => byId.get(id)).filter((p): p is Port => !!p)
+        const inputs = inputPorts(def)
+        const outputs = outputPorts(def)
+        // Replace the matching section of the ordered port list.
+        def.ports = direction === 'input' ? [...ordered, ...outputs] : [...inputs, ...ordered]
       }),
     addInstance: (defId, pos) =>
       set((s) => {

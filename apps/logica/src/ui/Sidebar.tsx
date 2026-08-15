@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
+import { SortablePortList } from './SortablePortList'
 
 /**
  * Left sidebar: a component tree for the current definition (double-click a
@@ -223,6 +224,7 @@ function PortsEditor() {
   const renamePort = useEditorStore((s) => s.renamePort)
   const addPort = useEditorStore((s) => s.addPort)
   const removePort = useEditorStore((s) => s.removePort)
+  const setPortOrder = useEditorStore((s) => s.setPortOrder)
   const current = design.defs[currentDefId(useEditorStore.getState())]
   if (current.kind !== 'composite') return null
 
@@ -243,22 +245,14 @@ function PortsEditor() {
         <span>{title}</span>
         <button className="mini-btn" title={`Add ${direction}`} onClick={() => addPort(direction)}>+</button>
       </div>
-      {ports.map((p) => {
-        const connected = isConnected(p)
-        return (
-          <div className="port-row" key={p.id}>
-            <input value={p.name} title={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
-            <button
-              className="mini-btn"
-              title={connected ? `${p.name} is connected` : `Remove ${p.name}`}
-              disabled={connected}
-              onClick={() => removePort(p.id)}
-            >
-              −
-            </button>
-          </div>
-        )
-      })}
+      <SortablePortList
+        direction={direction}
+        ports={ports}
+        isConnected={isConnected}
+        onRename={renamePort}
+        onRemove={removePort}
+        onReorder={setPortOrder}
+      />
     </div>
   )
 

@@ -367,6 +367,20 @@ body {
   margin-bottom: 4px;
 }
 
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 .port-row input {
   flex: 1;
   min-width: 0;

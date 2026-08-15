@@ -30,13 +30,30 @@ export const PRIMITIVE_LIBRARY: PrimitiveSpec[] = [
   { kind: 'xor', label: 'XOR', inputs: 2, outputs: 1, glyph: '=1', fixedInputs: false, fixedOutputs: true, allowRenameTerminals: false },
   { kind: 'not', label: 'NOT', inputs: 1, outputs: 1, glyph: '1', fixedInputs: true, fixedOutputs: true, allowRenameTerminals: false },
   { kind: 'clock', label: 'CLOCK', inputs: 0, outputs: 1, glyph: '∿', fixedInputs: true, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'fan-in', label: 'FAN-IN', inputs: 2, outputs: 1, glyph: '≫', fixedInputs: false, fixedOutputs: true, allowRenameTerminals: false },
+  { kind: 'fan-out', label: 'FAN-OUT', inputs: 1, outputs: 2, glyph: '≪', fixedInputs: true, fixedOutputs: false, allowRenameTerminals: false },
 ]
 
 const INPUT_NAMES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 
-// Build the ordered port list for a primitive: inputs A/B/C…, then output(s).
+// Build the ordered port list for a primitive: inputs A/B/C…, then output(s). The
+// fan-in/fan-out bus terminal's width is derived from the opposite side's arity.
 function buildPorts(kind: PrimitiveKind, inputs: number, outputs: number): Port[] {
   const ports: Port[] = []
+  if (kind === 'fan-out') {
+    ports.push({ id: inputPortId(0), name: 'BUS', direction: 'input' })
+    for (let i = 0; i < outputs; i++) {
+      ports.push({ id: outputPortId(i), name: `Y${i + 1}`, direction: 'output' })
+    }
+    return ports
+  }
+  if (kind === 'fan-in') {
+    for (let i = 0; i < inputs; i++) {
+      ports.push({ id: inputPortId(i), name: INPUT_NAMES[i] ?? `in${i + 1}`, direction: 'input' })
+    }
+    ports.push({ id: outputPortId(0), name: 'BUS', direction: 'output' })
+    return ports
+  }
   for (let i = 0; i < inputs; i++) {
     ports.push({ id: inputPortId(i), name: INPUT_NAMES[i] ?? `in${i + 1}`, direction: 'input' })
   }

@@ -1,57 +1,55 @@
 # Session Notes
 
-Last updated: end of session (2026-08-15).
+Last updated: 2026-08-15 (post bus-support + width-derivation work).
 
 ## Where we are
 
 Logica is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
-HTML5 canvas, pnpm monorepo). The editor is feature-rich: wiring, hierarchical components,
-port editing, copy/paste/delete, and undo/redo all work. The **simulator** and **JSON
-save/load** are the main things still missing. See `PLAN.md` (roadmap) and
-`docs/ARCHITECTURE.md` (as-built design).
+HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
+hierarchical circuits; the **simulator** and **JSON save/load** remain unimplemented.
+See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSARY.md`
+(terminology).
 
-## Completed this session
+## Latest endeavors (this session)
 
-- **Port components** — a composite's ports are `input-port`/`output-port` *group*
-  instances (single movable rectangle per direction, terminals derived from the parent's
-  ports); this eliminated the source/sink ambiguity and made all wiring plain output→input.
-- **Arity constraints** — `PrimitiveSpec` gained `fixedInputs` / `fixedOutputs` /
-  `allowRenameTerminals`; AND/OR/XOR have variable inputs (parity for XOR), NOT/CLOCK are
-  fixed, built-ins aren't renamable.
-- **Enter any component** — double-click composites *and* gates (gates show an "Internal
-  circuitry" placeholder + port groups); Escape exits.
-- **Copy-on-place** — templates are immutable; placing/grouping deep-copies a template
-  (and its whole hierarchy) into `variant` defs, so instances are independent from birth.
-- **Wire editing** — create wires (output→input), grab/re-target/delete from an input pin,
-  single-driver invariant with rejection toast, hover highlights.
-- **Copy / paste / delete / undo / redo** — in-app clipboard (`clipboard.ts`: deep-copy
-  with id rewriting), zundo `temporal` (`partialize`d to `design`), drag coalescing, global
-  shortcuts.
-- **Port reordering** — animated drag-to-reorder via @dnd-kit/sortable.
-- **Instance rename** commits on Enter/blur; instance names render on the canvas.
-- Docs, comments, and a user README kept in sync.
+- **Buses** — new `fan-in` / `fan-out` primitives (variable arity; bus terminal `BUS`).
+- **Width is derived, not stored** — `Port.width` was removed. `portWidth(def, port)` gives
+  the *intrinsic* width (fan-in output / fan-out input = arity, else 1); `pinWidth(design,
+  parentDef, ref)` in `editor/geometry.ts` follows connections to inherit width through
+  composite ports. `isNeutralPin` detects unconnected composite ports.
+- **Validation** — `addConnection`/`retargetConnection` enforce equal width only when both
+  ends are determined; a neutral port adopts the other side's width.
+- **Rendering** — bus wires scale with width; bus pins larger (`3.5·√width`); hovering a bus
+  pin shows an `×n` arity tooltip.
+- **Grouping** — bus width propagates through inferred ports automatically (derived from
+  internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
+- **Template editing** — double-click a composite card in the library to edit its template
+  (breadcrumb shows a `template` badge); an `×` on each card + confirm dialog deletes it.
+- **Group dialog** — now names the new component; a single selected custom component is
+  *promoted* to a template (no new port layer) instead of being wrapped.
+- **Undo/redo, copy/paste/delete, copy-on-place, animated port reorder, enter-any-component
+  (double-click) + Escape, arity constraints** — all working (see ARCHITECTURE.md).
 
 ## Immediate next steps (pick up here)
 
 1. **Simulation engine** — new `packages/sim` (or extend `@logica/model`): event-driven
-   combinational → clocked/sequential, hierarchy flattening (map composite ports via
-   `Port.terminal`), cycle detection.
+   combinational → clocked/sequential; hierarchy flattening via `Port.terminal`; cycle
+   detection; fan-in/fan-out are per-bit identities (`out[i] = in[i]`); buses = `n`
+   independent bits.
 2. **Save/load JSON** — serialize/deserialize the `Design`, wire the toolbar buttons.
 3. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
 
 ## Open items / decisions to revisit
 
-- **Name uniqueness** is not enforced (`renameInstance`, `renamePort`, port names) — cosmetic
-  duplicates are possible.
-- **Deeply-nested grouping** isolation is imperfect: a grouped *template* can still reference
-  a `variant` def (the store deep-copies the template for the grouped instance, but nested
-  variants are shared). Common cases are covered; a full transitive copy for grouping is a
-  possible follow-up.
-- Composite **definition** renaming is not implemented (only instance + port names).
-- Cycle detection for nested composites deferred until the simulator needs it.
-- Multi-bit buses planned for later (single wires only for now).
-- Orthogonal wire routing: currently cubic-bezier; router is isolated for a future swap.
+- **Name uniqueness** not enforced (`renameInstance`/`renamePort`/port names) — cosmetic.
+- **Deeply-nested grouping** isolation imperfect: a grouped *template* can reference a
+  `variant` def (the store deep-copies only the top level; nested variants are shared).
+- Composite **definition** renaming not implemented (only instance + port names).
+- Cross-level **bus width consistency** is per-level only (internal vs external width
+  mismatch isn't caught across a composite boundary).
+- Cycle detection deferred until the simulator needs it.
 - OS-clipboard integration deferred (clipboard is in-app only).
+- Orthogonal bus/wire routing deferred (cubic-bezier `routing.ts` isolates this).
 
 ## Commands
 

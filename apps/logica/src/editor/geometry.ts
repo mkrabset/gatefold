@@ -1,5 +1,5 @@
 import type { ComponentDef, Design, Instance, PinRef, PrimitiveKind } from '@logica/model'
-import { inputPorts, outputPorts } from '@logica/model'
+import { inputPorts, outputPorts, pinRefEquals } from '@logica/model'
 
 /**
  * Geometry helpers for the canvas: component sizes, port placement, and hit-testing.
@@ -16,6 +16,8 @@ const PRIMITIVE_SIZE: Record<PrimitiveKind, { w: number; h: number }> = {
   xor: { w: 64, h: 44 },
   not: { w: 48, h: 44 },
   clock: { w: 46, h: 46 },
+  'fan-in': { w: 56, h: 48 },
+  'fan-out': { w: 56, h: 48 },
   'input-port': { w: 56, h: 28 },
   'output-port': { w: 56, h: 28 },
 }
@@ -159,4 +161,48 @@ export function hitTestPort(
   }
 
   return best
+}
+
+/**
+ * The width (number of wires) of the pin referenced by `ref`, resolved within `parentDef`.
+ * fan-in/fan-out have an intrinsic width from their arity; composite ports (a
+ * composite's own terminal or a composite instance's pin) inherit their width from
+ * whatever they are connected to; single wires are width 1. A composite port that is
+ * not connected anywhere is neutral (1).
+ */
+export function pinWidth(design: Design, parentDef: ComponentDef, ref: PinRef, visited?: Set<string>): number {
+  const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
+  if (!inst) return 1
+  const def = design.defs[inst.defId]
+  if (def.primitive === 'fan-in' && ref.portId.startsWith('out')) {
+    return inputPorts(def).length
+  }
+  if (def.primitive === 'fan-out' && ref.portId.startsWith('in')) {
+    return outputPorts(def).length
+  }
+  // Composite port (its own terminal) or a composite instance's pin: follow the
+  // connection in `parentDef` to inherit the width.
+  if (def.primitive === 'input-port' || def.primitive === 'output-port' || def.kind === 'composite') {
+    const seen = visited ?? new Set<string>()
+    const key = `${ref.instanceId}:${ref.portId}`
+    if (seen.has(key)) return 1
+    seen.add(key)
+    for (const c of parentDef.connections ?? []) {
+      if (pinRefEquals(c.from, ref)) return pinWidth(design, parentDef, c.to, seen)
+      if (pinRefEquals(c.to, ref)) return pinWidth(design, parentDef, c.from, seen)
+    }
+    return 1
+  }
+  return 1
+}
+
+/** True when `ref` is a composite port pin with no connections (so its width is neutral). */
+export function isNeutralPin(design: Design, parentDef: ComponentDef, ref: PinRef): boolean {
+  const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
+  if (!inst) return false
+  const def = design.defs[inst.defId]
+  if (def.primitive === 'input-port' || def.primitive === 'output-port' || def.kind === 'composite') {
+    return !(parentDef.connections ?? []).some((c) => pinRefEquals(c.from, ref) || pinRefEquals(c.to, ref))
+  }
+  return false
 }

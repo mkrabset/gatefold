@@ -24,7 +24,7 @@ import {
   primitiveDef,
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
-import { instanceBounds } from '../editor/geometry'
+import { instanceBounds, isNeutralPin, pinWidth } from '../editor/geometry'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -511,6 +511,13 @@ export const useEditorStore = create<EditorState>()(
           s.notice = 'Input already has a driver'
           return
         }
+        // Bus width must match (neutral composite ports adopt the other side's width).
+        if (!isNeutralPin(s.design, def, from) && !isNeutralPin(s.design, def, to)) {
+          if (pinWidth(s.design, def, from) !== pinWidth(s.design, def, to)) {
+            s.notice = 'Bus width mismatch'
+            return
+          }
+        }
         const ids = new Set(def.connections.map((c) => c.id))
         let i = def.connections.length + 1
         while (ids.has(`c${i}`)) i++
@@ -526,6 +533,13 @@ export const useEditorStore = create<EditorState>()(
         if (conflict && conflict.id !== id) {
           s.notice = 'Input already has a driver'
           return
+        }
+        // Bus width must match the existing source (neutral ports adopt).
+        if (!isNeutralPin(s.design, def, original.from) && !isNeutralPin(s.design, def, to)) {
+          if (pinWidth(s.design, def, original.from) !== pinWidth(s.design, def, to)) {
+            s.notice = 'Bus width mismatch'
+            return
+          }
         }
         original.to = to
       }),

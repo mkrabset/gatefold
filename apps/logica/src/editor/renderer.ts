@@ -1,6 +1,6 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
-import { inputPorts, outputPorts } from '@logica/model'
-import { defBodySize, instanceBounds, portGroupSize, portPosition } from './geometry'
+import { inputPorts, outputPorts, portWidth } from '@logica/model'
+import { defBodySize, instanceBounds, pinWidth, portGroupSize, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
 import type { PendingWire, Rect, Viewport } from '../state/editorStore'
@@ -16,6 +16,33 @@ import type { HoverPort } from '../state/editorStore'
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
+
+/** Pin radius, scaled up for bus terminals (proportional to width). */
+function pinRadius(width: number): number {
+  return 3.5 * Math.sqrt(width)
+}
+
+/** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
+function drawTooltip(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, p: Palette) {
+  ctx.font = '11px system-ui, sans-serif'
+  const textWidth = ctx.measureText(text).width
+  const padX = 6
+  const boxW = textWidth + padX * 2
+  const boxH = 16
+  const bx = x
+  const by = y - boxH - 10
+  ctx.beginPath()
+  ctx.roundRect(bx, by, boxW, boxH, 4)
+  ctx.fillStyle = p.compositeFill
+  ctx.fill()
+  ctx.strokeStyle = p.gateStroke
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.fillStyle = p.text
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, bx + padX, by + boxH / 2 + 1)
+}
 
 /**
  * Stroke one cubic-bezier wire segment. Called twice per wire: once thick in the
@@ -112,6 +139,22 @@ function drawGateBody(
     case 'clock':
       ctx.roundRect(l, t, w, h, 6)
       break
+    case 'fan-in':
+      // Trapezoid narrowing toward the bus output on the right.
+      ctx.moveTo(l, t)
+      ctx.lineTo(r, cy - 8)
+      ctx.lineTo(r, cy + 8)
+      ctx.lineTo(l, b)
+      ctx.closePath()
+      break
+    case 'fan-out':
+      // Trapezoid widening from the bus input on the left toward the outputs.
+      ctx.moveTo(l, cy - 8)
+      ctx.lineTo(r, t)
+      ctx.lineTo(r, b)
+      ctx.lineTo(l, cy + 8)
+      ctx.closePath()
+      break
     default:
       ctx.roundRect(l, t, w, h, 6)
       break
@@ -145,6 +188,7 @@ function drawGateBody(
 
 function drawPorts(
   ctx: CanvasRenderingContext2D,
+  design: Design,
   parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
@@ -156,16 +200,18 @@ function drawPorts(
   for (const port of inputPorts(def)) {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
+    const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(width), 0, Math.PI * 2)
     ctx.fillStyle = p.pin
     ctx.fill()
   }
   for (const port of outputPorts(def)) {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
+    const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(width), 0, Math.PI * 2)
     ctx.fillStyle = p.pinHover
     ctx.fill()
   }
@@ -173,6 +219,7 @@ function drawPorts(
 
 function drawInstance(
   ctx: CanvasRenderingContext2D,
+  design: Design,
   parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
@@ -245,7 +292,7 @@ function drawInstance(
     ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
   }
 
-  drawPorts(ctx, parentDef, instance, def, cw, ch, vp, p)
+  drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p)
 }
 
 /**
@@ -255,6 +302,7 @@ function drawInstance(
  */
 function drawPortGroup(
   ctx: CanvasRenderingContext2D,
+  design: Design,
   parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
@@ -266,15 +314,17 @@ function drawPortGroup(
 ) {
   const isInput = def.primitive === 'input-port'
   const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
-  drawPortGroupBox(ctx, isInput, ports, instance.pos, cw, ch, vp, selected, p)
+  const widthFor = (port: Port) => pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
+  drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p)
 }
 
-/** Core port-group drawing, given the pins and the group's world position. */
+/** Core port-group drawing, given the pins, their position, and a width resolver. */
 function drawPortGroupBox(
   ctx: CanvasRenderingContext2D,
   isInput: boolean,
   ports: Port[],
   pos: { x: number; y: number },
+  widthFor: (port: Port) => number,
   cw: number,
   ch: number,
   vp: Viewport,
@@ -309,7 +359,7 @@ function drawPortGroupBox(
     const x = pos.x + (isInput ? w / 2 : -w / 2)
     const s = w2s(x, y, cw, ch, vp)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(widthFor(port)), 0, Math.PI * 2)
     ctx.fillStyle = isInput ? p.pinHover : p.pin
     ctx.fill()
     ctx.fillStyle = p.text
@@ -367,8 +417,8 @@ export function drawScene(
     ctx.fillText('Internal circuitry', s.x, s.y)
 
     const margin = 60
-    drawPortGroupBox(ctx, true, inputPorts(def), { x: vp.x - W / 2 - margin, y: vp.y }, cw, ch, vp, false, p)
-    drawPortGroupBox(ctx, false, outputPorts(def), { x: vp.x + W / 2 + margin, y: vp.y }, cw, ch, vp, false, p)
+    drawPortGroupBox(ctx, true, inputPorts(def), { x: vp.x - W / 2 - margin, y: vp.y }, (port) => portWidth(def, port), cw, ch, vp, false, p)
+    drawPortGroupBox(ctx, false, outputPorts(def), { x: vp.x + W / 2 + margin, y: vp.y }, (port) => portWidth(def, port), cw, ch, vp, false, p)
     return
   }
 
@@ -386,6 +436,7 @@ export function drawScene(
     c1: { x: number; y: number }
     c2: { x: number; y: number }
     e: { x: number; y: number }
+    width: number
   }
 
   const groups = new Map<string, Trace[]>()
@@ -401,6 +452,7 @@ export function drawScene(
       c1: w2s(path.c1.x, path.c1.y, cw, ch, vp),
       c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
       e: w2s(path.end.x, path.end.y, cw, ch, vp),
+      width: pinWidth(design, def, conn.from),
     }
     // Group by source so fan-out wires render as one bundle (all halos, then all
     // lines) rather than cutting into each other at their shared terminal.
@@ -411,8 +463,8 @@ export function drawScene(
   }
 
   for (const traces of groups.values()) {
-    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, WIRE_WIDTH + HALO_WIDTH * 2)
-    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, WIRE_WIDTH * t.width + HALO_WIDTH * 2)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width)
   }
 
   // Preview of a wire currently being drawn (dashed, accent color).
@@ -438,9 +490,9 @@ export function drawScene(
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
     if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') {
-      drawPortGroup(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+      drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
     } else {
-      drawInstance(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+      drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
     }
   }
 
@@ -454,6 +506,12 @@ export function drawScene(
       ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
       ctx.lineWidth = 2
       ctx.stroke()
+
+      // Tooltip showing the arity of a bus terminal.
+      const width = pinWidth(design, def, hoverPort.ref)
+      if (width > 1) {
+        drawTooltip(ctx, `×${width}`, s.x, s.y, p)
+      }
     }
   }
 

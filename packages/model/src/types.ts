@@ -26,7 +26,7 @@ export interface Port {
   terminal?: { instanceId: string; pinId: string }
 }
 
-export type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port'
+export type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port'
 
 export interface ComponentDef {
   id: string
@@ -75,6 +75,21 @@ export function inputPorts(def: ComponentDef): Port[] {
 
 export function outputPorts(def: ComponentDef): Port[] {
   return def.ports.filter((p) => p.direction === 'output')
+}
+
+/**
+ * The intrinsic width (number of wires) of a terminal. Only fan-in/fan-out have a
+ * non-1 intrinsic width (derived from their arity); composite ports are neutral and
+ * inherit their width from connections (see `pinWidth` in the editor).
+ */
+export function portWidth(def: ComponentDef, port: Port): number {
+  if (def.primitive === 'fan-in' && port.direction === 'output') {
+    return inputPorts(def).length
+  }
+  if (def.primitive === 'fan-out' && port.direction === 'input') {
+    return outputPorts(def).length
+  }
+  return 1
 }
 
 /**

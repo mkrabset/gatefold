@@ -281,15 +281,41 @@ export function Canvas() {
       })
     }
 
-    const onPointerLeave = () => {
+    // Double-click a composite on the canvas to descend into it.
+    const onDblClick = (e: MouseEvent) => {
+      const state = useEditorStore.getState()
+      const rect = wrap.getBoundingClientRect()
+      const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+      const def = state.design.defs[currentDefId(state)]
+      const hit = hitTest(w.x, w.y, currentInstances(), state.design, def)
+      if (hit && state.design.defs[hit.defId]?.kind === 'composite') {
+        state.navigateTo(hit.defId)
+      }
+    }
+
+    // Escape (while the pointer is over the canvas) exits back up one level.
+    let pointerOver = false
+    const onPointerEnter = () => {
+      pointerOver = true
+    }
+    const onPointerExit = () => {
+      pointerOver = false
       useEditorStore.getState().setHoverPort(null)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pointerOver) {
+        useEditorStore.getState().navigateUp()
+      }
     }
 
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
-    canvas.addEventListener('pointerleave', onPointerLeave)
+    canvas.addEventListener('pointerenter', onPointerEnter)
+    canvas.addEventListener('pointerleave', onPointerExit)
+    canvas.addEventListener('dblclick', onDblClick)
     canvas.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('keydown', onKeyDown)
 
     return () => {
       ro.disconnect()
@@ -298,8 +324,11 @@ export function Canvas() {
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
-      canvas.removeEventListener('pointerleave', onPointerLeave)
+      canvas.removeEventListener('pointerenter', onPointerEnter)
+      canvas.removeEventListener('pointerleave', onPointerExit)
+      canvas.removeEventListener('dblclick', onDblClick)
       canvas.removeEventListener('wheel', onWheel)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [])
 

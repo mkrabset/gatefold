@@ -1,7 +1,6 @@
 import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
-import { contentBounds, defBodySize, instanceBounds, portPosition, portTerminalPosition } from './geometry'
-import type { Bounds } from './geometry'
+import { defBodySize, instanceBounds, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
 import type { PendingWire, Rect, Viewport } from '../state/editorStore'
@@ -10,8 +9,8 @@ import type { HoverPort } from '../state/editorStore'
 /**
  * Canvas renderer. `drawScene` is a pure-ish function of the current design,
  * viewport, selection, and palette — it reads no store state directly so it can be
- * redrawn deterministically. Draw order: background → grid → wires → port terminals
- * → instances → marquee.
+ * redrawn deterministically. Draw order: background → grid → wires → instances →
+ * hover highlight → marquee.
  */
 
 const GRID = 24
@@ -146,6 +145,7 @@ function drawGateBody(
 
 function drawPorts(
   ctx: CanvasRenderingContext2D,
+  parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
   w: number,
@@ -154,7 +154,7 @@ function drawPorts(
   p: Palette,
 ) {
   for (const port of inputPorts(def)) {
-    const pos = portPosition(instance, def, port.id)
+    const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
@@ -162,7 +162,7 @@ function drawPorts(
     ctx.fill()
   }
   for (const port of outputPorts(def)) {
-    const pos = portPosition(instance, def, port.id)
+    const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
@@ -173,6 +173,7 @@ function drawPorts(
 
 function drawInstance(
   ctx: CanvasRenderingContext2D,
+  parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
   cw: number,
@@ -185,7 +186,7 @@ function drawInstance(
   const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
 
   if (selected) {
-    const b = instanceBounds(instance, def, 6)
+    const b = instanceBounds(parentDef, instance, def, 6)
     const tl = w2s(b.x, b.y, cw, ch, vp)
     ctx.strokeStyle = p.selection
     ctx.setLineDash([4, 3])
@@ -215,13 +216,13 @@ function drawInstance(
     ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
     ctx.fillStyle = p.text
     for (const port of inputPorts(def)) {
-      const pos = portPosition(instance, def, port.id)
+      const pos = portPosition(parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
       ctx.textAlign = 'right'
       ctx.fillText(port.name, ps.x - 6 * vp.zoom, ps.y)
     }
     for (const port of outputPorts(def)) {
-      const pos = portPosition(instance, def, port.id)
+      const pos = portPosition(parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
       ctx.textAlign = 'left'
       ctx.fillText(port.name, ps.x + 6 * vp.zoom, ps.y)
@@ -244,41 +245,68 @@ function drawInstance(
     ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
   }
 
-  drawPorts(ctx, instance, def, cw, ch, vp, p)
+  drawPorts(ctx, parentDef, instance, def, cw, ch, vp, p)
 }
 
-/** Render a composite's own ports as terminals, labeled, beside the content bounds. */
-function drawPortTerminals(
+/**
+ * A port group: a single rectangle carrying all of a composite's inputs (or outputs).
+ * `input-port` draws green source pins on its right edge; `output-port` draws sink
+ * pins on its left edge. Movable as one unit.
+ */
+function drawPortGroup(
   ctx: CanvasRenderingContext2D,
+  parentDef: ComponentDef,
+  instance: Instance,
   def: ComponentDef,
-  bounds: Bounds,
   cw: number,
   ch: number,
   vp: Viewport,
+  selected: boolean,
   p: Palette,
 ) {
-  ctx.font = `${11 * vp.zoom}px system-ui, sans-serif`
+  const isInput = def.primitive === 'input-port'
+  const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
+  const b = instanceBounds(parentDef, instance, def)
+
+  if (selected) {
+    const tl = w2s(b.x - 6, b.y - 6, cw, ch, vp)
+    ctx.strokeStyle = p.selection
+    ctx.setLineDash([4, 3])
+    ctx.strokeRect(tl.x, tl.y, (b.w + 12) * vp.zoom, (b.h + 12) * vp.zoom)
+    ctx.setLineDash([])
+  }
+
+  const tl = w2s(b.x, b.y, cw, ch, vp)
+  ctx.beginPath()
+  ctx.roundRect(tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, 4 * vp.zoom)
+  ctx.fillStyle = p.compositeFill
+  ctx.fill()
+  ctx.strokeStyle = p.gateStroke
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
   ctx.textBaseline = 'middle'
-  for (const port of def.ports) {
-    const pos = portTerminalPosition(def, port.id, bounds)
+  for (const port of ports) {
+    const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, cw, ch, vp)
     ctx.beginPath()
     ctx.arc(s.x, s.y, 3.5, 0, Math.PI * 2)
-    ctx.fillStyle = port.direction === 'input' ? p.pin : p.pinHover
+    ctx.fillStyle = isInput ? p.pinHover : p.pin
     ctx.fill()
     ctx.fillStyle = p.text
-    if (port.direction === 'input') {
+    if (isInput) {
       ctx.textAlign = 'right'
-      ctx.fillText(port.name, s.x - 8 * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x - 6 * vp.zoom, s.y)
     } else {
       ctx.textAlign = 'left'
-      ctx.fillText(port.name, s.x + 8 * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x + 6 * vp.zoom, s.y)
     }
   }
 }
 
 function pinKey(ref: PinRef): string {
-  return ref.kind === 'instance' ? `${ref.instanceId}:${ref.portId}` : `port:${ref.portId}`
+  return `${ref.instanceId}:${ref.portId}`
 }
 
 export function drawScene(
@@ -303,15 +331,11 @@ export function drawScene(
 
   const instances = def.instances ?? []
   const byId = new Map(instances.map((i) => [i.id, i]))
-  const bounds = contentBounds(instances, design)
 
   const resolveEndpoint = (ref: PinRef): { x: number; y: number } | null => {
-    if (ref.kind === 'instance') {
-      const inst = byId.get(ref.instanceId)
-      if (!inst) return null
-      return portPosition(inst, design.defs[inst.defId], ref.portId)
-    }
-    return portTerminalPosition(def, ref.portId, bounds)
+    const inst = byId.get(ref.instanceId)
+    if (!inst) return null
+    return portPosition(def, inst, design.defs[inst.defId], ref.portId)
   }
 
   interface Trace {
@@ -368,13 +392,13 @@ export function drawScene(
     }
   }
 
-  if (def.kind === 'composite') {
-    drawPortTerminals(ctx, def, bounds, cw, ch, vp, p)
-  }
-
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
-    drawInstance(ctx, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+    if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') {
+      drawPortGroup(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+    } else {
+      drawInstance(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+    }
   }
 
   // Highlight the hovered port: yellow = create a wire, orange = grab an existing one.

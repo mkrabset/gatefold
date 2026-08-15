@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/types'
-import { PRIMITIVE_LIBRARY, primitiveDef } from '../src/primitives'
+import { PRIMITIVE_LIBRARY, inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 
 describe('model primitives', () => {
   it('exposes the initial library of AND, OR, XOR, NOT, CLOCK', () => {
@@ -23,5 +23,10 @@ describe('model primitives', () => {
   it('formats port ids', () => {
     expect(inputPortId(0)).toBe('in:0')
     expect(outputPortId(1)).toBe('out:1')
+  })
+
+  it('defines port primitives whose pins are derived from the enclosing composite', () => {
+    expect(inputPortDef().ports).toEqual([])
+    expect(outputPortDef().ports).toEqual([])
   })
 })

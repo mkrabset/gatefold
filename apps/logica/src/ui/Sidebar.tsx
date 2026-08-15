@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
-import type { ComponentDef, Instance } from '@logica/model'
+import type { ComponentDef, Instance, Port } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
 
 /**
@@ -226,18 +226,39 @@ function PortsEditor() {
   const current = design.defs[currentDefId(useEditorStore.getState())]
   if (current.kind !== 'composite') return null
 
+  // A port is connected if any wire touches its pin on the port group.
+  const isConnected = (port: Port): boolean => {
+    const instId = port.terminal?.instanceId
+    if (!instId) return false
+    return (current.connections ?? []).some(
+      (c) =>
+        (c.from.instanceId === instId && c.from.portId === port.id) ||
+        (c.to.instanceId === instId && c.to.portId === port.id),
+    )
+  }
+
   const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => (
     <div className="ports-group">
       <div className="ports-group-header">
         <span>{title}</span>
         <button className="mini-btn" title={`Add ${direction}`} onClick={() => addPort(direction)}>+</button>
       </div>
-      {ports.map((p) => (
-        <div className="port-row" key={p.id}>
-          <input value={p.name} title={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
-          <button className="mini-btn" title={`Remove ${p.name}`} onClick={() => removePort(p.id)}>−</button>
-        </div>
-      ))}
+      {ports.map((p) => {
+        const connected = isConnected(p)
+        return (
+          <div className="port-row" key={p.id}>
+            <input value={p.name} title={p.name} onChange={(e) => renamePort(p.id, e.target.value)} />
+            <button
+              className="mini-btn"
+              title={connected ? `${p.name} is connected` : `Remove ${p.name}`}
+              disabled={connected}
+              onClick={() => removePort(p.id)}
+            >
+              −
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 

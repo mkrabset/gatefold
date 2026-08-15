@@ -54,3 +54,35 @@ export function primitiveDef(kind: PrimitiveKind): ComponentDef {
 export function specOf(kind: PrimitiveKind): PrimitiveSpec {
   return PRIMITIVE_LIBRARY.find((p) => p.kind === kind)!
 }
+
+/**
+ * The special port primitives. Their pins are *derived* from the composite that
+ * contains them (one `input-port` instance per composite carries all its inputs as
+ * source pins; one `output-port` instance carries all its outputs as sink pins), so
+ * the defs themselves have no ports. Their "external" side is cosmetic and
+ * represented by the composite's own `ports` when used as an instance.
+ */
+export function inputPortDef(): ComponentDef {
+  return {
+    id: 'input-port',
+    name: 'input-port',
+    kind: 'primitive',
+    primitive: 'input-port',
+    ports: [],
+  }
+}
+
+export function outputPortDef(): ComponentDef {
+  return {
+    id: 'output-port',
+    name: 'output-port',
+    kind: 'primitive',
+    primitive: 'output-port',
+    ports: [],
+  }
+}
+
+/** The def for a port primitive of the given direction. */
+export function portPrimitiveDef(direction: 'input' | 'output'): ComponentDef {
+  return direction === 'input' ? inputPortDef() : outputPortDef()
+}

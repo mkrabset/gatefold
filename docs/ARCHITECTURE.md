@@ -36,9 +36,14 @@ Lives in `packages/model/src/`. Pure types + data — no framework dependencies.
 type Signal = 0 | 1 | 'x'                       // 3-state logic
 
 type PortDirection = 'input' | 'output'
-interface Port { id: string; name: string; direction: PortDirection }
+interface Port {
+  id: string
+  name: string
+  direction: PortDirection
+  terminal?: { instanceId: string; pinId: string } // composite only: internal port instance
+}
 
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock'
+type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port'
 
 interface ComponentDef {
   id: string
@@ -57,15 +62,13 @@ interface Instance {
   pos: { x: number; y: number }             // canvas position
 }
 
-// A connection endpoint: an instance pin, or the composite's own port.
-type PinRef =
-  | { kind: 'instance'; instanceId: string; portId: string }
-  | { kind: 'port'; portId: string }
+// A connection endpoint is always an instance pin.
+type PinRef = { instanceId: string; portId: string }
 
 interface Connection {
   id: string
-  from: PinRef
-  to: PinRef
+  from: PinRef                               // driver (an output pin)
+  to: PinRef                                 // sink (an input pin)
 }
 
 interface Design { version: number; root: string; defs: Record<string, ComponentDef> }
@@ -76,18 +79,21 @@ interface Design { version: number; root: string; defs: Record<string, Component
 - **Definitions vs. instances**: a `ComponentDef` is a *type* (primitive or composite);
   an `Instance` is a *usage* with a name and position.
 - **Ports are named and ordered** (`ports: Port[]`, inputs first then outputs). Port ids
-  stay index-based (`in:0..n-1`, `out:0..m-1`) so wiring is stable under renames; the
-  `name` is a user-facing label.
-- **Names are labels, ids are references.** Wiring (`PinRef.instanceId`), selection,
-  navigation, and `Design.defs` all key off `id`s. The `name` is used only for display and
-  for uniqueness at creation time, so renaming never breaks references.
-- **`PinRef`** lets a composite input fan out to several internal inputs (multiple
-  connections share a `{ kind: 'port' }` source) and lets internal outputs drive a
-  composite output.
-- **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK. CLOCK is a source
-  with 0 inputs and 1 output.
-- **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` for turning a selection into
-  a composite (see §6 for how it's exposed).
+  stay index-based (`in:0..n-1`, `out:0..m-1`) so wiring is stable under renames.
+- **Names are labels, ids are references.** Wiring, selection, navigation, and
+  `Design.defs` all key off `id`s; `name` is only for display and uniqueness.
+- **Ports are modeled as port-group instances.** Inside a composite, one `input-port`
+  instance carries all of the composite's inputs (its pins are derived from `ports` and
+  act as drivers), and one `output-port` instance carries all of its outputs (derived,
+  acting as sinks). Each `Port` links back to its group via `Port.terminal`. This makes
+  every connection a plain output→input wire and eliminates the internal "which way does
+  a port flow" ambiguity. The composite's own pins (shown when it is used as an instance)
+  come from `ports`.
+- **Single-driver invariant**: each sink (`to`) has at most one incoming connection
+  (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
+- **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK. The port primitives
+  are not listed in the library (they are created/edited via the ports editor).
+- **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
 
 ---
 
@@ -100,15 +106,15 @@ The document and editing state:
   displayed definition. `navigateTo`/`navigateUp` descend/ascend.
 - `viewport: { x, y, zoom }` — world point at canvas center + zoom factor.
 - `selectedIds: string[]` — multi-selection (instance ids in the current def).
-- `marquee: Rect | null` — transient marquee rectangle during rubber-band selection.
-- `pendingGroup: { inputs, outputs } | null` — names collected in the group dialog.
-- `tool: 'select' | 'wire' | 'pan'` — active tool (not yet wired to behavior).
+- `marquee: Rect | null` — transient rubber-band rectangle.
+- `pendingWire: { from, x, y, originalId? } | null` — a wire being drawn / re-targeted.
+- `hoverPort: { ref, action: 'create' | 'grab' } | null` — the port under the cursor.
+- `notice: string | null` — transient rejection message (shown as a toast).
+- `pendingGroup` — names collected in the group dialog.
 
-Actions: `setTool`, `setViewport`, `setSelection`, `toggleSelected`,
-`setInstancesPosition`, `setMarquee`, `navigateTo`, `navigateUp`, the group flow
-(`openGroupDialog` / `setGroupInputName` / `setGroupOutputName` / `confirmGroup` /
-`cancelGroup`), and port/instance editing (`renamePort`, `renameInstance`, `addPort`,
-`removePort`).
+Actions: viewport/selection/marquee setters, navigation, the group flow, port & instance
+editing (`renamePort`, `renameInstance`, `addPort`, `removePort`), and connection editing
+(`addConnection` with single-driver rejection, `retargetConnection`, `removeConnection`).
 
 Undo/redo middleware (`zundo`) is planned but not yet attached.
 
@@ -123,48 +129,47 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — per-primitive body dimensions (composites use a fixed box).
-- `portPosition(instance, def, portId)` — input pins distributed along the left edge,
-  output pins along the right edge (order taken from `ports`).
+- `portPosition(instance, def, portId)` — input pins on the left edge, output pins on the
+  right, evenly spaced.
 - `instanceBounds(...)`, `hitTest(...)` — world-space bounds and topmost hit detection.
+- `hitTestPort(wx, wy, instances, design)` — nearest connectable pin within a radius,
+  returning `{ ref, role }` where `role` is `source` (output pin) or `sink` (input pin).
 
 ### Routing (`routing.ts`)
-- `wirePath(a, b)` returns a cubic-bezier definition `{ start, c1, c2, end }`.
-- Control-point offset = `abs(b.x - a.x) / 2`, with horizontal tangents at both ends
-  (leaves the source pointing right, enters the target pointing left).
-- Kept as a standalone abstraction so bus routing / orthogonal routing can slot in later.
+- `wirePath(a, b)` returns a cubic-bezier definition `{ start, c1, c2, end }`, with
+  control-point offset `abs(b.x - a.x) / 2` and horizontal tangents at both ends.
+- Kept as a standalone abstraction so bus / orthogonal routing can slot in later.
 
 ### Rendering (`renderer.ts` + `palette.ts`)
-- `drawScene(ctx, w, h, design, viewport, selectedIds, defId, marquee, palette)`:
-  background → grid → wires → port terminals → instances → marquee.
-- **Theming**: colors come from `darkPalette` / `lightPalette` (no hardcoded canvas colors).
-- **Gate shapes** drawn directly on canvas: AND (elliptical right side), OR/XOR
-  (quadratic curves), NOT (triangle + bubble), CLOCK (rounded rect + sine glyph).
-- **Labels**: primitives show the type name above and the instance name below; composites
-  show the instance name centered with the type name above, plus port names beside pins.
-- **Port terminals**: when editing a composite, its own ports render as labeled terminals
-  just outside the content bounds (inputs left, outputs right) — these are the
-  `{ kind: 'port' }` endpoints that boundary wires connect to.
-- **Wires** use two strokes:
-  1. a thick "halo" in the background color, then
-  2. the thin wire stroke.
-  This makes crossings read as pass-over (not junctions).
-- **Fan-out grouping**: connections are grouped by their source terminal; within a group
-  all halos are drawn before all lines, so wires sharing an output render as one bundle.
-- Selection is drawn as a dashed outline; the marquee as a translucent + dashed rect.
+- `drawScene(ctx, w, h, design, viewport, selectedIds, defId, marquee, pendingWire,
+  hoverPort, palette)`: background → grid → wires → instances → hover highlight → marquee.
+- **Theming**: colors come from `darkPalette` / `lightPalette`.
+- **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
+  bubble), CLOCK (rounded rect + sine glyph).
+- **Port groups**: a single rectangle per direction. The `input-port` group draws its
+  green source pins on the right edge (labels inside), the `output-port` group draws sink
+  pins on the left edge. The group is movable as one unit.
+- **Labels**: primitives show type above and instance name below; composites show the
+  instance name centered with the type above and port names beside the pins.
+- **Wires**: two strokes — a thick background "halo" then the thin wire — so crossings read
+  as pass-over. Wires sharing a source are grouped (all halos, then all lines) so fan-out
+  renders as one bundle. A pending wire renders as a dashed preview.
+- Selection is a dashed outline; the marquee is a translucent + dashed rect.
 
 ### Interactions (`Canvas.tsx`)
 All pointer handling is attached natively to the `<canvas>`; the store drives redraws via
-`subscribe`. World ↔ screen transforms account for pan/zoom. A `Drag` union models the
-active gesture (`pan` / `move` / `marquee` / `shiftClick`).
+`subscribe`. A `Drag` union models the active gesture (`pan` / `move` / `marquee` /
+`shiftClick` / `wire`).
 
-- **Drag a component** → move it. If it is part of a multi-selection, the whole selection
-  moves together.
-- **Drag on empty background** (no modifier) → marquee; selects all intersecting
-  instances (live during the drag).
-- **Shift + click on a component** → toggle it in/out of the selection.
-- **Shift + drag** → pan the viewport. A small movement threshold distinguishes a
-  shift-click (toggle) from a shift-drag (pan).
+- **Drag a component** → move it (the whole selection, if multi-selected).
+- **Drag on empty background** → marquee select (live).
+- **Shift + click** a component → toggle selection; **Shift + drag** → pan (a threshold
+  distinguishes the two).
 - **Mouse wheel** → zoom anchored at the cursor.
+- **Wiring**: press an output pin (yellow hover) → draw a wire → release on an input pin.
+  Press an input pin that already has a wire (orange hover) → grab it → release on a new
+  input to re-target, or on empty space to delete. Dropping onto an already-driven input is
+  rejected (toast).
 
 ---
 
@@ -173,40 +178,37 @@ active gesture (`pan` / `move` / `marquee` / `shiftClick`).
 > Note: the contents of the side panels are provisional and will likely change
 > significantly — treat the specifics below as placeholders, not a stable contract.
 
-- **Toolbar** — brand, tool buttons (select/wire/pan), group action, simulation controls
-  (run/step/stop/reset — placeholders), breadcrumb navigation, save/open JSON
-  (placeholders), theme toggle. All icon buttons carry `title` tooltips.
-- **Sidebar** (left) — component tree (instances of the current def, double-click to
-  descend into composites), a properties panel (name — commits on Enter/blur — type,
-  arity, position), and a **ports editor** (add/remove/rename the current composite's
-  ports).
-- **Library panel** (right) — palette of primitives + user components (derived from the
-  design's composite defs).
-- **GroupDialog** — modal that names the inferred input/output ports before creating a
-  composite.
-- **ResizeHandle** — draggable divider; widths are persisted via `uiStore`.
-- **Theming** — CSS variables in `index.css`; `:root` = dark default,
-  `:root[data-theme='light']` overrides. `App` sets `data-theme` on `<html>`, and an
-  inline script in `index.html` applies it pre-hydration to avoid a flash.
+- **Toolbar** — brand, group action, simulation controls (placeholders), breadcrumb
+  navigation, save/open JSON (placeholders), theme toggle. Icon buttons carry `title`
+  tooltips.
+- **Sidebar** (left) — component tree (double-click a composite to descend), properties
+  panel (name commits on Enter/blur), and a **ports editor** (add/remove/rename the current
+  composite's ports; each port is backed by the composite's port-group instances).
+- **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
+  place an instance).
+- **GroupDialog** — names the inferred ports before creating a composite.
+- **Toast** — transient messages (e.g. "Input already has a driver").
+- **ResizeHandle** — draggable dividers; widths persist via `uiStore`.
+- **Theming** — CSS variables; `:root` dark, `:root[data-theme='light']` overrides, applied
+  pre-hydration to avoid a flash.
 
 ---
 
 ## 6. Grouping into composite components
 
-Implemented via `@logica/model`'s `group.ts` and driven by the toolbar **Group** button
+Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** button
 (enabled with 2+ selected) and the `GroupDialog`.
 
-- **`inferGroup(design, defId, ids)`** classifies each connection of the current def:
-  both endpoints selected → internal; a selected input fed from outside → inferred input
-  (grouped by the external net, so one net fans out to multiple pins); a selected output
-  feeding outside → inferred output.
+- **`inferGroup(design, defId, ids)`** classifies each connection: both endpoints selected
+  → internal; a selected input fed from outside → inferred input (grouped by external net);
+  a selected output feeding outside → inferred output.
 - **`applyGroup(design, defId, ids, inputNames, outputNames)`** clones the design, creates
-  the new `ComponentDef` (ports from the names, moved instances kept at their positions,
-  internal connections moved verbatim, boundary wiring re-expressed through
-  `{ kind: 'port' }` endpoints), replaces the selection in the parent with a single
-  instance at its centroid, and re-wires external connections to that instance's ports.
+  the new `ComponentDef`, and for each inferred port creates an `input-port`/`output-port`
+  instance (linked via `Port.terminal`), wires the moved pins through those instances, then
+  replaces the selection in the parent with a single instance at its centroid and re-wires
+  the external connections to that instance's ports.
 
-The result is a pure function (no mutation of its input) and is fully unit-tested.
+Pure (no input mutation) and fully unit-tested.
 
 ---
 
@@ -214,17 +216,17 @@ The result is a pure function (no mutation of its input) and is fully unit-teste
 
 - Simulation engine (combinational + sequential + hierarchy flattening).
 - JSON serialize/deserialize + validation; wire the save/open buttons.
-- Functional wire tool (drawing a wire between pins).
-- Placing components from the library (cards are currently cosmetic).
 - Simulation UI (run/step behavior, live signal coloring).
 - Undo/redo; instance/definition name-uniqueness validation.
+- Multi-bit buses (single wires only for now).
 
 ---
 
 ## 8. Testing
 
-- `packages/model/test/primitives.test.ts` — library contents, arity, port ids.
-- `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (half-adder case and
-  boundary rewiring).
+- `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs.
+- `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo`.
+- `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
+  rewiring).
 - `apps/logica/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.

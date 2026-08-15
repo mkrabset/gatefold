@@ -4,6 +4,10 @@ import { inputPorts, outputPorts } from '@logica/model'
 /**
  * Geometry helpers for the canvas: component sizes, port placement, and hit-testing.
  * All coordinates are in world space (pre-zoom); the renderer converts to screen space.
+ *
+ * Composite ports are represented by a single `input-port` / `output-port` instance
+ * whose pins are *derived* from the enclosing composite's ports. Functions that need
+ * those pins therefore take `parentDef` (the composite currently being edited).
  */
 
 const PRIMITIVE_SIZE: Record<PrimitiveKind, { w: number; h: number }> = {
@@ -12,10 +16,22 @@ const PRIMITIVE_SIZE: Record<PrimitiveKind, { w: number; h: number }> = {
   xor: { w: 64, h: 44 },
   not: { w: 48, h: 44 },
   clock: { w: 46, h: 46 },
+  'input-port': { w: 56, h: 28 },
+  'output-port': { w: 56, h: 28 },
 }
 
-const TERMINAL_MARGIN = 48
+const PORT_GROUP_W = 56
+const PORT_GROUP_SPACING = 24
 const PORT_HIT_RADIUS = 6
+
+function isPortGroup(def: ComponentDef): boolean {
+  return def.primitive === 'input-port' || def.primitive === 'output-port'
+}
+
+/** Size of a port-group rectangle given its pin count. */
+function portGroupSize(n: number): { w: number; h: number } {
+  return { w: PORT_GROUP_W, h: Math.max(28, n * PORT_GROUP_SPACING) }
+}
 
 export function defBodySize(def: ComponentDef): { w: number; h: number } {
   if (def.kind === 'primitive' && def.primitive) {
@@ -25,15 +41,26 @@ export function defBodySize(def: ComponentDef): { w: number; h: number } {
 }
 
 /**
- * World position of a port pin on an instance. Inputs are distributed along the left
- * edge and outputs along the right edge. A single port sits at the vertical center;
- * otherwise ports are evenly spaced with equal gaps above/below the first and last.
+ * World position of a port pin on an instance. For a normal instance, inputs are
+ * distributed along the left edge and outputs along the right. For a port group, the
+ * pins come from the parent composite's ports of the matching direction (inputs on
+ * the right edge for `input-port`, on the left for `output-port`).
  */
 export function portPosition(
+  parentDef: ComponentDef,
   instance: Instance,
   def: ComponentDef,
   portId: string,
 ): { x: number; y: number } {
+  if (isPortGroup(def)) {
+    const ports = def.primitive === 'input-port' ? inputPorts(parentDef) : outputPorts(parentDef)
+    const idx = ports.findIndex((p) => p.id === portId)
+    const n = ports.length
+    const { w, h } = portGroupSize(n)
+    const y = n <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
+    return { x: instance.pos.x + (def.primitive === 'input-port' ? w / 2 : -w / 2), y }
+  }
+
   const { w, h } = defBodySize(def)
   const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
@@ -54,8 +81,10 @@ export interface Bounds {
   h: number
 }
 
-export function instanceBounds(instance: Instance, def: ComponentDef, pad = 0): Bounds {
-  const { w, h } = defBodySize(def)
+export function instanceBounds(parentDef: ComponentDef, instance: Instance, def: ComponentDef, pad = 0): Bounds {
+  const { w, h } = isPortGroup(def)
+    ? portGroupSize((def.primitive === 'input-port' ? inputPorts(parentDef) : outputPorts(parentDef)).length)
+    : defBodySize(def)
   return {
     x: instance.pos.x - w / 2 - pad,
     y: instance.pos.y - h / 2 - pad,
@@ -69,12 +98,13 @@ export function hitTest(
   wx: number,
   wy: number,
   instances: Instance[],
-  defs: Record<string, ComponentDef>,
+  design: Design,
+  parentDef: ComponentDef,
 ): Instance | null {
   for (let i = instances.length - 1; i >= 0; i--) {
     const inst = instances[i]
-    const def = defs[inst.defId]
-    const b = instanceBounds(inst, def, 4)
+    const def = design.defs[inst.defId]
+    const b = instanceBounds(parentDef, inst, def, 4)
     if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) {
       return inst
     }
@@ -82,82 +112,49 @@ export function hitTest(
   return null
 }
 
-/** Bounding box of all instances in a composite, used to place its port terminals. */
-export function contentBounds(instances: Instance[], design: Design): Bounds {
-  if (instances.length === 0) {
-    return { x: -120, y: -80, w: 240, h: 160 }
-  }
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const inst of instances) {
-    const b = instanceBounds(inst, design.defs[inst.defId])
-    minX = Math.min(minX, b.x)
-    minY = Math.min(minY, b.y)
-    maxX = Math.max(maxX, b.x + b.w)
-    maxY = Math.max(maxY, b.y + b.h)
-  }
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
-}
-
-/**
- * Position of a composite's *own* port terminal (used when editing inside it):
- * inputs sit just left of the content bounds, outputs just right, evenly spaced.
- */
-export function portTerminalPosition(def: ComponentDef, portId: string, bounds: Bounds): { x: number; y: number } {
-  const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
-  if (inIdx >= 0) {
-    const total = inputPorts(def).length
-    const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((inIdx + 1) * bounds.h) / (total + 1)
-    return { x: bounds.x - TERMINAL_MARGIN, y }
-  }
-  const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
-  const total = outputPorts(def).length
-  const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((outIdx + 1) * bounds.h) / (total + 1)
-  return { x: bounds.x + bounds.w + TERMINAL_MARGIN, y }
-}
-
 export interface PortHit {
   ref: PinRef
-  direction: 'input' | 'output'
+  role: 'source' | 'sink'
 }
 
 /**
- * Hit-test all connectable ports (instance pins and the composite's own terminals)
- * and return the nearest one within `PORT_HIT_RADIUS`, or null.
+ * Hit-test all connectable pins and return the nearest one within the hit radius.
+ * The role is derived directly from pin direction (output = source, input = sink).
  */
 export function hitTestPort(
   wx: number,
   wy: number,
   instances: Instance[],
   design: Design,
-  def: ComponentDef,
+  parentDef: ComponentDef,
 ): PortHit | null {
   let best: PortHit | null = null
   let bestDist = Infinity
-  const consider = (ref: PinRef, pos: { x: number; y: number }, direction: 'input' | 'output') => {
+  const consider = (ref: PinRef, pos: { x: number; y: number }, role: 'source' | 'sink') => {
     const d = Math.hypot(wx - pos.x, wy - pos.y)
     if (d <= PORT_HIT_RADIUS && d < bestDist) {
       bestDist = d
-      best = { ref, direction }
+      best = { ref, role }
     }
   }
 
   for (const inst of instances) {
-    const instDef = design.defs[inst.defId]
-    for (const p of inputPorts(instDef)) {
-      consider({ kind: 'instance', instanceId: inst.id, portId: p.id }, portPosition(inst, instDef, p.id), 'input')
-    }
-    for (const p of outputPorts(instDef)) {
-      consider({ kind: 'instance', instanceId: inst.id, portId: p.id }, portPosition(inst, instDef, p.id), 'output')
-    }
-  }
-
-  if (def.kind === 'composite') {
-    const bounds = contentBounds(instances, design)
-    for (const p of def.ports) {
-      consider({ kind: 'port', portId: p.id }, portTerminalPosition(def, p.id, bounds), p.direction)
+    const def = design.defs[inst.defId]
+    if (def.primitive === 'input-port') {
+      for (const p of inputPorts(parentDef)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
+      }
+    } else if (def.primitive === 'output-port') {
+      for (const p of outputPorts(parentDef)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
+      }
+    } else {
+      for (const p of outputPorts(def)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
+      }
+      for (const p of inputPorts(def)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
+      }
     }
   }
 

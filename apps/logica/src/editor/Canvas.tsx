@@ -90,7 +90,7 @@ export function Canvas() {
       const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
       const instances = currentInstances()
       const def = state.design.defs[currentDefId(state)]
-      const hit = hitTest(w.x, w.y, instances, state.design.defs)
+      const hit = hitTest(w.x, w.y, instances, state.design, def)
       state.setHoverPort(null)
 
       if (e.shiftKey) {
@@ -106,8 +106,8 @@ export function Canvas() {
 
       // Pressing an output port always starts a wire — this takes priority over
       // selecting the component the port belongs to.
-      const port = hitTestPort(w.x, w.y, instances, state.design, def)
-      if (port && port.direction === 'output') {
+        const port = hitTestPort(w.x, w.y, instances, state.design, def)
+      if (port && port.role === 'source') {
         drag = { type: 'wire', from: port.ref, originalId: null, originalTo: null }
         state.setPendingWire({ from: port.ref, x: w.x, y: w.y })
         canvas.style.cursor = 'crosshair'
@@ -117,7 +117,7 @@ export function Canvas() {
 
       // Pressing an input that already has a wire grabs that wire (to re-target or
       // delete it), instead of selecting the component.
-      if (port && port.direction === 'input') {
+      if (port && port.role === 'sink') {
         const conn = findConnectionTo(def.connections ?? [], port.ref)
         if (conn) {
           drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
@@ -161,7 +161,7 @@ export function Canvas() {
         const port = hitTestPort(w.x, w.y, currentInstances(), state.design, def)
         if (!port) {
           state.setHoverPort(null)
-        } else if (port.direction === 'output') {
+        } else if (port.role === 'source') {
           state.setHoverPort({ ref: port.ref, action: 'create' })
         } else {
           const hasWire = findConnectionTo(def.connections ?? [], port.ref)
@@ -208,10 +208,11 @@ export function Canvas() {
           const y1 = Math.max(d.startWorld.y, cur.y)
           state.setMarquee({ x0, y0, x1, y1 })
           const instances = currentInstances()
+          const def = state.design.defs[currentDefId(state)]
           // Axis-aligned rectangle intersection test against each instance's bounds.
           const selected = instances
             .filter((inst) => {
-              const b = instanceBounds(inst, state.design.defs[inst.defId])
+              const b = instanceBounds(def, inst, state.design.defs[inst.defId])
               return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
             })
             .map((inst) => inst.id)
@@ -241,7 +242,7 @@ export function Canvas() {
         const def = state.design.defs[currentDefId(state)]
         const port = hitTestPort(w.x, w.y, instances, state.design, def)
 
-        if (port && port.direction === 'input') {
+        if (port && port.role === 'sink') {
           if (drag.originalTo && pinRefEquals(port.ref, drag.originalTo)) {
             // Released back onto the original target — no change.
           } else if (drag.originalId) {

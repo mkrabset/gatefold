@@ -6,13 +6,16 @@ import {
   applyGroup,
   findConnectionTo,
   inferGroup,
+  inputPortDef,
   inputPortId,
   inputPorts,
   nextPortId,
+  outputPortDef,
   outputPortId,
   outputPorts,
   primitiveDef,
 } from '@logica/model'
+import { instanceBounds } from '../editor/geometry'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -93,7 +96,7 @@ interface EditorState {
   removeConnection: (id: string) => void
 }
 
-const iref = (instanceId: string, portId: string): PinRef => ({ kind: 'instance', instanceId, portId })
+const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 
 // Small helper for generating a name/id that is unique among a set of existing ones.
 function uniqueAgainst(existing: Set<string>, base: string): string {
@@ -103,26 +106,55 @@ function uniqueAgainst(existing: Set<string>, base: string): string {
   return `${base}${i}`
 }
 
+// Default placement for a newly-added port group: just outside the component bounds
+// (inputs to the left of the leftmost component, outputs to the right of the rightmost).
+function portPlacement(def: ComponentDef, design: Design, direction: PortDirection): { x: number; y: number } {
+  const insts = def.instances ?? []
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const inst of insts) {
+    const instDef = design.defs[inst.defId]
+    // Ignore existing port groups so placement is relative to real components only.
+    if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') continue
+    const b = instanceBounds(def, inst, instDef)
+    minX = Math.min(minX, b.x)
+    maxX = Math.max(maxX, b.x + b.w)
+    minY = Math.min(minY, b.y)
+    maxY = Math.max(maxY, b.y + b.h)
+  }
+  if (!Number.isFinite(minX)) {
+    return { x: direction === 'input' ? -60 : 60, y: 0 }
+  }
+  const cy = (minY + maxY) / 2
+  return { x: direction === 'input' ? minX - 80 : maxX + 80, y: cy }
+}
+
 /** A small demo design so the app has content to render before save/load exists. */
 function createDemoDesign(): Design {
   const defs: Record<string, ComponentDef> = {}
   for (const spec of PRIMITIVE_LIBRARY) {
     defs[spec.kind] = primitiveDef(spec.kind)
   }
+  defs['input-port'] = inputPortDef()
+  defs['output-port'] = outputPortDef()
 
   defs['half-adder'] = {
     id: 'half-adder',
     name: 'half-adder',
     kind: 'composite',
     ports: [
-      { id: inputPortId(0), name: 'A', direction: 'input' },
-      { id: inputPortId(1), name: 'B', direction: 'input' },
-      { id: outputPortId(0), name: 'S', direction: 'output' },
-      { id: outputPortId(1), name: 'C', direction: 'output' },
+      { id: inputPortId(0), name: 'A', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:0' } },
+      { id: inputPortId(1), name: 'B', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:1' } },
+      { id: outputPortId(0), name: 'S', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:0' } },
+      { id: outputPortId(1), name: 'C', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:1' } },
     ],
     instances: [
-      { id: 'ha-xor', name: 'xor1', defId: 'xor', pos: { x: 120, y: 180 } },
-      { id: 'ha-and', name: 'and1', defId: 'and', pos: { x: 120, y: 320 } },
+      { id: 'ha-in', name: '', defId: 'input-port', pos: { x: 60, y: 250 } },
+      { id: 'ha-xor', name: 'xor1', defId: 'xor', pos: { x: 140, y: 180 } },
+      { id: 'ha-and', name: 'and1', defId: 'and', pos: { x: 140, y: 320 } },
+      { id: 'ha-out', name: '', defId: 'output-port', pos: { x: 220, y: 250 } },
     ],
     connections: [],
   }
@@ -237,6 +269,15 @@ export const useEditorStore = create<EditorState>()(
         s.pendingGroup = null
         const def = s.design.defs[defId]
         const last = def.instances?.[def.instances.length - 1]
+        if (last) {
+          // Place the new composite's port groups relative to its components: inputs
+          // left of the leftmost input pin, outputs right of the rightmost output pin.
+          const newDef = s.design.defs[last.defId]
+          for (const inst of newDef.instances ?? []) {
+            if (inst.defId === 'input-port') inst.pos = portPlacement(newDef, s.design, 'input')
+            else if (inst.defId === 'output-port') inst.pos = portPlacement(newDef, s.design, 'output')
+          }
+        }
         s.selectedIds = last ? [last.id] : []
       }),
     cancelGroup: () => set((s) => void (s.pendingGroup = null)),
@@ -257,10 +298,28 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         if (def.kind !== 'composite') return
         const count = direction === 'input' ? inputPorts(def).length : outputPorts(def).length
+        const portId = nextPortId(def, direction)
+        const name = direction === 'input' ? `in${count + 1}` : `out${count + 1}`
+        if (!def.instances) def.instances = []
+        const groupDefId = direction === 'input' ? 'input-port' : 'output-port'
+        let group = def.instances.find((i) => i.defId === groupDefId)
+        if (!group) {
+          group = {
+            id: uniqueAgainst(
+              new Set(def.instances.map((i) => i.id)),
+              direction === 'input' ? 'port-in' : 'port-out',
+            ),
+            name: '',
+            defId: groupDefId,
+            pos: portPlacement(def, s.design, direction),
+          }
+          def.instances.push(group)
+        }
         const port: Port = {
-          id: nextPortId(def, direction),
-          name: direction === 'input' ? `in${count + 1}` : `out${count + 1}`,
+          id: portId,
+          name,
           direction,
+          terminal: { instanceId: group.id, pinId: portId },
         }
         // Keep the ports array ordered: inputs first, then outputs.
         if (direction === 'input') {
@@ -275,12 +334,22 @@ export const useEditorStore = create<EditorState>()(
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
         if (def.kind !== 'composite') return
+        const port = def.ports.find((p) => p.id === portId)
         def.ports = def.ports.filter((p) => p.id !== portId)
-        // Drop any connections that referenced this composite port.
-        def.connections = (def.connections ?? []).filter((c) => {
-          const touches = (r: PinRef) => r.kind === 'port' && r.portId === portId
-          return !touches(c.from) && !touches(c.to)
-        })
+        const instId = port?.terminal?.instanceId
+        if (instId) {
+          // Drop any connections touching this port's group pin.
+          def.connections = (def.connections ?? []).filter(
+            (c) =>
+              !(c.from.instanceId === instId && c.from.portId === portId) &&
+              !(c.to.instanceId === instId && c.to.portId === portId),
+          )
+          // If no ports of that direction remain, remove the group instance.
+          const remaining = port?.direction === 'input' ? inputPorts(def).length : outputPorts(def).length
+          if (remaining === 0) {
+            def.instances = (def.instances ?? []).filter((i) => i.id !== instId)
+          }
+        }
       }),
     addInstance: (defId, pos) =>
       set((s) => {

@@ -5,7 +5,7 @@ import { primitiveDef } from '../src/primitives'
 import { applyGroup, inferGroup } from '../src/group'
 
 const inst = (id: string, defId: string, x = 0, y = 0): Instance => ({ id, name: id, defId, pos: { x, y } })
-const iRef = (instanceId: string, portId: string): PinRef => ({ kind: 'instance', instanceId, portId })
+const iRef = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef): Connection => ({ id, from, to })
 
 function buildHalfAdderDesign(): Design {
@@ -48,7 +48,7 @@ describe('inferGroup', () => {
     expect(g.inputs).toHaveLength(2)
     expect(g.outputs).toHaveLength(2)
 
-    const inputBySource = (id: string) => g.inputs.find((p) => p.source.kind === 'instance' && p.source.instanceId === id)
+    const inputBySource = (id: string) => g.inputs.find((p) => p.source.instanceId === id)
     expect(inputBySource('srcA')?.targets).toEqual([
       { instanceId: 'xor1', portId: 'in:0' },
       { instanceId: 'and1', portId: 'in:0' },
@@ -61,7 +61,7 @@ describe('inferGroup', () => {
 })
 
 describe('applyGroup', () => {
-  it('creates a composite, rewires the boundary, and updates the parent', () => {
+  it('creates a composite with port instances, rewires the boundary, and updates the parent', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'])
 
@@ -72,25 +72,36 @@ describe('applyGroup', () => {
     expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
     expect(outputPorts(compDef).map((p) => p.name)).toEqual(['S', 'C'])
 
-    // moved instances kept, with their positions
-    expect(compDef.instances?.map((i) => i.id).sort()).toEqual(['and1', 'xor1'])
+    // Ports are linked to the single internal port-group instances.
+    expect(inputPorts(compDef)[0].terminal).toEqual({ instanceId: 'component-in', pinId: 'in:0' })
+    expect(outputPorts(compDef)[0].terminal).toEqual({ instanceId: 'component-out', pinId: 'out:0' })
 
-    // internal wiring through the composite ports
+    // The moved gates and the two port-group instances all live inside the new def.
+    const ids = compDef.instances?.map((i) => i.id).sort()
+    expect(ids).toEqual(['and1', 'component-in', 'component-out', 'xor1'].sort())
+    const portDefs = compDef.instances!.filter((i) => i.defId === 'input-port' || i.defId === 'output-port')
+    expect(portDefs).toHaveLength(2)
+
+    // Internal wiring: inputs fan out to the gates, gates drive the outputs.
     expect(compDef.connections).toHaveLength(6)
+    const in0Wiring = compDef.connections!.filter((c) => c.from.instanceId === 'component-in' && c.from.portId === 'in:0')
+    expect(in0Wiring.map((c) => c.to)).toEqual([
+      { instanceId: 'xor1', portId: 'in:0' },
+      { instanceId: 'and1', portId: 'in:0' },
+    ])
 
-    // parent no longer contains the grouped gates
+    // Parent no longer contains the grouped gates.
     const parentIds = main.instances?.map((i) => i.id).sort()
     expect(parentIds).toEqual(['or1', 'srcA', 'srcB', 'component-i'].sort())
 
     const compInst = main.instances!.find((i) => i.defId === 'component')!
-    const externalFrom = (instanceId: string) =>
-      main.connections!.filter((c) => c.from.kind === 'instance' && c.from.instanceId === instanceId)
-
-    // srcA now drives the composite input in:0
-    expect(externalFrom('srcA')[0].to).toEqual({ kind: 'instance', instanceId: compInst.id, portId: 'in:0' })
-    // the composite output out:0 drives or1.in:0
-    const toOr0 = main.connections!.find((c) => c.to.kind === 'instance' && c.to.instanceId === 'or1' && c.to.portId === 'in:0')
-    expect(toOr0?.from).toEqual({ kind: 'instance', instanceId: compInst.id, portId: 'out:0' })
+    // srcA now drives the composite input in:0 (the internal fan-out to the gates
+    // happens inside the composite via the input-port instance).
+    const fromSrcA = main.connections!.filter((c) => c.from.instanceId === 'srcA')
+    expect(fromSrcA.map((c) => c.to)).toEqual([{ instanceId: compInst.id, portId: 'in:0' }])
+    // The composite output out:0 drives or1.in:0.
+    const toOr0 = main.connections!.find((c) => c.to.instanceId === 'or1' && c.to.portId === 'in:0')
+    expect(toOr0?.from).toEqual({ instanceId: compInst.id, portId: 'out:0' })
   })
 
   it('keeps connections that do not touch the selection untouched', () => {
@@ -98,9 +109,8 @@ describe('applyGroup', () => {
     const result = applyGroup(design, 'main', ['xor1'], ['X1', 'X2'], ['Y'])
 
     const main = result.defs['main']
-    // srcA -> and1 (untouched by grouping xor1) must remain, from srcA still
-    expect(main.connections!.some((c) => c.from.kind === 'instance' && c.from.instanceId === 'srcA' && c.to.kind === 'instance' && c.to.instanceId === 'and1')).toBe(true)
-    // xor1 -> or1 rewired through the new component
+    // srcA -> and1 (untouched by grouping xor1) must remain.
+    expect(main.connections!.some((c) => c.from.instanceId === 'srcA' && c.to.instanceId === 'and1')).toBe(true)
     expect(main.instances!.some((i) => i.id === 'xor1')).toBe(false)
     expect(main.instances!.some((i) => i.defId === 'component')).toBe(true)
   })

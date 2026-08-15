@@ -15,14 +15,18 @@ export type PortDirection = 'input' | 'output'
  * A named terminal on a component. `id` is stable (referenced by connections);
  * `name` is a user-facing label. Order within `ComponentDef.ports` (inputs first,
  * then outputs) determines their layout on the left/right edges.
+ *
+ * For composites, `terminal` links this declared port to the internal
+ * `input-port`/`output-port` instance pin that represents it inside the definition.
  */
 export interface Port {
   id: string
   name: string
   direction: PortDirection
+  terminal?: { instanceId: string; pinId: string }
 }
 
-export type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock'
+export type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port'
 
 export interface ComponentDef {
   id: string
@@ -42,13 +46,11 @@ export interface Instance {
 }
 
 /**
- * A connection endpoint: either a pin on a specific instance, or one of the
- * composite's *own* ports. The `port` variant lets a composite input fan out to
- * several internal inputs, and lets internal outputs drive a composite output.
+ * A connection endpoint: a pin on a specific instance. Composite ports are modeled
+ * as instances of the special `input-port`/`output-port` primitives, so every
+ * endpoint is an instance pin — no special "port" case.
  */
-export type PinRef =
-  | { kind: 'instance'; instanceId: string; portId: string }
-  | { kind: 'port'; portId: string }
+export type PinRef = { instanceId: string; portId: string }
 
 export interface Connection {
   id: string
@@ -93,13 +95,7 @@ export function nextPortId(def: ComponentDef, direction: PortDirection): string 
 
 /** Structural equality for connection endpoints. */
 export function pinRefEquals(a: PinRef, b: PinRef): boolean {
-  if (a.kind === 'instance' && b.kind === 'instance') {
-    return a.instanceId === b.instanceId && a.portId === b.portId
-  }
-  if (a.kind === 'port' && b.kind === 'port') {
-    return a.portId === b.portId
-  }
-  return false
+  return a.instanceId === b.instanceId && a.portId === b.portId
 }
 
 /**

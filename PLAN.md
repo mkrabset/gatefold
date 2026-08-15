@@ -43,9 +43,14 @@ The model cleanly separates **definitions** (types) from **instances** (usages).
 ```ts
 type Signal = 0 | 1 | 'x'; // 3-state logic (0, 1, unknown)
 
-interface Port { id: string; name: string; direction: 'input' | 'output' }
+interface Port {
+  id: string;
+  name: string;
+  direction: 'input' | 'output';
+  terminal?: { instanceId: string; pinId: string }; // composite only: internal port instance
+}
 
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock';
+type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port';
 
 interface ComponentDef {
   id: string;
@@ -54,7 +59,7 @@ interface ComponentDef {
   primitive?: PrimitiveKind;    // present when kind === 'primitive'
   ports: Port[];                // ordered: inputs first (in:0..n-1), then outputs (out:0..m-1)
   // Composite internals:
-  instances?: Instance[];       // sub-components
+  instances?: Instance[];       // sub-components (including port instances)
   connections?: Connection[];   // netlist wiring internal pins
 }
 
@@ -65,15 +70,13 @@ interface Instance {
   pos: { x: number; y: number }; // canvas placement
 }
 
-// A connection endpoint is either an instance's pin or the composite's own port.
-type PinRef =
-  | { kind: 'instance'; instanceId: string; portId: string }
-  | { kind: 'port'; portId: string };
+// A connection endpoint is always an instance pin.
+type PinRef = { instanceId: string; portId: string };
 
 interface Connection {
   id: string;
-  from: PinRef;                 // output pin, or a composite input port
-  to: PinRef;                   // input pin, or a composite output port
+  from: PinRef;                 // driver (an output pin)
+  to: PinRef;                   // sink (an input pin)
 }
 
 interface Design {
@@ -96,6 +99,14 @@ interface Design {
 - Ports are **named** (`Port.name`) and ordered (`ports` array). `id`s stay index-based
   (`in:0..n-1`, `out:0..m-1`) so wiring is stable under renames.
 - Inputs are rendered on the **left** edge, outputs on the **right** edge (see §6).
+- **Ports are modeled as port-group instances**: a single `input-port` instance carries
+  all of a composite's inputs (its pins are derived from `ports`, acting as drivers) and a
+  single `output-port` instance carries its outputs (acting as sinks). This keeps all
+  internal wiring plain output→input and the source/sink role unambiguous. The group is
+  rendered as a rectangle (green terminals for inputs, blue for outputs) and is movable as
+  one unit.
+- **Single-driver invariant**: each sink (`to`) has at most one incoming connection;
+  fan-out from a driver (`from`) is unrestricted.
 
 ---
 
@@ -204,6 +215,8 @@ adder from gates).
 6. `applyGroup` then:
    - creates the new `ComponentDef` (unique name, inferred `ports`, moved `instances`
      kept at their current positions, and internal connections);
+   - for each direction with inferred ports, creates a single `input-port`/`output-port`
+     **group instance** (linked via `Port.terminal`) and wires the moved pins through it;
    - removes the selected instances and all touching connections from the parent;
    - inserts a single instance of the new def at the bounding-box center;
    - re-adds external connections to that instance's ports (auto-rewire).
@@ -212,8 +225,9 @@ adder from gates).
 ### Editing later
 
 - The composite's ports remain fully editable: add/remove/rename via the **ports editor**.
-  Adding/removing a port adds/removes the corresponding port terminal.
-- Manually rewiring port↔pin connections depends on the **wire tool** becoming functional.
+  Adding/removing a port adds/removes a pin on the corresponding port group.
+- Port groups are movable as a whole (drag the rectangle body); their pins use the normal
+  output→input wire flow (implemented).
 
 ### Deferred
 
@@ -226,8 +240,8 @@ adder from gates).
 Zustand stores, split by concern:
 
 - `editorStore` — the `Design` document (definitions, instances, connections) via immer,
-  plus tool, viewport, multi-selection, marquee, and navigation stack. (zundo to be attached
-  for undo/redo.)
+  plus viewport, multi-selection, marquee, wire/hover/notice state, and navigation stack.
+  (zundo to be attached for undo/redo.)
 - `uiStore` — theme, panel widths, and other persisted UI preferences.
 - `simStore` — (planned) running/paused, simulated time, current pin values, clock state.
 
@@ -269,10 +283,10 @@ included so a load restores the schematic exactly.
 | # | Phase | Status |
 |---|-------|--------|
 | 1 | Scaffold — pnpm monorepo, Vite + React + TS, Zustand/immer, Vitest, base layout | ✅ done |
-| 2 | Data model — types + primitives + `ports: Port[]`/`PinRef` migration (done); JSON serialize/validate | ⏳ in progress |
+| 2 | Data model — types + primitives + `ports: Port[]` + port components (done); JSON serialize/validate | ⏳ in progress |
 | 3 | Simulation core — combinational → clocked/sequential → hierarchy flattening + cycle detection | ⏳ pending |
-| 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move (done); wire drawing | ⏳ in progress |
+| 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move, wire drawing + grab/re-target, library placement | ✅ done |
 | 5 | Component model UX — descend/ascend, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
-| 8 | Refinements — bezier wires, port terminals, theming, tooltips (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |
+| 8 | Refinements — bezier wires, port components, theming, tooltips (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |

@@ -403,6 +403,16 @@ body {
   color: var(--text);
 }
 
+.mini-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mini-btn:disabled:hover {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
 /* ---------- Dialog ---------- */
 .dialog-overlay {
   position: fixed;

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
+import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { hitTest, hitTestPort, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
@@ -136,8 +137,8 @@ export function Canvas() {
         if (!selected) {
           state.setSelection([hit.id])
         }
-        // Pause undo tracking so the whole drag is recorded as a single step.
-        useEditorStore.temporal.getState().pause()
+        // Coalesce the whole drag into a single undo step.
+        beginMoveTransaction()
         drag = { type: 'move', ids, startX: e.clientX, startY: e.clientY, origins }
         canvas.style.cursor = 'grabbing'
         canvas.setPointerCapture(e.pointerId)
@@ -238,13 +239,9 @@ export function Canvas() {
         useEditorStore.getState().setMarquee(null)
       }
       if (d?.type === 'move') {
-        // Resume undo tracking and record the final position as a single step.
-        const state = useEditorStore.getState()
-        useEditorStore.temporal.getState().resume()
-        const dx = (e.clientX - d.startX) / state.viewport.zoom
-        const dy = (e.clientY - d.startY) / state.viewport.zoom
-        const positions = d.ids.map((_, i) => ({ x: d.origins[i].x + dx, y: d.origins[i].y + dy }))
-        state.setInstancesPosition(d.ids, positions)
+        // The final position was already applied by the last pointermove; just end
+        // the coalescing so subsequent changes record normally.
+        endMoveTransaction()
       }
       if (d?.type === 'wire') {
         const state = useEditorStore.getState()
@@ -321,10 +318,11 @@ export function Canvas() {
       }
     }
 
-    // A cancelled drag must also resume undo tracking (otherwise it stays paused).
+    // A cancelled drag must also end the coalescing (otherwise future changes are
+    // not recorded).
     const onPointerCancel = () => {
       if (drag?.type === 'move') {
-        useEditorStore.temporal.getState().resume()
+        endMoveTransaction()
       }
       drag = null
       canvas.style.cursor = 'default'
@@ -344,7 +342,7 @@ export function Canvas() {
       ro.disconnect()
       unsub()
       unsubTheme()
-      useEditorStore.temporal.getState().resume()
+      endMoveTransaction()
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)

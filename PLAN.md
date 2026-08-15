@@ -27,8 +27,7 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 - **pnpm monorepo**: `apps/logica` (`@logica/app`) + `packages/model` (`@logica/model`),
   where `@logica/model` holds the pure domain model (no UI deps) and is consumed as source.
 - **Vite + React 19 + TypeScript** (strict mode).
-- **Zustand** (state management) + **immer** (immutable updates) + **zundo** (undo/redo,
-  planned).
+- **Zustand** (state management) + **immer** (immutable updates) + **zundo** (undo/redo).
 - **HTML5 `<canvas>`** for the schematic editor, backed by a retained scene-graph model with
   manual hit-testing.
 - **Vitest** for unit tests (simulator and data model are the correctness-critical parts).
@@ -174,8 +173,10 @@ Notes:
 - **Shift + click a component** → toggle it in/out of the selection.
 - **Shift + drag** → pan the viewport (a small threshold distinguishes click from drag).
 - **Mouse wheel** → zoom in/out (anchored at the cursor).
-- **Drag from an output pin to an input pin** → create a wire (planned; the "wire" tool is
-  currently a placeholder).
+- **Press an output pin** → draw a wire to an input pin (drop to connect; a dashed preview
+  follows the cursor).
+- **Press an input pin that already has a wire** → grab it: release on a new input to
+  re-target, or on empty space to delete. Dropping onto an already-driven input is rejected.
 - During simulation, wires/pins are colored live by their signal value (`0`/`1`/`X`).
 
 ### Panels
@@ -188,8 +189,10 @@ Notes:
   - **Ports editor** for the currently-viewed composite: add/remove/rename its ports.
 - **Library panel:** palette to pick a component to place, plus the user's composite
   components (derived from the design, not hardcoded).
-- **Toolbar:** tools, simulation controls (run/step/stop/reset), save/load JSON, theme
-  toggle, and a **Group** action.
+- **Toolbar:** group action, simulation controls (run/step/stop/reset), save/load JSON,
+  theme toggle.
+- **Shortcuts:** Ctrl/Cmd+C copy · Ctrl/Cmd+V paste · Delete/Backspace delete ·
+  Ctrl/Cmd+Z undo · Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo.
 
 ---
 
@@ -231,7 +234,7 @@ adder from gates).
 
 ### Deferred
 
-- Cycle detection for nested composites, undo/redo integration, name-uniqueness validation.
+- Cycle detection for nested composites, name-uniqueness validation.
 
 ---
 
@@ -239,9 +242,9 @@ adder from gates).
 
 Zustand stores, split by concern:
 
-- `editorStore` — the `Design` document (definitions, instances, connections) via immer,
-  plus viewport, multi-selection, marquee, wire/hover/notice state, and navigation stack.
-  (zundo to be attached for undo/redo.)
+- `editorStore` — the `Design` document (definitions, instances, connections) via immer and
+  zundo, plus viewport, multi-selection, marquee, wire/hover/notice state, clipboard, and
+  navigation stack.
 - `uiStore` — theme, panel widths, and other persisted UI preferences.
 - `simStore` — (planned) running/paused, simulated time, current pin values, clock state.
 
@@ -261,18 +264,18 @@ included so a load restores the schematic exactly.
 /workspace
 ├── README.md               # user-facing doc
 ├── PLAN.md                 # this roadmap
-├── docs/ARCHITECTURE.md    # as-built design summary
+├── docs/                   # ARCHITECTURE.md, NOTES.md
 ├── apps/
 │   └── logica/src/
 │       ├── editor/     geometry.ts, renderer.ts, routing.ts, palette.ts, Canvas.tsx
 │       ├── state/      editorStore.ts, uiStore.ts
 │       ├── ui/         App.tsx, Toolbar.tsx, Sidebar.tsx, LibraryPanel.tsx,
-│       │               ResizeHandle.tsx, GroupDialog.tsx
+│       │               ResizeHandle.tsx, GroupDialog.tsx, SortablePortList.tsx, Toast.tsx
 │       ├── main.tsx
 │       └── index.css
 ├── packages/
-│   └── model/src/      types.ts, primitives.ts, group.ts, index.ts
-│       └── test/       primitives.test.ts, group.test.ts
+│   └── model/src/      types.ts, primitives.ts, group.ts, clipboard.ts, index.ts
+│       └── test/       primitives.test.ts, connections.test.ts, group.test.ts, clipboard.test.ts
 └── (planned) sim/       engine.ts, events.ts, clock.ts, flatten.ts
 ```
 
@@ -285,8 +288,8 @@ included so a load restores the schematic exactly.
 | 1 | Scaffold — pnpm monorepo, Vite + React + TS, Zustand/immer, Vitest, base layout | ✅ done |
 | 2 | Data model — types + primitives + `ports: Port[]` + port components (done); JSON serialize/validate | ⏳ in progress |
 | 3 | Simulation core — combinational → clocked/sequential → hierarchy flattening + cycle detection | ⏳ pending |
-| 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move, wire drawing + grab/re-target, library placement | ✅ done |
-| 5 | Component model UX — descend/ascend, group into composite, ports editor, instance rename | ✅ done |
+| 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move, wire create/grab/re-target, library placement, copy/paste/delete, undo/redo | ✅ done |
+| 5 | Component model UX — descend/ascend into any component, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
-| 8 | Refinements — bezier wires, port components, theming, tooltips (done); buses, more primitives, truth-table view, undo/redo | ⏳ pending |
+| 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses, more primitives, truth-table view | ⏳ pending |

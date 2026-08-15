@@ -115,6 +115,23 @@ const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, port
 let clipboard: Clipboard | null = null
 let pasteOffset = 0
 
+// Drag coalescing: while `coalescingMove` is true, only the first design change is
+// recorded in the undo history (so a whole drag is a single undo step).
+let coalescingMove = false
+let skipMoveRecording = false
+
+/** Begin coalescing a drag into a single undo step. */
+export function beginMoveTransaction(): void {
+  coalescingMove = true
+  skipMoveRecording = false
+}
+
+/** End the drag coalescing; subsequent changes record normally again. */
+export function endMoveTransaction(): void {
+  coalescingMove = false
+  skipMoveRecording = false
+}
+
 // Small helper for generating a name/id that is unique among a set of existing ones.
 function uniqueAgainst(existing: Set<string>, base: string): string {
   if (!existing.has(base)) return base
@@ -159,7 +176,7 @@ function variantize(defs: Record<string, ComponentDef>, templateId: string, suff
 }
 
 /** A small demo design so the app has content to render before save/load exists. */
-function createDemoDesign(): Design {
+export function createDemoDesign(): Design {
   const defs: Record<string, ComponentDef> = {}
   for (const spec of PRIMITIVE_LIBRARY) {
     defs[spec.kind] = primitiveDef(spec.kind)
@@ -488,7 +505,18 @@ export const useEditorStore = create<EditorState>()(
         s.selectedIds = newIds
       }),
     })),
-    { limit: 100, partialize: (state) => ({ design: state.design }) },
+    {
+      limit: 100,
+      partialize: (state) => ({ design: state.design }),
+      equality: (past, current) => past.design === current.design,
+      handleSet: (handleSet) => (pastState) => {
+        // During a drag, record only the first change (its baseline), then skip the
+        // rest until the drag ends.
+        if (skipMoveRecording) return
+        handleSet(pastState)
+        skipMoveRecording = coalescingMove
+      },
+    },
   ),
 )
 

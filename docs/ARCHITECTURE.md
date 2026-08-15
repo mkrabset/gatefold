@@ -53,6 +53,7 @@ interface ComponentDef {
   ports: Port[]                             // ordered: inputs first, then outputs
   instances?: Instance[]                    // composite internals
   connections?: Connection[]
+  variant?: boolean                         // true = instance-local fork (hidden from library)
 }
 
 interface Instance {
@@ -92,14 +93,21 @@ interface Design { version: number; root: string; defs: Record<string, Component
 - **Single-driver invariant**: each sink (`to`) has at most one incoming connection
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
 - **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK. The port primitives
-  are not listed in the library (they are created/edited via the ports editor).
+  are not listed in the library (they are created/edited via the ports editor). Primitive
+  arity is constrained per spec via `fixedInputs` / `fixedOutputs`, and terminal renaming via
+  `allowRenameTerminals`.
+- **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
+  template (and its whole internal hierarchy) into `variant: true` defs, so every instance
+  owns its own content and edits never affect the template or sibling instances.
+- **Clipboard** (`clipboard.ts`): pure `copyDefSubgraph` / `captureClipboard` /
+  `instantiateClipboard` for in-app copy/paste with deep, id-rewritten copies.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
 
 ---
 
 ## 3. State management (`apps/logica/src/state`)
 
-### `editorStore` — zustand + immer
+### `editorStore` — zustand + immer + zundo
 The document and editing state:
 - `design: Design` — the current design (currently a hardcoded demo).
 - `navStack: string[]` — navigation path into composites; the top is the currently
@@ -113,10 +121,16 @@ The document and editing state:
 - `pendingGroup` — names collected in the group dialog.
 
 Actions: viewport/selection/marquee setters, navigation, the group flow, port & instance
-editing (`renamePort`, `renameInstance`, `addPort`, `removePort`), and connection editing
-(`addConnection` with single-driver rejection, `retargetConnection`, `removeConnection`).
+editing (`renamePort`, `renameInstance`, `addPort`, `removePort`, `setPortOrder`),
+connection editing (`addConnection` with single-driver rejection, `retargetConnection`,
+`removeConnection`), instance placement (`addInstance`, deep copy-on-place), and
+clipboard/editing (`deleteSelection`, `copySelection`, `paste`).
 
-Undo/redo middleware (`zundo`) is planned but not yet attached.
+Undo/redo is provided by the **zundo `temporal`** middleware, `partialize`d to
+`{ design }` (so viewport/selection/hover are not undoable). Drag moves are coalesced into
+a single history entry via a `handleSet` coalescer driven by `beginMoveTransaction` /
+`endMoveTransaction`. The in-memory clipboard is a module-level variable (not part of the
+undoable state).
 
 ### `uiStore` — zustand + persist
 UI preferences persisted to `localStorage` (`logica-ui`):
@@ -129,11 +143,12 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — per-primitive body dimensions (composites use a fixed box).
-- `portPosition(instance, def, portId)` — input pins on the left edge, output pins on the
-  right, evenly spaced.
+- `portPosition(parentDef, instance, def, portId)` — input pins on the left edge, output
+  pins on the right, evenly spaced; port-group pins are derived from the parent's ports.
 - `instanceBounds(...)`, `hitTest(...)` — world-space bounds and topmost hit detection.
-- `hitTestPort(wx, wy, instances, design)` — nearest connectable pin within a radius,
-  returning `{ ref, role }` where `role` is `source` (output pin) or `sink` (input pin).
+- `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin within a
+  radius, returning `{ ref, role }` where `role` is `source` (output pin) or `sink`
+  (input pin).
 
 ### Routing (`routing.ts`)
 - `wirePath(a, b)` returns a cubic-bezier definition `{ start, c1, c2, end }`, with
@@ -166,10 +181,15 @@ All pointer handling is attached natively to the `<canvas>`; the store drives re
 - **Shift + click** a component → toggle selection; **Shift + drag** → pan (a threshold
   distinguishes the two).
 - **Mouse wheel** → zoom anchored at the cursor.
+- **Double-click** a component → enter it (composites and gates alike); **Escape** (while
+  the pointer is over the canvas) → exit back up one level.
 - **Wiring**: press an output pin (yellow hover) → draw a wire → release on an input pin.
   Press an input pin that already has a wire (orange hover) → grab it → release on a new
   input to re-target, or on empty space to delete. Dropping onto an already-driven input is
   rejected (toast).
+
+Global shortcuts (in `App.tsx`, ignored while typing): Ctrl/Cmd+C copy, Ctrl/Cmd+V paste,
+Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 
 ---
 
@@ -181,11 +201,12 @@ All pointer handling is attached natively to the `<canvas>`; the store drives re
 - **Toolbar** — brand, group action, simulation controls (placeholders), breadcrumb
   navigation, save/open JSON (placeholders), theme toggle. Icon buttons carry `title`
   tooltips.
-- **Sidebar** (left) — component tree (double-click a composite to descend), properties
-  panel (name commits on Enter/blur), and a **ports editor** (add/remove/rename the current
-  composite's ports; each port is backed by the composite's port-group instances).
+- **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
+  properties panel (name commits on Enter/blur), and a **ports editor** (add/remove/rename/
+  reorder ports; add/remove is gated by the primitive's `fixedInputs`/`fixedOutputs`, rename
+  by `allowRenameTerminals`; reorder is animated via @dnd-kit).
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
-  place an instance).
+  place a deep copy; `variant` defs are excluded).
 - **GroupDialog** — names the inferred ports before creating a composite.
 - **Toast** — transient messages (e.g. "Input already has a driver").
 - **ResizeHandle** — draggable dividers; widths persist via `uiStore`.
@@ -203,10 +224,12 @@ Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** bu
   → internal; a selected input fed from outside → inferred input (grouped by external net);
   a selected output feeding outside → inferred output.
 - **`applyGroup(design, defId, ids, inputNames, outputNames)`** clones the design, creates
-  the new `ComponentDef`, and for each inferred port creates an `input-port`/`output-port`
-  instance (linked via `Port.terminal`), wires the moved pins through those instances, then
-  replaces the selection in the parent with a single instance at its centroid and re-wires
-  the external connections to that instance's ports.
+  the new `ComponentDef` (a library template), and for each inferred port creates an
+  `input-port`/`output-port` group instance (linked via `Port.terminal`), wires the moved
+  pins through those instances, then replaces the selection in the parent with a single
+  instance at its centroid and re-wires the external connections to that instance's ports.
+  The store then deep-copies the new template into a `variant` for the instance
+  (copy-on-place), so editing the instance never touches the library template.
 
 Pure (no input mutation) and fully unit-tested.
 
@@ -217,7 +240,7 @@ Pure (no input mutation) and fully unit-tested.
 - Simulation engine (combinational + sequential + hierarchy flattening).
 - JSON serialize/deserialize + validation; wire the save/open buttons.
 - Simulation UI (run/step behavior, live signal coloring).
-- Undo/redo; instance/definition name-uniqueness validation.
+- Instance/definition name-uniqueness validation.
 - Multi-bit buses (single wires only for now).
 
 ---
@@ -228,5 +251,9 @@ Pure (no input mutation) and fully unit-tested.
 - `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo`.
 - `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
   rewiring).
+- `packages/model/test/clipboard.test.ts` — `copyDefSubgraph` / `captureClipboard` /
+  `instantiateClipboard`.
 - `apps/logica/src/editor/routing.test.ts` — bezier control-point math and tangents.
+- `apps/logica/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
+  multi-step) and copy/paste.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.

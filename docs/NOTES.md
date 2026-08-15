@@ -25,6 +25,12 @@ See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSAR
   boundary, so a composite port wired to an internal fan-in/fan-out renders as a bus from
   the *outside* (and reports its width to the hover tooltip and wire thickness), and
   validation sees it as non-neutral (a determined width) rather than "adopt anything".
+- **Bus input tooltips** — hovering an unconnected bus *input* terminal now shows its
+  `×n` tooltip too (new `HoverAction` `'inspect'` for informational-only hover).
+- **Grouping exposes floating pins** — `inferGroup` now also emits exposed ports: unconnected
+  selected inputs become input terminals and unused selected outputs become output terminals,
+  wired only internally (no external connection). Order: crossing ports first, then exposed
+  (instance order, then port order).
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template

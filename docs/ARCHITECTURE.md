@@ -236,12 +236,16 @@ Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** bu
 
 - **`inferGroup(design, defId, ids)`** classifies each connection: both endpoints selected
   → internal; a selected input fed from outside → inferred input (grouped by external net);
-  a selected output feeding outside → inferred output.
+  a selected output feeding outside → inferred output. It additionally *exposes* floating
+  pins: a selected input with no incoming wire becomes an inferred input (no source) and a
+  selected output with no outgoing wire becomes an inferred output (no targets), so unused
+  terminals become ports wired only internally.
 - **`applyGroup(design, defId, ids, inputNames, outputNames)`** clones the design, creates
   the new `ComponentDef` (a library template), and for each inferred port creates an
   `input-port`/`output-port` group instance (linked via `Port.terminal`), wires the moved
   pins through those instances, then replaces the selection in the parent with a single
   instance at its centroid and re-wires the external connections to that instance's ports.
+  Exposed (floating) ports are wired only internally — no external connection is created.
   The store then deep-copies the new template into a `variant` for the instance
   (copy-on-place), so editing the instance never touches the library template.
 

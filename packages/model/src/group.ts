@@ -1,5 +1,5 @@
 import type { ComponentDef, Connection, Design, Instance, PinRef, Port } from './types'
-import { inputPortId, outputPortId } from './types'
+import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinRefEquals } from './types'
 
 /**
  * Pure "group into composite" logic.
@@ -20,13 +20,15 @@ export interface InstancePin {
 
 /** An inferred input: one external net feeding one or more selected input pins. */
 export interface InferredInput {
-  source: InstancePin
+  /** The external pin driving this input, or undefined for an exposed (unconnected) input. */
+  source?: InstancePin
   targets: InstancePin[]
 }
 
 /** An inferred output: one selected output pin driving one or more external pins. */
 export interface InferredOutput {
   source: InstancePin
+  /** The external pins driven by this output; empty for an exposed (unconnected) output. */
   targets: InstancePin[]
 }
 
@@ -76,7 +78,9 @@ export function cloneDesign(design: Design): Design {
 
 /**
  * Classify the connections of `defId` relative to the selected instances and infer the
- * composite's input/output ports from the wires crossing the selection boundary.
+ * composite's input/output ports from the wires crossing the selection boundary, plus
+ * the selected instances' unconnected pins (so floating inputs become input terminals
+ * and unused outputs become output terminals, wired only internally).
  */
 export function inferGroup(design: Design, defId: string, instanceIds: string[]): InferredGroup {
   const selected = new Set(instanceIds)
@@ -108,7 +112,31 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
     }
   }
 
-  return { internal, inputs: [...inputs.values()], outputs: [...outputs.values()] }
+  // Exposed (unconnected) pins: an input with no incoming wire becomes an input
+  // terminal (so it can be driven later); an output with no outgoing wire becomes an
+  // output terminal (so it can be used later). Only internal wiring is added — no
+  // external connection. Deterministic order: instance order, then port order.
+  const exposedInputs: InferredInput[] = []
+  const exposedOutputs: InferredOutput[] = []
+  for (const inst of def.instances ?? []) {
+    if (!selected.has(inst.id)) continue
+    const instDef = design.defs[inst.defId]
+    if (!instDef) continue
+    for (const port of inputPorts(instDef)) {
+      const ref = { instanceId: inst.id, portId: port.id }
+      if (!findConnectionTo(def.connections ?? [], ref)) {
+        exposedInputs.push({ targets: [ref] })
+      }
+    }
+    for (const port of outputPorts(instDef)) {
+      const ref = { instanceId: inst.id, portId: port.id }
+      if (!(def.connections ?? []).some((c) => pinRefEquals(c.from, ref))) {
+        exposedOutputs.push({ source: ref, targets: [] })
+      }
+    }
+  }
+
+  return { internal, inputs: [...inputs.values(), ...exposedInputs], outputs: [...outputs.values(), ...exposedOutputs] }
 }
 
 /**
@@ -210,6 +238,8 @@ export function applyGroup(
   const genExt = () => `e-${++extCounter}`
 
   inferred.inputs.forEach((g, i) => {
+    // Exposed inputs have no external source — nothing to re-wire in the parent.
+    if (!g.source) return
     external.push({
       id: genExt(),
       from: g.source,

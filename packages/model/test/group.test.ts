@@ -7,6 +7,8 @@ import { applyGroup, inferGroup } from '../src/group'
 const inst = (id: string, defId: string, x = 0, y = 0): Instance => ({ id, name: id, defId, pos: { x, y } })
 const iRef = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef): Connection => ({ id, from, to })
+const pinEq = (c: Connection, from: PinRef, to: PinRef) =>
+  c.from.instanceId === from.instanceId && c.from.portId === from.portId && c.to.instanceId === to.instanceId && c.to.portId === to.portId
 
 function buildHalfAdderDesign(): Design {
   const defs: Record<string, Design['defs'][string]> = {
@@ -48,7 +50,7 @@ describe('inferGroup', () => {
     expect(g.inputs).toHaveLength(2)
     expect(g.outputs).toHaveLength(2)
 
-    const inputBySource = (id: string) => g.inputs.find((p) => p.source.instanceId === id)
+    const inputBySource = (id: string) => g.inputs.find((p) => p.source?.instanceId === id)
     expect(inputBySource('srcA')?.targets).toEqual([
       { instanceId: 'xor1', portId: 'in:0' },
       { instanceId: 'and1', portId: 'in:0' },
@@ -123,5 +125,68 @@ describe('applyGroup', () => {
     expect(main.connections!.some((c) => c.from.instanceId === 'srcA' && c.to.instanceId === 'and1')).toBe(true)
     expect(main.instances!.some((i) => i.id === 'xor1')).toBe(false)
     expect(main.instances!.some((i) => i.defId === 'component')).toBe(true)
+  })
+})
+
+// A single AND gate whose in:1 and out:0 are floating (only in:0 is driven).
+function buildFloatingPinsDesign(): Design {
+  const defs: Record<string, Design['defs'][string]> = {
+    and: primitiveDef('and'),
+    clock: primitiveDef('clock'),
+  }
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [inst('src', 'clock', 0, 0), inst('and1', 'and', 200, 0)],
+    connections: [conn('c1', iRef('src', 'out:0'), iRef('and1', 'in:0'))],
+  }
+  return { version: 1, root: 'main', defs }
+}
+
+describe('inferGroup — exposed (floating) pins', () => {
+  it('exposes unconnected inputs and outputs as ports', () => {
+    const design = buildFloatingPinsDesign()
+    const g = inferGroup(design, 'main', ['and1'])
+
+    // One crossing input (src -> in:0), one exposed input (in:1), one exposed output (out:0).
+    expect(g.inputs).toHaveLength(2)
+    expect(g.inputs[0].source).toEqual({ instanceId: 'src', portId: 'out:0' })
+    expect(g.inputs[0].targets).toEqual([{ instanceId: 'and1', portId: 'in:0' }])
+    expect(g.inputs[1].source).toBeUndefined()
+    expect(g.inputs[1].targets).toEqual([{ instanceId: 'and1', portId: 'in:1' }])
+
+    expect(g.outputs).toHaveLength(1)
+    expect(g.outputs[0].source).toEqual({ instanceId: 'and1', portId: 'out:0' })
+    expect(g.outputs[0].targets).toEqual([])
+  })
+})
+
+describe('applyGroup — exposed (floating) pins', () => {
+  it('wires exposed ports internally and leaves no external connection', () => {
+    const design = buildFloatingPinsDesign()
+    const result = applyGroup(design, 'main', ['and1'], ['A', 'B'], ['Y'])
+
+    const main = result.defs['main']
+    const compDef = result.defs['component']
+
+    expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
+    expect(outputPorts(compDef).map((p) => p.name)).toEqual(['Y'])
+
+    // Internal wiring: in:0 -> and1.in:0 (crossing), in:1 -> and1.in:1 (exposed),
+    // and1.out:0 -> out:0 (exposed).
+    expect(compDef.connections).toHaveLength(3)
+    expect(compDef.connections!.some((c) => pinEq(c, iRef('component-in', 'in:0'), iRef('and1', 'in:0')))).toBe(true)
+    expect(compDef.connections!.some((c) => pinEq(c, iRef('component-in', 'in:1'), iRef('and1', 'in:1')))).toBe(true)
+    expect(compDef.connections!.some((c) => pinEq(c, iRef('and1', 'out:0'), iRef('component-out', 'out:0')))).toBe(true)
+
+    // The parent's only external wiring is src -> component.in:0 (the crossing input).
+    const compInst = main.instances!.find((i) => i.defId === 'component')!
+    expect(main.connections).toHaveLength(1)
+    expect(main.connections![0]).toMatchObject({
+      from: { instanceId: 'src', portId: 'out:0' },
+      to: { instanceId: compInst.id, portId: 'in:0' },
+    })
   })
 })

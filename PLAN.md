@@ -214,15 +214,19 @@ adder from gates).
 4. **Infer ports** from the boundary crossings:
    - inputs = distinct *external nets* feeding selected input pins (one net → one input,
      fanned out internally to all the pins it feeds);
-   - outputs = distinct selected output pins feeding outside.
+   - outputs = distinct selected output pins feeding outside;
+   - plus *exposed* ports: unconnected selected inputs → input terminals, and unconnected
+     selected outputs → output terminals (wired only internally, so floating inputs can be
+     driven and unused outputs used later).
 5. Show a **review dialog** listing the inferred inputs/outputs with editable names
    (auto-names `in1`, `out1`). Confirm to create.
 6. `applyGroup` then:
    - creates the new `ComponentDef` (unique name, inferred `ports`, moved `instances`
      kept at their current positions, and internal connections);
-   - for each direction with inferred ports, creates a single `input-port`/`output-port`
-     **group instance** (linked via `Port.terminal`) and wires the moved pins through it;
-   - removes the selected instances and all touching connections from the parent;
+    - for each direction with inferred ports, creates a single `input-port`/`output-port`
+      **group instance** (linked via `Port.terminal`) and wires the moved pins through it
+      (exposed ports get only this internal wiring);
+    - removes the selected instances and all touching connections from the parent;
    - inserts a single instance of the new def at the bounding-box center;
    - re-adds external connections to that instance's ports (auto-rewire).
 7. The new component appears in the Library's "My components" list.

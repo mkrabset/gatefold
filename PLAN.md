@@ -49,7 +49,7 @@ interface Port {
   terminal?: { instanceId: string; pinId: string }; // composite only: internal port instance
 }
 
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port';
+type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port';
 
 interface ComponentDef {
   id: string;
@@ -118,6 +118,8 @@ The palette of primitives, initially:
 - **XOR** (2 inputs, 1 output)
 - **NOT** (1 input, 1 output)
 - **CLOCK** (0 inputs, 1 output)
+- **FAN-IN** (n inputs, 1 bus output — bundles n single wires into a bus)
+- **FAN-OUT** (1 bus input, n outputs — splits a bus into n single wires)
 
 Notes:
 
@@ -292,4 +294,4 @@ included so a load restores the schematic exactly.
 | 5 | Component model UX — descend/ascend into any component, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
-| 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses, more primitives, truth-table view | ⏳ pending |
+| 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |

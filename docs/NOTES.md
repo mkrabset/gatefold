@@ -21,6 +21,10 @@ See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSAR
   ends are determined; a neutral port adopts the other side's width.
 - **Rendering** — bus wires scale with width; bus pins larger (`3.5·√width`); hovering a bus
   pin shows an `×n` arity tooltip.
+- **Bus width surfacing** — `pinWidth`/`isNeutralPin` now cross a composite's `Port.terminal`
+  boundary, so a composite port wired to an internal fan-in/fan-out renders as a bus from
+  the *outside* (and reports its width to the hover tooltip and wire thickness), and
+  validation sees it as non-neutral (a determined width) rather than "adopt anything".
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template
@@ -45,8 +49,9 @@ See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSAR
 - **Deeply-nested grouping** isolation imperfect: a grouped *template* can reference a
   `variant` def (the store deep-copies only the top level; nested variants are shared).
 - Composite **definition** renaming not implemented (only instance + port names).
-- Cross-level **bus width consistency** is per-level only (internal vs external width
-  mismatch isn't caught across a composite boundary).
+- Cross-level **bus width consistency** is enforced at connection time (a composite port's
+  internal width is now visible to `addConnection`/`retargetConnection`); there is still no
+  global invariant scan to flag a pre-existing inconsistent design.
 - Cycle detection deferred until the simulator needs it.
 - OS-clipboard integration deferred (clipboard is in-app only).
 - Orthogonal bus/wire routing deferred (cubic-bezier `routing.ts` isolates this).

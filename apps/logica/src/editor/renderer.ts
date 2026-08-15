@@ -501,11 +501,15 @@ export function drawScene(
     const pos = resolveEndpoint(hoverPort.ref)
     if (pos) {
       const s = w2s(pos.x, pos.y, cw, ch, vp)
-      ctx.beginPath()
-      ctx.arc(s.x, s.y, 6, 0, Math.PI * 2)
-      ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
-      ctx.lineWidth = 2
-      ctx.stroke()
+      // 'inspect' is informational only (a bus terminal that can't be grabbed or
+      // created from) — show the arity tooltip but no interaction ring.
+      if (hoverPort.action !== 'inspect') {
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, 6, 0, Math.PI * 2)
+        ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
 
       // Tooltip showing the arity of a bus terminal.
       const width = pinWidth(design, def, hoverPort.ref)

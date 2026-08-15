@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { hitTest, hitTestPort, instanceBounds } from './geometry'
+import { hitTest, hitTestPort, instanceBounds, pinWidth } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
@@ -168,7 +168,14 @@ export function Canvas() {
           state.setHoverPort({ ref: port.ref, action: 'create' })
         } else {
           const hasWire = findConnectionTo(def.connections ?? [], port.ref)
-          state.setHoverPort(hasWire ? { ref: port.ref, action: 'grab' } : null)
+          if (hasWire) {
+            state.setHoverPort({ ref: port.ref, action: 'grab' })
+          } else if (pinWidth(state.design, def, port.ref) > 1) {
+            // An unconnected bus input terminal — no wire to grab, but surface its arity.
+            state.setHoverPort({ ref: port.ref, action: 'inspect' })
+          } else {
+            state.setHoverPort(null)
+          }
         }
         return
       }

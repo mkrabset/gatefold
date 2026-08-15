@@ -66,7 +66,7 @@ export interface PendingWire {
   originalId?: string
 }
 
-export type HoverAction = 'create' | 'grab'
+export type HoverAction = 'create' | 'grab' | 'inspect'
 
 /** The port currently under the cursor, and what pressing there would do. */
 export interface HoverPort {

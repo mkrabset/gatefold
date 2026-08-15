@@ -169,6 +169,10 @@ export function hitTestPort(
  * composite's own terminal or a composite instance's pin) inherit their width from
  * whatever they are connected to; single wires are width 1. A composite port that is
  * not connected anywhere is neutral (1).
+ *
+ * For a composite *instance* pin (seen from the parent), the port's width is set by
+ * what its internal `terminal` connects to inside the composite, so that is resolved
+ * first; only when the inside is neutral does the pin fall back to the external wire.
  */
 export function pinWidth(design: Design, parentDef: ComponentDef, ref: PinRef, visited?: Set<string>): number {
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
@@ -184,9 +188,18 @@ export function pinWidth(design: Design, parentDef: ComponentDef, ref: PinRef, v
   // connection in `parentDef` to inherit the width.
   if (def.primitive === 'input-port' || def.primitive === 'output-port' || def.kind === 'composite') {
     const seen = visited ?? new Set<string>()
-    const key = `${ref.instanceId}:${ref.portId}`
+    const key = `${parentDef.id}:${ref.instanceId}:${ref.portId}`
     if (seen.has(key)) return 1
     seen.add(key)
+    // A composite instance's pin: its canonical width is what its internal terminal
+    // is wired to inside the composite, so resolve that before the external wire.
+    if (def.kind === 'composite') {
+      const port = def.ports.find((p) => p.id === ref.portId)
+      if (port?.terminal) {
+        const internal = pinWidth(design, def, { instanceId: port.terminal.instanceId, portId: port.terminal.pinId }, seen)
+        if (internal > 1) return internal
+      }
+    }
     for (const c of parentDef.connections ?? []) {
       if (pinRefEquals(c.from, ref)) return pinWidth(design, parentDef, c.to, seen)
       if (pinRefEquals(c.to, ref)) return pinWidth(design, parentDef, c.from, seen)
@@ -196,13 +209,26 @@ export function pinWidth(design: Design, parentDef: ComponentDef, ref: PinRef, v
   return 1
 }
 
-/** True when `ref` is a composite port pin with no connections (so its width is neutral). */
+/**
+ * True when `ref` is a composite/port-group pin whose width is undetermined (so it
+ * adopts the width of whatever is connected to it). A composite instance pin is only
+ * neutral when it has no external connection *and* its internal terminal is neutral.
+ */
 export function isNeutralPin(design: Design, parentDef: ComponentDef, ref: PinRef): boolean {
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return false
   const def = design.defs[inst.defId]
-  if (def.primitive === 'input-port' || def.primitive === 'output-port' || def.kind === 'composite') {
-    return !(parentDef.connections ?? []).some((c) => pinRefEquals(c.from, ref) || pinRefEquals(c.to, ref))
+  const connected = (parentDef.connections ?? []).some((c) => pinRefEquals(c.from, ref) || pinRefEquals(c.to, ref))
+  if (def.primitive === 'input-port' || def.primitive === 'output-port') {
+    return !connected
+  }
+  if (def.kind === 'composite') {
+    if (connected) return false
+    const port = def.ports.find((p) => p.id === ref.portId)
+    if (port?.terminal) {
+      return isNeutralPin(design, def, { instanceId: port.terminal.instanceId, portId: port.terminal.pinId })
+    }
+    return true
   }
   return false
 }

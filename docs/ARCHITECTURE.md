@@ -43,7 +43,7 @@ interface Port {
   terminal?: { instanceId: string; pinId: string } // composite only: internal port instance
 }
 
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'input-port' | 'output-port'
+type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port'
 
 interface ComponentDef {
   id: string
@@ -92,10 +92,14 @@ interface Design { version: number; root: string; defs: Record<string, Component
   come from `ports`.
 - **Single-driver invariant**: each sink (`to`) has at most one incoming connection
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
-- **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK. The port primitives
-  are not listed in the library (they are created/edited via the ports editor). Primitive
-  arity is constrained per spec via `fixedInputs` / `fixedOutputs`, and terminal renaming via
-  `allowRenameTerminals`.
+- **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK, plus the bus
+  bundling/splitting primitives FAN-IN (n single inputs → 1 bus output) and FAN-OUT
+  (1 bus input → n single outputs). The port primitives are not listed in the library
+  (they are created/edited via the ports editor). Primitive arity is constrained per spec
+  via `fixedInputs` / `fixedOutputs`, and terminal renaming via `allowRenameTerminals`.
+- **Buses**: a terminal's *width* (wire count) is derived, not stored. `portWidth` reports
+  a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the
+  editor's `pinWidth` follows connections to inherit width across composite ports.
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
   template (and its whole internal hierarchy) into `variant: true` defs, so every instance
   owns its own content and edits never affect the template or sibling instances.
@@ -149,6 +153,13 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 - `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin within a
   radius, returning `{ ref, role }` where `role` is `source` (output pin) or `sink`
   (input pin).
+- `pinWidth(design, parentDef, ref)` — resolves a pin's bus width: fan-in/fan-out report
+  their arity; composite ports follow connections, and a composite *instance* pin first
+  resolves its internal `terminal` (so an internal bus shows on the outside) before falling
+  back to the external wire.
+- `isNeutralPin(design, parentDef, ref)` — true when a composite/port-group pin's width is
+  undetermined (no external connection and a neutral internal terminal), so it adopts the
+  width of whatever it connects to.
 
 ### Routing (`routing.ts`)
 - `wirePath(a, b)` returns a cubic-bezier definition `{ start, c1, c2, end }`, with
@@ -160,7 +171,10 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   hoverPort, palette)`: background → grid → wires → instances → hover highlight → marquee.
 - **Theming**: colors come from `darkPalette` / `lightPalette`.
 - **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
-  bubble), CLOCK (rounded rect + sine glyph).
+  bubble), CLOCK (rounded rect + sine glyph), FAN-IN/FAN-OUT (trapezoids).
+- **Buses**: pin radius and wire thickness scale with a pin's width (`pinWidth`), so a
+  composite port wired to an internal fan-in/fan-out renders as a bus even from the outside;
+  hovering a bus pin shows an `×n` arity tooltip.
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.
@@ -241,7 +255,8 @@ Pure (no input mutation) and fully unit-tested.
 - JSON serialize/deserialize + validation; wire the save/open buttons.
 - Simulation UI (run/step behavior, live signal coloring).
 - Instance/definition name-uniqueness validation.
-- Multi-bit buses (single wires only for now).
+- A global bus-width invariant scan (connections are validated at creation time; an
+  inconsistent pre-existing design isn't proactively flagged).
 
 ---
 

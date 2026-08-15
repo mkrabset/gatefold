@@ -104,6 +104,16 @@ describe('applyGroup', () => {
     expect(toOr0?.from).toEqual({ instanceId: compInst.id, portId: 'out:0' })
   })
 
+  it('uses the supplied component name', () => {
+    const design = buildHalfAdderDesign()
+    const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'], 'adder')
+    expect(result.defs['adder']).toBeDefined()
+    expect(result.defs['adder'].name).toBe('adder')
+    // the parent instance is named after the component
+    const main = result.defs['main']
+    expect(main.instances!.some((i) => i.defId === 'adder~adder-i' || i.name === 'adder')).toBe(true)
+  })
+
   it('keeps connections that do not touch the selection untouched', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1'], ['X1', 'X2'], ['Y'])

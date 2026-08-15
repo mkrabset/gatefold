@@ -85,7 +85,7 @@ export function Toolbar() {
 
       <div className="tb-divider" />
 
-      <IconButton title="Group into component" disabled={selectedIds.length < 2} onClick={openGroupDialog}>
+      <IconButton title="Group into component" disabled={selectedIds.length === 0} onClick={openGroupDialog}>
         <GroupIcon />
       </IconButton>
 
@@ -110,12 +110,16 @@ export function Toolbar() {
 
       <div className="breadcrumb">
         {navStack.map((id, i) => {
-          const name = design.defs[id]?.name ?? id
+          const def = design.defs[id]
+          const name = def?.name ?? id
           const isLast = i === navStack.length - 1
+          // Mark library templates (not the root, not an instance copy).
+          const isTemplate = !!def && def.variant !== true && id !== design.root
           return (
             <span key={id} className="crumb">
               {i > 0 && <span className="crumb-sep">/</span>}
               {isLast ? <span className="crumb-current">{name}</span> : <span className="crumb-link">{name}</span>}
+              {isTemplate && <span className="crumb-kind">template</span>}
             </span>
           )
         })}

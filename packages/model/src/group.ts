@@ -113,7 +113,8 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
 
 /**
  * Create a new composite component from the selected instances and return a new design.
- * Boundary wires are rewired through the new component's ports.
+ * Boundary wires are rewired through the new component's ports. `defName` is the
+ * user-supplied component name (defaults to "component", uniquified on collision).
  */
 export function applyGroup(
   design: Design,
@@ -121,6 +122,7 @@ export function applyGroup(
   instanceIds: string[],
   inputNames: string[],
   outputNames: string[],
+  defName = 'component',
 ): Design {
   const inferred = inferGroup(design, defId, instanceIds)
   if (inputNames.length !== inferred.inputs.length || outputNames.length !== inferred.outputs.length) {
@@ -132,8 +134,8 @@ export function applyGroup(
   const selected = new Set(instanceIds)
 
   const existingNames = new Set(Object.values(result.defs).map((d) => d.name))
-  const defName = nextId(existingNames, 'component')
-  const newDefId = nextId(new Set(Object.keys(result.defs)), defName)
+  const finalName = nextId(existingNames, defName.trim() || 'component')
+  const newDefId = nextId(new Set(Object.keys(result.defs)), finalName)
 
   // Centroid of the selection — used to place the new instance in the parent and as
   // the anchor for auto-placing the port instances.
@@ -190,7 +192,7 @@ export function applyGroup(
 
   result.defs[newDefId] = {
     id: newDefId,
-    name: defName,
+    name: finalName,
     kind: 'composite',
     ports,
     instances: [...movedInstances, ...portInstances],
@@ -198,8 +200,8 @@ export function applyGroup(
   }
 
   const remaining = def.instances?.filter((i) => !selected.has(i.id)) ?? []
-  const instName = nextId(new Set(remaining.map((i) => i.name)), defName)
-  const instId = nextId(new Set(remaining.map((i) => i.id)), `${defName}-i`)
+  const instName = nextId(new Set(remaining.map((i) => i.name)), finalName)
+  const instId = nextId(new Set(remaining.map((i) => i.id)), `${finalName}-i`)
 
   // Re-wire the parent: each external input net now drives the new instance's input
   // port, and each external target is now driven by the new instance's output port.

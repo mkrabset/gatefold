@@ -46,10 +46,15 @@ export interface Rect {
   y1: number
 }
 
-/** Names captured in the group dialog while awaiting confirmation. */
+/** Values captured in the group dialog while awaiting confirmation. */
 interface PendingGroup {
+  name: string
   inputs: string[]
   outputs: string[]
+  /** True when promoting a single custom component instance to a template. */
+  promote: boolean
+  /** The def to promote (set when `promote` is true). */
+  promoteDefId: string | null
 }
 
 /** A wire being drawn: anchored at `from`, with the cursor currently at (x, y). */
@@ -79,6 +84,7 @@ interface EditorState {
   navStack: string[]
   design: Design
   pendingGroup: PendingGroup | null
+  pendingDelete: string | null
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
   toggleSelected: (id: string) => void
@@ -91,10 +97,14 @@ interface EditorState {
   navigateTo: (defId: string) => void
   navigateUp: () => void
   openGroupDialog: () => void
+  setGroupName: (name: string) => void
   setGroupInputName: (index: number, name: string) => void
   setGroupOutputName: (index: number, name: string) => void
   confirmGroup: () => void
   cancelGroup: () => void
+  requestDeleteTemplate: (defId: string) => void
+  confirmDeleteTemplate: () => void
+  cancelDeleteTemplate: () => void
   renamePort: (portId: string, name: string) => void
   renameInstance: (id: string, name: string) => void
   addPort: (direction: PortDirection) => void
@@ -244,6 +254,7 @@ export const useEditorStore = create<EditorState>()(
     navStack: ['main'],
     design: createDemoDesign(),
     pendingGroup: null,
+    pendingDelete: null,
     setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
     setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
     toggleSelected: (id) =>
@@ -287,13 +298,40 @@ export const useEditorStore = create<EditorState>()(
       }),
     openGroupDialog: () =>
       set((s) => {
+        const defId = currentDefId(s)
+        const def = s.design.defs[defId]
+
+        // A single selected custom component is promoted to a template rather than
+        // wrapped in a new layer of ports.
+        if (s.selectedIds.length === 1) {
+          const inst = def.instances?.find((i) => i.id === s.selectedIds[0])
+          const instDef = inst && s.design.defs[inst.defId]
+          if (inst && instDef && instDef.kind === 'composite') {
+            s.pendingGroup = {
+              name: instDef.name,
+              inputs: [],
+              outputs: [],
+              promote: true,
+              promoteDefId: inst.defId,
+            }
+            return
+          }
+        }
+
         // Infer the ports from the current selection and seed default names for the
         // dialog; the actual transformation happens on `confirmGroup`.
-        const g = inferGroup(s.design, currentDefId(s), s.selectedIds)
+        const g = inferGroup(s.design, defId, s.selectedIds)
         s.pendingGroup = {
+          name: 'component',
           inputs: g.inputs.map((_, i) => `in${i + 1}`),
           outputs: g.outputs.map((_, i) => `out${i + 1}`),
+          promote: false,
+          promoteDefId: null,
         }
+      }),
+    setGroupName: (name) =>
+      set((s) => {
+        if (s.pendingGroup) s.pendingGroup.name = name
       }),
     setGroupInputName: (index, name) =>
       set((s) => {
@@ -306,11 +344,29 @@ export const useEditorStore = create<EditorState>()(
     confirmGroup: () =>
       set((s) => {
         if (!s.pendingGroup) return
+        const p = s.pendingGroup
+
+        // Promote a single custom component instance to a template.
+        if (p.promote && p.promoteDefId) {
+          const target = s.design.defs[p.promoteDefId]
+          if (target) {
+            target.variant = false
+            const others = new Set(
+              Object.values(s.design.defs)
+                .filter((d) => d.id !== p.promoteDefId)
+                .map((d) => d.name),
+            )
+            target.name = uniqueAgainst(others, p.name.trim() || target.name)
+          }
+          s.pendingGroup = null
+          return
+        }
+
         const defId = currentDefId(s)
-        const { inputs, outputs } = s.pendingGroup
+        const { name, inputs, outputs } = p
         // applyGroup returns a fresh design (pure); assign it wholesale and select
         // the newly created instance, which is appended last in the parent.
-        s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs)
+        s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs, name)
         s.pendingGroup = null
         const def = s.design.defs[defId]
         const last = def.instances?.[def.instances.length - 1]
@@ -335,6 +391,16 @@ export const useEditorStore = create<EditorState>()(
         s.selectedIds = last ? [last.id] : []
       }),
     cancelGroup: () => set((s) => void (s.pendingGroup = null)),
+    requestDeleteTemplate: (defId) => set((s) => void (s.pendingDelete = defId)),
+    cancelDeleteTemplate: () => set((s) => void (s.pendingDelete = null)),
+    confirmDeleteTemplate: () =>
+      set((s) => {
+        if (!s.pendingDelete) return
+        const id = s.pendingDelete
+        s.pendingDelete = null
+        if (id === s.design.root) return
+        delete s.design.defs[id]
+      }),
     renamePort: (portId, name) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]

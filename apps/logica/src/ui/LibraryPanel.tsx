@@ -4,13 +4,15 @@ import { useEditorStore } from '../state/editorStore'
 
 /**
  * Right panel: a palette of placeable primitives plus the user's composite
- * components (derived from the design's definitions). Selecting a card is currently
- * cosmetic — placement itself is not implemented yet.
+ * components (derived from the design's definitions). Drag a card to place a copy;
+ * double-click a composite card to edit its template.
  */
 
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
   const design = useEditorStore((s) => s.design)
+  const navigateTo = useEditorStore((s) => s.navigateTo)
+  const requestDeleteTemplate = useEditorStore((s) => s.requestDeleteTemplate)
   const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
 
   return (
@@ -43,8 +45,19 @@ export function LibraryPanel({ width }: { width: number }) {
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
                 onClick={() => setActive(d.id)}
-                title={`Drag to place ${d.name}`}
+                onDoubleClick={() => navigateTo(d.id)}
+                title={`Drag to place · double-click to edit ${d.name}`}
               >
+                <span
+                  className="lib-remove"
+                  title={`Delete ${d.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    requestDeleteTemplate(d.id)
+                  }}
+                >
+                  ×
+                </span>
                 <span className="lib-glyph">▣</span>
                 <span className="lib-label">{d.name}</span>
               </button>

@@ -4,6 +4,7 @@ import type { ComponentDef, Design, PinRef, Port, PortDirection } from '@logica/
 import {
   PRIMITIVE_LIBRARY,
   applyGroup,
+  findConnectionTo,
   inferGroup,
   inputPortId,
   inputPorts,
@@ -19,8 +20,6 @@ import {
  * composites, the viewport, and the selection/marquee. Undo/redo (zundo) is not yet
  * attached.
  */
-
-export type Tool = 'select' | 'wire' | 'pan'
 
 export interface Viewport {
   x: number
@@ -41,20 +40,42 @@ interface PendingGroup {
   outputs: string[]
 }
 
+/** A wire being drawn: anchored at `from`, with the cursor currently at (x, y). */
+export interface PendingWire {
+  from: PinRef
+  x: number
+  y: number
+  /** When re-targeting an existing wire, its id (hidden from rendering while pending). */
+  originalId?: string
+}
+
+export type HoverAction = 'create' | 'grab'
+
+/** The port currently under the cursor, and what pressing there would do. */
+export interface HoverPort {
+  ref: PinRef
+  action: HoverAction
+}
+
 interface EditorState {
-  tool: Tool
   viewport: Viewport
   selectedIds: string[]
   marquee: Rect | null
+  pendingWire: PendingWire | null
+  hoverPort: HoverPort | null
+  notice: string | null
   navStack: string[]
   design: Design
   pendingGroup: PendingGroup | null
-  setTool: (tool: Tool) => void
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
   toggleSelected: (id: string) => void
   setInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
   setMarquee: (rect: Rect | null) => void
+  setPendingWire: (wire: PendingWire | null) => void
+  setHoverPort: (hover: HoverPort | null) => void
+  setNotice: (message: string) => void
+  clearNotice: () => void
   navigateTo: (defId: string) => void
   navigateUp: () => void
   openGroupDialog: () => void
@@ -66,9 +87,21 @@ interface EditorState {
   renameInstance: (id: string, name: string) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
+  addInstance: (defId: string, pos: { x: number; y: number }) => void
+  addConnection: (from: PinRef, to: PinRef) => void
+  retargetConnection: (id: string, to: PinRef) => void
+  removeConnection: (id: string) => void
 }
 
 const iref = (instanceId: string, portId: string): PinRef => ({ kind: 'instance', instanceId, portId })
+
+// Small helper for generating a name/id that is unique among a set of existing ones.
+function uniqueAgainst(existing: Set<string>, base: string): string {
+  if (!existing.has(base)) return base
+  let i = 2
+  while (existing.has(`${base}${i}`)) i++
+  return `${base}${i}`
+}
 
 /** A small demo design so the app has content to render before save/load exists. */
 function createDemoDesign(): Design {
@@ -125,14 +158,15 @@ function createDemoDesign(): Design {
 
 export const useEditorStore = create<EditorState>()(
   immer((set) => ({
-    tool: 'select',
     viewport: { x: 400, y: 250, zoom: 1 },
     selectedIds: [],
     marquee: null,
+    pendingWire: null,
+    hoverPort: null,
+    notice: null,
     navStack: ['main'],
     design: createDemoDesign(),
     pendingGroup: null,
-    setTool: (tool) => set((s) => void (s.tool = tool)),
     setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
     setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
     toggleSelected: (id) =>
@@ -152,11 +186,17 @@ export const useEditorStore = create<EditorState>()(
         })
       }),
     setMarquee: (rect) => set((s) => void (s.marquee = rect)),
+    setPendingWire: (wire) => set((s) => void (s.pendingWire = wire)),
+    setHoverPort: (hover) => set((s) => void (s.hoverPort = hover)),
+    setNotice: (message) => set((s) => void (s.notice = message)),
+    clearNotice: () => set((s) => void (s.notice = null)),
     navigateTo: (defId) =>
       set((s) => {
         s.navStack.push(defId)
         s.selectedIds = []
         s.marquee = null
+        s.pendingWire = null
+        s.hoverPort = null
       }),
     navigateUp: () =>
       set((s) => {
@@ -164,6 +204,8 @@ export const useEditorStore = create<EditorState>()(
           s.navStack.pop()
           s.selectedIds = []
           s.marquee = null
+          s.pendingWire = null
+          s.hoverPort = null
         }
       }),
     openGroupDialog: () =>
@@ -239,6 +281,49 @@ export const useEditorStore = create<EditorState>()(
           const touches = (r: PinRef) => r.kind === 'port' && r.portId === portId
           return !touches(c.from) && !touches(c.to)
         })
+      }),
+    addInstance: (defId, pos) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const srcDef = s.design.defs[defId]
+        if (!def.instances) def.instances = []
+        const base = srcDef.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'component'
+        const name = uniqueAgainst(new Set(def.instances.map((i) => i.name)), base)
+        const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), name)
+        def.instances.push({ id, name, defId, pos: { x: pos.x, y: pos.y } })
+        s.selectedIds = [id]
+      }),
+    addConnection: (from, to) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        if (!def.connections) def.connections = []
+        // Enforce the single-driver invariant: reject if the target is already driven.
+        if (findConnectionTo(def.connections, to)) {
+          s.notice = 'Input already has a driver'
+          return
+        }
+        const ids = new Set(def.connections.map((c) => c.id))
+        let i = def.connections.length + 1
+        while (ids.has(`c${i}`)) i++
+        def.connections.push({ id: `c${i}`, from, to })
+      }),
+    retargetConnection: (id, to) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const conns = def.connections ?? []
+        const original = conns.find((c) => c.id === id)
+        if (!original) return
+        const conflict = findConnectionTo(conns, to)
+        if (conflict && conflict.id !== id) {
+          s.notice = 'Input already has a driver'
+          return
+        }
+        original.to = to
+      }),
+    removeConnection: (id) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        def.connections = (def.connections ?? []).filter((c) => c.id !== id)
       }),
   })),
 )

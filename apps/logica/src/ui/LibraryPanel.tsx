@@ -22,8 +22,10 @@ export function LibraryPanel({ width }: { width: number }) {
           <button
             key={p.kind}
             className={`lib-card${active === p.kind ? ' active' : ''}`}
+            draggable
+            onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', p.kind)}
             onClick={() => setActive(p.kind)}
-            title={`Place ${p.label}`}
+            title={`Drag to place ${p.label}`}
           >
             <span className="lib-glyph">{p.glyph}</span>
             <span className="lib-label">{p.label}</span>
@@ -35,7 +37,14 @@ export function LibraryPanel({ width }: { width: number }) {
           <div className="lib-section-label">My components</div>
           <div className="lib-grid">
             {composites.map((d) => (
-              <button key={d.id} className={`lib-card${active === d.id ? ' active' : ''}`} title={`Place ${d.name}`} onClick={() => setActive(d.id)}>
+              <button
+                key={d.id}
+                className={`lib-card${active === d.id ? ' active' : ''}`}
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
+                onClick={() => setActive(d.id)}
+                title={`Drag to place ${d.name}`}
+              >
                 <span className="lib-glyph">▣</span>
                 <span className="lib-label">{d.name}</span>
               </button>

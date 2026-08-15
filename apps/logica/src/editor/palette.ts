@@ -13,6 +13,8 @@ export interface Palette {
   compositeFill: string
   pin: string
   pinHover: string
+  portHover: string
+  grabHover: string
   selection: string
   text: string
 }
@@ -26,6 +28,8 @@ export const darkPalette: Palette = {
   compositeFill: '#18202c',
   pin: '#4f8cff',
   pinHover: '#6ee7b7',
+  portHover: '#fbbf24',
+  grabHover: '#fb923c',
   selection: '#4f8cff',
   text: '#c9d1d9',
 }
@@ -39,6 +43,8 @@ export const lightPalette: Palette = {
   compositeFill: '#f4f6f8',
   pin: '#2563eb',
   pinHover: '#059669',
+  portHover: '#b45309',
+  grabHover: '#c2410c',
   selection: '#2563eb',
   text: '#1f2328',
 }

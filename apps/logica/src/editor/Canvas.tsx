@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { hitTest, instanceBounds } from './geometry'
+import { hitTest, hitTestPort, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
+import type { PinRef } from '@logica/model'
+import { findConnectionTo, pinRefEquals } from '@logica/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -23,6 +25,7 @@ type Drag =
   | { type: 'move'; ids: string[]; startX: number; startY: number; origins: { x: number; y: number }[] }
   | { type: 'marquee'; startX: number; startY: number; startWorld: { x: number; y: number } }
   | { type: 'shiftClick'; id: string; startX: number; startY: number; vp: Viewport }
+  | { type: 'wire'; from: PinRef; originalId: string | null; originalTo: PinRef | null }
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
@@ -43,7 +46,7 @@ export function Canvas() {
       const palette = theme === 'dark' ? darkPalette : lightPalette
       const cw = wrap.clientWidth
       const ch = wrap.clientHeight
-      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), state.marquee, palette)
+      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), state.marquee, state.pendingWire, state.hoverPort, palette)
     }
 
     const resize = () => {
@@ -86,7 +89,9 @@ export function Canvas() {
       const rect = wrap.getBoundingClientRect()
       const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
       const instances = currentInstances()
+      const def = state.design.defs[currentDefId(state)]
       const hit = hitTest(w.x, w.y, instances, state.design.defs)
+      state.setHoverPort(null)
 
       if (e.shiftKey) {
         if (hit) {
@@ -97,6 +102,30 @@ export function Canvas() {
         }
         canvas.setPointerCapture(e.pointerId)
         return
+      }
+
+      // Pressing an output port always starts a wire — this takes priority over
+      // selecting the component the port belongs to.
+      const port = hitTestPort(w.x, w.y, instances, state.design, def)
+      if (port && port.direction === 'output') {
+        drag = { type: 'wire', from: port.ref, originalId: null, originalTo: null }
+        state.setPendingWire({ from: port.ref, x: w.x, y: w.y })
+        canvas.style.cursor = 'crosshair'
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
+
+      // Pressing an input that already has a wire grabs that wire (to re-target or
+      // delete it), instead of selecting the component.
+      if (port && port.direction === 'input') {
+        const conn = findConnectionTo(def.connections ?? [], port.ref)
+        if (conn) {
+          drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
+          state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
+          canvas.style.cursor = 'crosshair'
+          canvas.setPointerCapture(e.pointerId)
+          return
+        }
       }
 
       if (hit) {
@@ -119,9 +148,27 @@ export function Canvas() {
     }
 
     const onPointerMove = (e: PointerEvent) => {
-      const d = drag
-      if (!d) return
       const state = useEditorStore.getState()
+      const d = drag
+
+      // Idle hover: highlight a port and indicate what pressing it would do —
+      // an output starts a new wire (yellow), an input that already has a wire
+      // grabs it (orange).
+      if (!d) {
+        const rect = wrap.getBoundingClientRect()
+        const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+        const def = state.design.defs[currentDefId(state)]
+        const port = hitTestPort(w.x, w.y, currentInstances(), state.design, def)
+        if (!port) {
+          state.setHoverPort(null)
+        } else if (port.direction === 'output') {
+          state.setHoverPort({ ref: port.ref, action: 'create' })
+        } else {
+          const hasWire = findConnectionTo(def.connections ?? [], port.ref)
+          state.setHoverPort(hasWire ? { ref: port.ref, action: 'grab' } : null)
+        }
+        return
+      }
 
       switch (d.type) {
         case 'pan': {
@@ -169,6 +216,12 @@ export function Canvas() {
             })
             .map((inst) => inst.id)
           state.setSelection(selected)
+          return
+        }
+        case 'wire': {
+          const rect = wrap.getBoundingClientRect()
+          const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+          state.setPendingWire({ from: d.from, x: cur.x, y: cur.y, originalId: d.originalId ?? undefined })
         }
       }
     }
@@ -179,6 +232,28 @@ export function Canvas() {
       }
       if (drag?.type === 'marquee') {
         useEditorStore.getState().setMarquee(null)
+      }
+      if (drag?.type === 'wire') {
+        const state = useEditorStore.getState()
+        const rect = wrap.getBoundingClientRect()
+        const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+        const instances = currentInstances()
+        const def = state.design.defs[currentDefId(state)]
+        const port = hitTestPort(w.x, w.y, instances, state.design, def)
+
+        if (port && port.direction === 'input') {
+          if (drag.originalTo && pinRefEquals(port.ref, drag.originalTo)) {
+            // Released back onto the original target — no change.
+          } else if (drag.originalId) {
+            state.retargetConnection(drag.originalId, port.ref)
+          } else {
+            state.addConnection(drag.from, port.ref)
+          }
+        } else if (drag.originalId) {
+          // Released on empty space — delete the grabbed wire.
+          state.removeConnection(drag.originalId)
+        }
+        state.setPendingWire(null)
       }
       drag = null
       canvas.style.cursor = 'default'
@@ -205,9 +280,14 @@ export function Canvas() {
       })
     }
 
+    const onPointerLeave = () => {
+      useEditorStore.getState().setHoverPort(null)
+    }
+
     canvas.addEventListener('pointerdown', onPointerDown)
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
+    canvas.addEventListener('pointerleave', onPointerLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
 
     return () => {
@@ -217,12 +297,29 @@ export function Canvas() {
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
+      canvas.removeEventListener('pointerleave', onPointerLeave)
       canvas.removeEventListener('wheel', onWheel)
     }
   }, [])
 
+  // Accept drops from the component library and create an instance at the drop point.
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    const defId = e.dataTransfer.getData('application/x-logica-def')
+    if (!defId) return
+    const state = useEditorStore.getState()
+    const rect = wrapRef.current!.getBoundingClientRect()
+    const wx = state.viewport.x + (e.clientX - rect.left - rect.width / 2) / state.viewport.zoom
+    const wy = state.viewport.y + (e.clientY - rect.top - rect.height / 2) / state.viewport.zoom
+    state.addInstance(defId, { x: wx, y: wy })
+  }
+
   return (
-    <div ref={wrapRef} className="canvas-area">
+    <div ref={wrapRef} className="canvas-area" onDragOver={handleDragOver} onDrop={handleDrop}>
       <canvas ref={canvasRef} className="canvas" />
     </div>
   )

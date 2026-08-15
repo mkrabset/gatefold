@@ -1,11 +1,10 @@
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import type { Tool } from '../state/editorStore'
 
 /**
- * Top toolbar: brand, tool selector, group action, simulation controls
- * (placeholders), breadcrumb navigation, JSON save/load (placeholders), and theme
- * toggle. Buttons are dumb presenters that call into the stores.
+ * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
+ * navigation, JSON save/load (placeholders), and theme toggle. Buttons are dumb
+ * presenters that call into the stores.
  */
 
 function IconButton(props: {
@@ -48,32 +47,6 @@ const ResetIcon = () => (
   </svg>
 )
 
-function ToolButton({ tool, title, active, onClick, children }: { tool: Tool; title: string; active: boolean; onClick: (t: Tool) => void; children: React.ReactNode }) {
-  return (
-    <button className={`tb-btn${active ? ' active' : ''}`} title={title} onClick={() => onClick(tool)}>
-      {children}
-    </button>
-  )
-}
-
-const SelectIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M2 2l5 12 1.5-4.5L13 8z" />
-  </svg>
-)
-const WireIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M2 13L8 7M8 7l6-6" />
-    <circle cx="2" cy="13" r="2" />
-    <circle cx="14" cy="1" r="2" />
-  </svg>
-)
-const PanIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-)
-
 const SunIcon = () => (
   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <circle cx="8" cy="8" r="3" />
@@ -95,8 +68,6 @@ const GroupIcon = () => (
 )
 
 export function Toolbar() {
-  const tool = useEditorStore((s) => s.tool)
-  const setTool = useEditorStore((s) => s.setTool)
   const navigateUp = useEditorStore((s) => s.navigateUp)
   const navStack = useEditorStore((s) => s.navStack)
   const design = useEditorStore((s) => s.design)
@@ -110,18 +81,6 @@ export function Toolbar() {
       <div className="brand">
         <span className="brand-mark">L</span>
         <span className="brand-name">logica</span>
-      </div>
-
-      <div className="tb-group">
-        <ToolButton tool="select" title="Select (click components, drag to marquee)" active={tool === 'select'} onClick={setTool}>
-          <SelectIcon />
-        </ToolButton>
-        <ToolButton tool="wire" title="Wire" active={tool === 'wire'} onClick={setTool}>
-          <WireIcon />
-        </ToolButton>
-        <ToolButton tool="pan" title="Pan (or Shift + drag)" active={tool === 'pan'} onClick={setTool}>
-          <PanIcon />
-        </ToolButton>
       </div>
 
       <div className="tb-divider" />

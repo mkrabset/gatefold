@@ -5,6 +5,7 @@ import { Sidebar } from './ui/Sidebar'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
+import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 
 /**
@@ -36,6 +37,7 @@ export default function App() {
         <LibraryPanel width={libraryWidth} />
       </div>
       <GroupDialog />
+      <Toast />
     </div>
   )
 }

@@ -1,9 +1,11 @@
 import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
 import { inputPorts, outputPorts } from '@logica/model'
-import { defBodySize, instanceBounds, portPosition } from './geometry'
+import { contentBounds, defBodySize, instanceBounds, portPosition, portTerminalPosition } from './geometry'
+import type { Bounds } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from './palette'
-import type { Rect, Viewport } from '../state/editorStore'
+import type { PendingWire, Rect, Viewport } from '../state/editorStore'
+import type { HoverPort } from '../state/editorStore'
 
 /**
  * Canvas renderer. `drawScene` is a pure-ish function of the current design,
@@ -15,7 +17,6 @@ import type { Rect, Viewport } from '../state/editorStore'
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
-const TERMINAL_MARGIN = 48
 
 /**
  * Stroke one cubic-bezier wire segment. Called twice per wire: once thick in the
@@ -63,49 +64,6 @@ function w2s(wx: number, wy: number, w: number, h: number, vp: Viewport) {
     x: w / 2 + (wx - vp.x) * vp.zoom,
     y: h / 2 + (wy - vp.y) * vp.zoom,
   }
-}
-
-interface Bounds {
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** Bounding box of all instances in a composite, used to place its port terminals. */
-function contentBounds(instances: Instance[], design: Design): Bounds {
-  if (instances.length === 0) {
-    return { x: -120, y: -80, w: 240, h: 160 }
-  }
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const inst of instances) {
-    const b = instanceBounds(inst, design.defs[inst.defId])
-    minX = Math.min(minX, b.x)
-    minY = Math.min(minY, b.y)
-    maxX = Math.max(maxX, b.x + b.w)
-    maxY = Math.max(maxY, b.y + b.h)
-  }
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
-}
-
-/**
- * Position of a composite's *own* port terminal (used when editing inside it):
- * inputs sit just left of the content bounds, outputs just right, evenly spaced.
- */
-function portTerminalPosition(def: ComponentDef, portId: string, bounds: Bounds): { x: number; y: number } {
-  const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
-  if (inIdx >= 0) {
-    const total = inputPorts(def).length
-    const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((inIdx + 1) * bounds.h) / (total + 1)
-    return { x: bounds.x - TERMINAL_MARGIN, y }
-  }
-  const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
-  const total = outputPorts(def).length
-  const y = total <= 1 ? bounds.y + bounds.h / 2 : bounds.y + ((outIdx + 1) * bounds.h) / (total + 1)
-  return { x: bounds.x + bounds.w + TERMINAL_MARGIN, y }
 }
 
 function drawGateBody(
@@ -332,6 +290,8 @@ export function drawScene(
   selectedIds: string[],
   defId: string,
   marquee: Rect | null,
+  pendingWire: PendingWire | null,
+  hoverPort: HoverPort | null,
   p: Palette,
 ) {
   ctx.fillStyle = p.bg
@@ -363,6 +323,8 @@ export function drawScene(
 
   const groups = new Map<string, Trace[]>()
   for (const conn of def.connections ?? []) {
+    // Hide a connection that is being re-targeted (its preview replaces it).
+    if (pendingWire && conn.id === pendingWire.originalId) continue
     const a = resolveEndpoint(conn.from)
     const b = resolveEndpoint(conn.to)
     if (!a || !b) continue
@@ -386,6 +348,26 @@ export function drawScene(
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH)
   }
 
+  // Preview of a wire currently being drawn (dashed, accent color).
+  if (pendingWire) {
+    const a = resolveEndpoint(pendingWire.from)
+    if (a) {
+      const path = wirePath(a, { x: pendingWire.x, y: pendingWire.y })
+      const s = w2s(path.start.x, path.start.y, cw, ch, vp)
+      const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
+      const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)
+      const e = w2s(path.end.x, path.end.y, cw, ch, vp)
+      ctx.beginPath()
+      ctx.moveTo(s.x, s.y)
+      ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+      ctx.strokeStyle = p.selection
+      ctx.lineWidth = WIRE_WIDTH
+      ctx.setLineDash([5, 4])
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+  }
+
   if (def.kind === 'composite') {
     drawPortTerminals(ctx, def, bounds, cw, ch, vp, p)
   }
@@ -393,6 +375,19 @@ export function drawScene(
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
     drawInstance(ctx, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+  }
+
+  // Highlight the hovered port: yellow = create a wire, orange = grab an existing one.
+  if (hoverPort) {
+    const pos = resolveEndpoint(hoverPort.ref)
+    if (pos) {
+      const s = w2s(pos.x, pos.y, cw, ch, vp)
+      ctx.beginPath()
+      ctx.arc(s.x, s.y, 6, 0, Math.PI * 2)
+      ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
+      ctx.lineWidth = 2
+      ctx.stroke()
+    }
   }
 
   if (marquee) {

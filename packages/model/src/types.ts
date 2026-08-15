@@ -90,3 +90,23 @@ export function nextPortId(def: ComponentDef, direction: PortDirection): string 
   while (used.includes(i)) i++
   return `${prefix}:${i}`
 }
+
+/** Structural equality for connection endpoints. */
+export function pinRefEquals(a: PinRef, b: PinRef): boolean {
+  if (a.kind === 'instance' && b.kind === 'instance') {
+    return a.instanceId === b.instanceId && a.portId === b.portId
+  }
+  if (a.kind === 'port' && b.kind === 'port') {
+    return a.portId === b.portId
+  }
+  return false
+}
+
+/**
+ * The connection currently driving the sink `to`, or null. Enforces the
+ * single-driver invariant: each input pin / composite output port has at most one
+ * incoming connection.
+ */
+export function findConnectionTo(connections: Connection[], to: PinRef): Connection | null {
+  return connections.find((c) => pinRefEquals(c.to, to)) ?? null
+}

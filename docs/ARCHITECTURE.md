@@ -256,7 +256,6 @@ Pure (no input mutation) and fully unit-tested.
 ## 7. Current gaps (not yet implemented)
 
 - Simulation engine (combinational + sequential + hierarchy flattening).
-- JSON serialize/deserialize + validation; wire the save/open buttons.
 - Simulation UI (run/step behavior, live signal coloring).
 - Instance/definition name-uniqueness validation.
 - A global bus-width invariant scan (connections are validated at creation time; an
@@ -264,15 +263,35 @@ Pure (no input mutation) and fully unit-tested.
 
 ---
 
-## 8. Testing
+## 8. Serialization & library exchange
+
+- **`serialize.ts`** — `serializeDesign` / `parseDesign`. A saved design is self-contained:
+  the entire `Design` (primitive defs, port-group defs, composites, and `variant` copies) is
+  serialized verbatim. `parseDesign` validates the shape and throws on malformed input.
+- **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` /
+  `parseLibrary`). Export collects the template composites and their transitive composite
+  closure, deep-cloned with `variant` stripped and references to primitive defs normalized to
+  built-in ids. Import merges with fresh collision-free ids/names (never overwriting) and
+  remaps internal references.
+- **File I/O** lives in the app: the toolbar's Open/Save JSON buttons and the library
+  panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
+  the design and resets navigation/selection and the undo history.
+
+---
+
+## 9. Testing
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs.
 - `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo`.
 - `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
-  rewiring).
+  rewiring, exposed ports).
 - `packages/model/test/clipboard.test.ts` — `copyDefSubgraph` / `captureClipboard` /
   `instantiateClipboard`.
+- `packages/model/test/serialize.test.ts` — design round-trip and validation.
+- `packages/model/test/library.test.ts` — library export closure/normalization and import
+  merge/collision handling.
 - `apps/logica/src/editor/routing.test.ts` — bezier control-point math and tangents.
+- `apps/logica/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
 - `apps/logica/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
   multi-step) and copy/paste.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.

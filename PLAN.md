@@ -260,7 +260,11 @@ Zustand stores, split by concern:
 
 The `Design` object is serialized verbatim, with a schema `version` field for future
 migration. Primitive definitions are referenced by stable kind strings; layout positions are
-included so a load restores the schematic exactly.
+included so a load restores the schematic exactly. A saved design is self-contained.
+
+A separate **library file** (`{ version, components: ComponentDef[] }`) holds the custom
+component library: the template composites plus their transitive composite closure, with
+primitive references normalized to built-in ids.
 
 ---
 
@@ -292,10 +296,10 @@ included so a load restores the schematic exactly.
 | # | Phase | Status |
 |---|-------|--------|
 | 1 | Scaffold — pnpm monorepo, Vite + React + TS, Zustand/immer, Vitest, base layout | ✅ done |
-| 2 | Data model — types + primitives + `ports: Port[]` + port components (done); JSON serialize/validate | ⏳ in progress |
+| 2 | Data model — types + primitives + `ports: Port[]` + port components; JSON serialize/validate | ✅ done |
 | 3 | Simulation core — combinational → clocked/sequential → hierarchy flattening + cycle detection | ⏳ pending |
 | 4 | Canvas editor — render, pan/zoom, drag/marquee/group-move, wire create/grab/re-target, library placement, copy/paste/delete, undo/redo | ✅ done |
 | 5 | Component model UX — descend/ascend into any component, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
-| 7 | Save/load — JSON import/export, file download/upload | ⏳ pending |
+| 7 | Save/load — JSON import/export, file download/upload (done); component library export/import (done) | ✅ done |
 | 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |

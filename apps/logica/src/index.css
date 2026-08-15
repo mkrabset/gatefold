@@ -610,6 +610,33 @@ body {
   padding: 0 12px;
 }
 
+.lib-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.lib-action {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.lib-action:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.lib-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .lib-card {
   position: relative;
   display: flex;

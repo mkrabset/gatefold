@@ -9,7 +9,9 @@ import {
   captureClipboard,
   cloneDef,
   copyDefSubgraph,
+  exportLibrary as buildLibraryFile,
   findConnectionTo,
+  importLibrary as mergeLibrary,
   inferGroup,
   inputPortDef,
   inputPortId,
@@ -21,7 +23,11 @@ import {
   outputPortDef,
   outputPortId,
   outputPorts,
+  parseDesign,
+  parseLibrary,
   primitiveDef,
+  serializeDesign,
+  serializeLibrary,
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
 import { instanceBounds, isNeutralPin, pinWidth } from '../editor/geometry'
@@ -117,9 +123,26 @@ interface EditorState {
   deleteSelection: () => void
   copySelection: () => void
   paste: () => void
+  saveProject: () => void
+  loadProject: (json: string) => void
+  exportLibrary: () => void
+  importLibrary: (json: string) => void
 }
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
+
+// Trigger a browser download of `text` as a file named `filename`.
+function downloadText(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 // In-memory clipboard (not part of the undoable design state).
 let clipboard: Clipboard | null = null
@@ -584,6 +607,42 @@ export const useEditorStore = create<EditorState>()(
         s.design = design
         s.selectedIds = newIds
       }),
+    saveProject: () => {
+      const s = get()
+      downloadText('design.logica.json', serializeDesign(s.design))
+    },
+    loadProject: (json) => {
+      try {
+        const design = parseDesign(json)
+        set((s) => {
+          s.design = design
+          s.navStack = [design.root]
+          s.selectedIds = []
+          s.marquee = null
+          s.pendingWire = null
+          s.hoverPort = null
+          s.pendingGroup = null
+          s.pendingDelete = null
+        })
+        useEditorStore.temporal.getState().clear()
+      } catch (e) {
+        set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not load file'))
+      }
+    },
+    exportLibrary: () => {
+      const s = get()
+      downloadText('library.logica.json', serializeLibrary(buildLibraryFile(s.design)))
+    },
+    importLibrary: (json) => {
+      try {
+        const design = mergeLibrary(get().design, parseLibrary(json))
+        set((s) => {
+          s.design = design
+        })
+      } catch (e) {
+        set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not import library'))
+      }
+    },
     })),
     {
       limit: 100,

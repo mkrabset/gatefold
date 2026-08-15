@@ -1,14 +1,14 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post bus-support + width-derivation work).
+Last updated: 2026-08-15 (post save/load + library export/import).
 
 ## Where we are
 
 Logica is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
 HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
-hierarchical circuits; the **simulator** and **JSON save/load** remain unimplemented.
-See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSARY.md`
-(terminology).
+hierarchical circuits, with JSON save/load and library export/import; only the
+**simulator** remains unimplemented. See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
+(as-built design), `docs/GLOSSARY.md` (terminology).
 
 ## Latest endeavors (this session)
 
@@ -31,6 +31,13 @@ See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSAR
   selected inputs become input terminals and unused selected outputs become output terminals,
   wired only internally (no external connection). Order: crossing ports first, then exposed
   (instance order, then port order).
+- **Save/load** — `serialize.ts` (`serializeDesign`/`parseDesign`) round-trips the whole
+  `Design` verbatim (self-contained). Toolbar Open/Save JSON wired to Blob download + hidden
+  file input; load resets nav/selection and clears undo history.
+- **Library export/import** — `library.ts` (`exportLibrary`/`importLibrary`) exports template
+  composites + composite closure (variant stripped, primitive refs normalized to built-in
+  ids); import merges with fresh collision-free ids/names (no overwrite). Library panel
+  Export/Import buttons.
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template
@@ -46,8 +53,7 @@ See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSAR
    combinational → clocked/sequential; hierarchy flattening via `Port.terminal`; cycle
    detection; fan-in/fan-out are per-bit identities (`out[i] = in[i]`); buses = `n`
    independent bits.
-2. **Save/load JSON** — serialize/deserialize the `Design`, wire the toolbar buttons.
-3. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
+2. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
 
 ## Open items / decisions to revisit
 

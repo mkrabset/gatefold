@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 
@@ -75,6 +76,16 @@ export function Toolbar() {
   const toggleTheme = useUiStore((s) => s.toggleTheme)
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const openGroupDialog = useEditorStore((s) => s.openGroupDialog)
+  const saveProject = useEditorStore((s) => s.saveProject)
+  const loadProject = useEditorStore((s) => s.loadProject)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    loadProject(await file.text())
+    e.target.value = ''
+  }
 
   return (
     <header className="toolbar">
@@ -133,17 +144,19 @@ export function Toolbar() {
       <div className="tb-spacer" />
 
       <div className="tb-group">
-        <IconButton title="Open JSON">
+        <IconButton title="Open JSON" onClick={() => fileRef.current?.click()}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M8 11V3M8 3L5 6M8 3l3 3M3 11v2h10v-2" />
           </svg>
         </IconButton>
-        <IconButton title="Save JSON">
+        <IconButton title="Save JSON" onClick={saveProject}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M8 3v8M8 11l-3-3M8 11l3-3M3 13h10" />
           </svg>
         </IconButton>
       </div>
+
+      <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onOpenFile} />
 
       <IconButton title="Toggle theme" onClick={toggleTheme}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}

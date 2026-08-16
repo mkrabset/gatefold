@@ -12,6 +12,8 @@ authoritative — update this when a term's meaning changes.
   `id` and `name`. References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, CLOCK,
   FAN-IN, FAN-OUT (plus the internal INPUT-PORT / OUTPUT-PORT). Not editable as a circuit.
+- **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
+  default + unit/min/max); stored per-instance in `Instance.props`. E.g. a CLOCK's `period`.
 - **Composite / custom component** — a user-defined component whose behavior is its
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
 - **Template** — a definition in the library (`variant` not set). Placed via drag; edited

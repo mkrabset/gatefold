@@ -1,8 +1,9 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
-import { inputPorts, outputPorts, portWidth } from '@logica/model'
+import { inputPorts, isPortGroupDef, outputPorts, portGroupDirection, portWidth, primitiveOf } from '@logica/model'
 import { defBodySize, instanceBounds, pinWidth, portGroupSize, portPosition } from './geometry'
 import { wirePath } from './routing'
-import type { Palette } from './palette'
+import type { Palette } from '@logica/model'
+import { canvasVectorContext } from './canvasVector'
 import type { PendingWire, Rect, Viewport } from '../state/editorStore'
 import type { HoverPort } from '../state/editorStore'
 
@@ -89,100 +90,6 @@ function w2s(wx: number, wy: number, w: number, h: number, vp: Viewport) {
   return {
     x: w / 2 + (wx - vp.x) * vp.zoom,
     y: h / 2 + (wy - vp.y) * vp.zoom,
-  }
-}
-
-function drawGateBody(
-  ctx: CanvasRenderingContext2D,
-  kind: string,
-  cx: number,
-  cy: number,
-  w: number,
-  h: number,
-  p: Palette,
-) {
-  const l = cx - w / 2
-  const r = cx + w / 2
-  const t = cy - h / 2
-  const b = cy + h / 2
-
-  ctx.beginPath()
-  switch (kind) {
-    case 'and':
-      ctx.moveTo(l, t)
-      ctx.lineTo(l, b)
-      ctx.ellipse(l, cy, w, h / 2, 0, Math.PI / 2, -Math.PI / 2, true)
-      ctx.closePath()
-      break
-    case 'or':
-      ctx.moveTo(l, t)
-      ctx.quadraticCurveTo(l + w * 0.32, cy, l, b)
-      ctx.quadraticCurveTo(cx + w * 0.15, b, r, cy)
-      ctx.quadraticCurveTo(cx + w * 0.15, t, l, t)
-      ctx.closePath()
-      break
-    case 'xor':
-      ctx.moveTo(l, t)
-      ctx.quadraticCurveTo(l + w * 0.32, cy, l, b)
-      ctx.quadraticCurveTo(cx + w * 0.15, b, r, cy)
-      ctx.quadraticCurveTo(cx + w * 0.15, t, l, t)
-      ctx.closePath()
-      ctx.moveTo(l - 7, t)
-      ctx.quadraticCurveTo(l + w * 0.16, cy, l - 7, b)
-      break
-    case 'not':
-      ctx.moveTo(l, t)
-      ctx.lineTo(r - 7, cy)
-      ctx.lineTo(l, b)
-      ctx.closePath()
-      break
-    case 'clock':
-      ctx.roundRect(l, t, w, h, 6)
-      break
-    case 'fan-in':
-      // Trapezoid narrowing toward the bus output on the right.
-      ctx.moveTo(l, t)
-      ctx.lineTo(r, cy - 8)
-      ctx.lineTo(r, cy + 8)
-      ctx.lineTo(l, b)
-      ctx.closePath()
-      break
-    case 'fan-out':
-      // Trapezoid widening from the bus input on the left toward the outputs.
-      ctx.moveTo(l, cy - 8)
-      ctx.lineTo(r, t)
-      ctx.lineTo(r, b)
-      ctx.lineTo(l, cy + 8)
-      ctx.closePath()
-      break
-    default:
-      ctx.roundRect(l, t, w, h, 6)
-      break
-  }
-  ctx.fillStyle = p.gateFill
-  ctx.fill()
-  ctx.strokeStyle = p.gateStroke
-  ctx.lineWidth = 1.5
-  ctx.stroke()
-
-  if (kind === 'not') {
-    ctx.beginPath()
-    ctx.arc(r - 3, cy, 4, 0, Math.PI * 2)
-    ctx.fillStyle = p.gateFill
-    ctx.fill()
-    ctx.stroke()
-  }
-
-  if (kind === 'clock') {
-    ctx.beginPath()
-    ctx.strokeStyle = p.pin
-    ctx.lineWidth = 1.5
-    for (let x = l + 8; x <= r - 8; x += 1) {
-      const y = cy + Math.sin(((x - (l + 8)) / (r - l - 16)) * Math.PI * 2) * 8
-      if (x === l + 8) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    }
-    ctx.stroke()
   }
 }
 
@@ -275,7 +182,15 @@ function drawInstance(
       ctx.fillText(port.name, ps.x + 6 * vp.zoom, ps.y)
     }
   } else {
-    drawGateBody(ctx, def.primitive ?? '', s.x, s.y, w * vp.zoom, h * vp.zoom, p)
+    if (def.primitive) {
+      primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
+        x: s.x,
+        y: s.y,
+        w: w * vp.zoom,
+        h: h * vp.zoom,
+        palette: p,
+      })
+    }
     // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
     if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
       ctx.fillStyle = p.text
@@ -312,7 +227,7 @@ function drawPortGroup(
   selected: boolean,
   p: Palette,
 ) {
-  const isInput = def.primitive === 'input-port'
+  const isInput = portGroupDirection(def) === 'input'
   const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
   const widthFor = (port: Port) => pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
   drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p)
@@ -489,7 +404,7 @@ export function drawScene(
 
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
-    if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') {
+    if (isPortGroupDef(instDef)) {
       drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
     } else {
       drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)

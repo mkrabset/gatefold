@@ -45,6 +45,8 @@ export interface Instance {
   name: string
   defId: string
   pos: { x: number; y: number }
+  /** Per-instance custom property values (keys match the primitive's `properties()`). */
+  props?: Record<string, unknown>
 }
 
 /**
@@ -78,21 +80,6 @@ export function outputPorts(def: ComponentDef): Port[] {
 }
 
 /**
- * The intrinsic width (number of wires) of a terminal. Only fan-in/fan-out have a
- * non-1 intrinsic width (derived from their arity); composite ports are neutral and
- * inherit their width from connections (see `pinWidth` in the editor).
- */
-export function portWidth(def: ComponentDef, port: Port): number {
-  if (def.primitive === 'fan-in' && port.direction === 'output') {
-    return inputPorts(def).length
-  }
-  if (def.primitive === 'fan-out' && port.direction === 'input') {
-    return outputPorts(def).length
-  }
-  return 1
-}
-
-/**
  * Produce a fresh, unused port id of the given direction. Used by the ports editor
  * so that added ports never collide with existing ids (which may have gaps after
  * removals).
@@ -113,15 +100,6 @@ export function nextPortId(def: ComponentDef, direction: PortDirection): string 
 /** Structural equality for connection endpoints. */
 export function pinRefEquals(a: PinRef, b: PinRef): boolean {
   return a.instanceId === b.instanceId && a.portId === b.portId
-}
-
-/**
- * Whether a definition can be "entered" for editing. Composites are always
- * enterable; primitives are enterable except the internal port-group primitives.
- */
-export function isNavigableDef(def: ComponentDef): boolean {
-  if (def.kind === 'composite') return true
-  return def.primitive !== 'input-port' && def.primitive !== 'output-port'
 }
 
 /**

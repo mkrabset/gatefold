@@ -1,5 +1,6 @@
 import type { ComponentDef, Design, Instance } from './types'
 import { cloneDef, cloneDesign } from './group'
+import { isPortGroupDef } from './primitives'
 
 /**
  * Copy/paste primitives. A clipboard is a self-contained snapshot: a set of
@@ -11,10 +12,6 @@ import { cloneDef, cloneDesign } from './group'
 export interface Clipboard {
   defs: Record<string, ComponentDef>
   instances: Instance[]
-}
-
-function isPortGroupDef(def: ComponentDef): boolean {
-  return def.primitive === 'input-port' || def.primitive === 'output-port'
 }
 
 function nextId(existing: Set<string>, base: string): string {
@@ -121,6 +118,7 @@ export function instantiateClipboard(
       name,
       defId: idMap.get(inst.defId) ?? inst.defId,
       pos: { x: inst.pos.x + offset.x, y: inst.pos.y + offset.y },
+      ...(inst.props ? { props: { ...inst.props } } : {}),
     })
     newIds.push(id)
   }

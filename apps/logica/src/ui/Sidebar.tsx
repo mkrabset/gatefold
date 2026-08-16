@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
-import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, outputPorts } from '@logica/model'
+import type { PropertySpec } from '@logica/model'
+import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, outputPorts, primitiveOf } from '@logica/model'
 import { SortablePortList } from './SortablePortList'
 
 /**
@@ -174,12 +175,21 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
           <input defaultValue={outputPorts(def).length} readOnly />
         </label>
       </div>
-      {def.primitive === 'clock' && (
-        <label className="field">
-          <span>Period (ns)</span>
-          <input defaultValue={10} />
-        </label>
-      )}
+      {def.kind === 'primitive' &&
+        def.primitive &&
+        primitiveOf(def.primitive)
+          .properties()
+          .map((spec) => (
+            <label className="field" key={spec.name}>
+              <span>{spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
+              <PropertyField
+                key={`${inst.id}:${spec.name}`}
+                instanceId={inst.id}
+                spec={spec}
+                value={inst.props?.[spec.name] ?? spec.default}
+              />
+            </label>
+          ))}
       <div className="field-row">
         <label className="field">
           <span>X</span>
@@ -208,6 +218,66 @@ function NameField({ id, initial }: { id: string; initial: string }) {
     <input
       ref={ref}
       defaultValue={initial}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+        }
+      }}
+      onBlur={commit}
+    />
+  )
+}
+
+/** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */
+function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: PropertySpec; value: unknown }) {
+  const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
+  const ref = useRef<HTMLInputElement>(null)
+
+  const commit = () => {
+    const el = ref.current
+    if (!el) return
+    if (spec.type === 'boolean') {
+      setInstanceProp(instanceId, spec.name, el.checked)
+    } else if (spec.type === 'number') {
+      const n = Number(el.value)
+      if (Number.isNaN(n)) return
+      let v = n
+      if (spec.min !== undefined) v = Math.max(spec.min, v)
+      if (spec.max !== undefined) v = Math.min(spec.max, v)
+      setInstanceProp(instanceId, spec.name, v)
+    } else {
+      setInstanceProp(instanceId, spec.name, el.value)
+    }
+  }
+
+  if (spec.type === 'boolean') {
+    return <input ref={ref} type="checkbox" defaultChecked={value === true} onChange={commit} />
+  }
+  if (spec.type === 'number') {
+    return (
+      <input
+        ref={ref}
+        type="number"
+        defaultValue={String(value)}
+        min={spec.min}
+        max={spec.max}
+        step={spec.step}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+          }
+        }}
+        onBlur={commit}
+      />
+    )
+  }
+  return (
+    <input
+      ref={ref}
+      type="text"
+      defaultValue={String(value ?? '')}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()

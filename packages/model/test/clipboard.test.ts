@@ -95,4 +95,13 @@ describe('captureClipboard + instantiateClipboard', () => {
     expect(new Set(defIds).size).toBe(2)
     expect(defIds).not.toContain(o1.defId)
   })
+
+  it('preserves instance props on paste', () => {
+    const design = makeDesign()
+    design.defs['main'].instances![0].props = { period: 250 }
+    const clip = captureClipboard(design, 'main', ['o1'])!
+    const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 0, y: 0 })
+    const newInst = pasted.defs['main'].instances!.find((i) => i.id === newIds[0])!
+    expect(newInst.props).toEqual({ period: 250 })
+  })
 })

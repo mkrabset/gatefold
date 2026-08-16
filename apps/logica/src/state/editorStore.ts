@@ -3,12 +3,12 @@ import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
 import type { ComponentDef, Design, PinRef, Port, PortDirection } from '@logica/model'
 import {
-  PRIMITIVE_LIBRARY,
   allowRenameTerminals,
   applyGroup,
   captureClipboard,
   cloneDef,
   copyDefSubgraph,
+  defaultPropsOf,
   exportLibrary as buildLibraryFile,
   findConnectionTo,
   importLibrary as mergeLibrary,
@@ -18,6 +18,7 @@ import {
   inputPorts,
   instantiateClipboard,
   isArityFixed,
+  libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
   outputPortDef,
@@ -113,6 +114,7 @@ interface EditorState {
   cancelDeleteTemplate: () => void
   renamePort: (portId: string, name: string) => void
   renameInstance: (id: string, name: string) => void
+  setInstanceProp: (id: string, name: string, value: unknown) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
   setPortOrder: (direction: PortDirection, ids: string[]) => void
@@ -211,7 +213,7 @@ function variantize(defs: Record<string, ComponentDef>, templateId: string, suff
 /** A small demo design so the app has content to render before save/load exists. */
 export function createDemoDesign(): Design {
   const defs: Record<string, ComponentDef> = {}
-  for (const spec of PRIMITIVE_LIBRARY) {
+  for (const spec of libraryPrimitives()) {
     defs[spec.kind] = primitiveDef(spec.kind)
   }
   defs['input-port'] = inputPortDef()
@@ -242,7 +244,7 @@ export function createDemoDesign(): Design {
     kind: 'composite',
     ports: [],
     instances: [
-      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 } },
+      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 1000 } },
       { id: 'inv1', name: 'inv1', defId: variantize(defs, 'not', 'inv1'), pos: { x: 300, y: 100 } },
       { id: 'and1', name: 'and1', defId: variantize(defs, 'and', 'and1'), pos: { x: 300, y: 330 } },
       { id: 'xor1', name: 'xor1', defId: variantize(defs, 'xor', 'xor1'), pos: { x: 500, y: 150 } },
@@ -437,6 +439,14 @@ export const useEditorStore = create<EditorState>()(
         const inst = def.instances?.find((x) => x.id === id)
         if (inst) inst.name = name
       }),
+    setInstanceProp: (id, name, value) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const inst = def.instances?.find((x) => x.id === id)
+        if (!inst) return
+        if (!inst.props) inst.props = {}
+        inst.props[name] = value
+      }),
     addPort: (direction) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
@@ -522,7 +532,8 @@ export const useEditorStore = create<EditorState>()(
           s.design.defs[copyId] = d
         }
         const newDefId = idMap.get(defId) ?? defId
-        def.instances.push({ id, name, defId: newDefId, pos: { x: pos.x, y: pos.y } })
+        const props = srcDef.kind === 'primitive' && srcDef.primitive ? defaultPropsOf(srcDef.primitive) : {}
+        def.instances.push({ id, name, defId: newDefId, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
         s.selectedIds = [id]
       }),
     addConnection: (from, to) =>

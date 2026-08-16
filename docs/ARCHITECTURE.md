@@ -92,17 +92,25 @@ interface Design { version: number; root: string; defs: Record<string, Component
   come from `ports`.
 - **Single-driver invariant**: each sink (`to`) has at most one incoming connection
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
-- **Primitive library** (`primitives.ts`): AND, OR, XOR, NOT, CLOCK, plus the bus
-  bundling/splitting primitives FAN-IN (n single inputs → 1 bus output) and FAN-OUT
-  (1 bus input → n single outputs). The port primitives are not listed in the library
-  (they are created/edited via the ports editor). Primitive arity is constrained per spec
-  via `fixedInputs` / `fixedOutputs`, and terminal renaming via `allowRenameTerminals`.
+- **Primitive library** (`primitives/`): built-in components are polymorphic — one
+  `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
+  `clock.ts`, `fan-in.ts`, `fan-out.ts`, plus the internal `input-port.ts`/`output-port.ts`).
+  Each supplies its label/glyph, default ports, arity constraints (`fixedInputs` /
+  `fixedOutputs`), terminal renaming (`allowRenameTerminals`), input-name suggestion,
+  intrinsic bus width, body size, and its own `draw(ctx, opts)` via a DOM-free
+  `VectorContext`. The registry (`index.ts`) maps a `PrimitiveKind` to its behaviour object;
+  `primitiveDef(kind)` produces the serializable `ComponentDef`. The port primitives are not
+  listed in the library (their pins are derived from the enclosing composite).
 - **Buses**: a terminal's *width* (wire count) is derived, not stored. `portWidth` reports
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the
   editor's `pinWidth` follows connections to inherit width across composite ports.
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
   template (and its whole internal hierarchy) into `variant: true` defs, so every instance
   owns its own content and edits never affect the template or sibling instances.
+- **Custom properties**: a primitive declares its properties via `properties(): PropertySpec[]`
+  (schema + default + unit/min/max/step). Per-instance values live in `Instance.props`,
+  seeded at instantiation from the primitive's defaults and editable in the sidebar's
+  properties panel.
 - **Clipboard** (`clipboard.ts`): pure `copyDefSubgraph` / `captureClipboard` /
   `instantiateClipboard` for in-app copy/paste with deep, id-rewritten copies.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
@@ -216,7 +224,9 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   navigation, save/open JSON (placeholders), theme toggle. Icon buttons carry `title`
   tooltips.
 - **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
-  properties panel (name commits on Enter/blur), and a **ports editor** (add/remove/rename/
+  properties panel (name commits on Enter/blur; a selected primitive with `properties()`
+  shows a generic editor — number/string/boolean, unit in the label — committing via
+  `setInstanceProp`), and a **ports editor** (add/remove/rename/
   reorder ports; add/remove is gated by the primitive's `fixedInputs`/`fixedOutputs`, rename
   by `allowRenameTerminals`; reorder is animated via @dnd-kit).
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to

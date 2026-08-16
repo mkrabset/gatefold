@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { PRIMITIVE_LIBRARY } from '@logica/model'
+import { libraryPrimitives } from '@logica/model'
 import { useEditorStore } from '../state/editorStore'
 
 /**
@@ -31,7 +31,7 @@ export function LibraryPanel({ width }: { width: number }) {
       <div className="side-title">Library</div>
       <div className="lib-section-label">Primitives</div>
       <div className="lib-grid">
-        {PRIMITIVE_LIBRARY.map((p) => (
+        {libraryPrimitives().map((p) => (
           <button
             key={p.kind}
             className={`lib-card${active === p.kind ? ' active' : ''}`}

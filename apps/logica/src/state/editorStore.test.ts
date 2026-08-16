@@ -90,4 +90,26 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.temporal.getState().undo()
     expect(mainInstances().length).toBe(before)
   })
+
+  it('gives clock instances their default property values', () => {
+    reset()
+    const clk = mainInstances().find((i) => i.id === 'clk')!
+    expect(clk.props).toEqual({ period: 1000 })
+  })
+
+  it('populates defaults when placing a primitive', () => {
+    reset()
+    useEditorStore.getState().addInstance('clock', { x: 0, y: 0 })
+    const placed = mainInstances()[mainInstances().length - 1]
+    expect(placed.props).toEqual({ period: 1000 })
+  })
+
+  it('sets an instance property and undoes it', () => {
+    reset()
+    useEditorStore.getState().setInstanceProp('clk', 'period', 500)
+    expect(mainInstances().find((i) => i.id === 'clk')!.props?.period).toBe(500)
+
+    useEditorStore.temporal.getState().undo()
+    expect(mainInstances().find((i) => i.id === 'clk')!.props?.period).toBe(1000)
+  })
 })

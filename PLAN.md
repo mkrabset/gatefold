@@ -274,18 +274,24 @@ primitive references normalized to built-in ids.
 /workspace
 ├── README.md               # user-facing doc
 ├── PLAN.md                 # this roadmap
-├── docs/                   # ARCHITECTURE.md, NOTES.md
+├── docs/                   # ARCHITECTURE.md, NOTES.md, GLOSSARY.md
 ├── apps/
 │   └── logica/src/
-│       ├── editor/     geometry.ts, renderer.ts, routing.ts, palette.ts, Canvas.tsx
+│       ├── editor/     geometry.ts, renderer.ts, routing.ts, palette.ts,
+│       │               canvasVector.ts, Canvas.tsx
 │       ├── state/      editorStore.ts, uiStore.ts
 │       ├── ui/         App.tsx, Toolbar.tsx, Sidebar.tsx, LibraryPanel.tsx,
 │       │               ResizeHandle.tsx, GroupDialog.tsx, SortablePortList.tsx, Toast.tsx
 │       ├── main.tsx
 │       └── index.css
 ├── packages/
-│   └── model/src/      types.ts, primitives.ts, group.ts, clipboard.ts, index.ts
-│       └── test/       primitives.test.ts, connections.test.ts, group.test.ts, clipboard.test.ts
+│   └── model/src/
+│       ├── types.ts, group.ts, clipboard.ts, serialize.ts, library.ts, index.ts
+│       ├── primitives/   vector.ts, primitive.ts, gate.ts, and.ts, or.ts, xor.ts,
+│       │                 not.ts, clock.ts, fan-in.ts, fan-out.ts,
+│       │                 input-port.ts, output-port.ts, index.ts
+│       └── test/       primitives.test.ts, connections.test.ts, group.test.ts,
+│                       clipboard.test.ts, serialize.test.ts, library.test.ts
 └── (planned) sim/       engine.ts, events.ts, clock.ts, flatten.ts
 ```
 

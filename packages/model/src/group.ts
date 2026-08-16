@@ -62,7 +62,11 @@ export function cloneDef(def: ComponentDef): ComponentDef {
   return {
     ...def,
     ports: def.ports.map((p) => ({ ...p, terminal: p.terminal ? { ...p.terminal } : undefined })),
-    instances: def.instances?.map((i) => ({ ...i, pos: { ...i.pos } })),
+    instances: def.instances?.map((i) => ({
+      ...i,
+      pos: { ...i.pos },
+      props: i.props ? { ...i.props } : undefined,
+    })),
     connections: def.connections?.map((c) => ({ id: c.id, from: clonePinRef(c.from), to: clonePinRef(c.to) })),
   }
 }

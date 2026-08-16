@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post save/load + library export/import).
+Last updated: 2026-08-15 (post polymorphic-primitives + custom-properties).
 
 ## Where we are
 
@@ -38,6 +38,22 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   composites + composite closure (variant stripped, primitive refs normalized to built-in
   ids); import merges with fresh collision-free ids/names (no overwrite). Library panel
   Export/Import buttons.
+- **Polymorphic primitives** — `PrimitiveSpec`/`PRIMITIVE_LIBRARY` and the scattered
+  `kind === '…'` switches (in `primitives.ts`, `types.ts`, `geometry.ts`, `renderer.ts`)
+  are replaced by one `Primitive` class per kind in `packages/model/src/primitives/`
+  (`gate.ts` base + `and/or/xor/not/clock/fan-in/fan-out/input-port/output-port.ts`). Each
+  owns its ports, arity, naming, intrinsic bus width, body size, and `draw(ctx, opts)` via
+  a DOM-free `VectorContext` (app adapts it with `canvasVector.ts`). Registry
+  (`primitives/index.ts`) maps kind → behaviour object; `primitiveDef`, `portWidth`,
+  `isNavigableDef`, `isArityFixed`, `allowRenameTerminals`, `nextPrimitiveInputName`,
+  `isPortGroupDef`, `portGroupDirection` all delegate to it. `transfer` (simulation) is
+  still a reserved slot.
+- **Custom properties** — a primitive declares its properties via `properties(): PropertySpec[]`
+  (name/label/type/default/unit/min/max/step). The CLOCK declares `period` (number, ms,
+  default 1000, min 1). `Instance.props` stores per-instance values; instantiation
+  (`addInstance`, paste) seeds them from `defaultPropsOf(kind)`, and `cloneDef` deep-copies
+  them. The sidebar properties panel renders a generic editor (number/string/boolean, unit in
+  the label) committed via `setInstanceProp`.
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template
@@ -52,7 +68,9 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 1. **Simulation engine** — new `packages/sim` (or extend `@logica/model`): event-driven
    combinational → clocked/sequential; hierarchy flattening via `Port.terminal`; cycle
    detection; fan-in/fan-out are per-bit identities (`out[i] = in[i]`); buses = `n`
-   independent bits.
+   independent bits. The per-kind `transfer(inputs)` method belongs on the `Primitive`
+   classes (next to `draw`/`properties`); the CLOCK's `period` (ms) is read from
+   `Instance.props` and drives the square-wave source.
 2. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
 
 ## Open items / decisions to revisit
@@ -67,6 +85,8 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 - Cycle detection deferred until the simulator needs it.
 - OS-clipboard integration deferred (clipboard is in-app only).
 - Orthogonal bus/wire routing deferred (cubic-bezier `routing.ts` isolates this).
+- Property values are stored but not yet consumed (no simulator); number props only clamp
+  to min/max (no per-spec validation); `PropertySpec` has no schema version stamp.
 
 ## Commands
 

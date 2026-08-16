@@ -66,9 +66,14 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template
-  (breadcrumb shows a `template` badge); an `×` on each card + confirm dialog deletes it.
+  (breadcrumb shows a `template` badge); an `×` on each card deletes it (disabled while that
+  template is in the breadcrumb; the store also refuses to delete a referenced or currently-
+  viewed def).
 - **Group dialog** — now names the new component; a single selected custom component is
-  *promoted* to a template (no new port layer) instead of being wrapped.
+  *promoted* to a new template (a fresh copy added to the library) while the instance stays
+  a `variant` — no new port layer, and the clicked object remains an instance.
+- **Load repair** — `sanitizeDesign` prunes dangling connections/instances from a loaded file
+  and reports them (`console.warn` + a toast); `withBuiltinPrimitives` adds any newer built-ins.
 - **Undo/redo, copy/paste/delete, copy-on-place, animated port reorder, enter-any-component
   (double-click) + Escape, arity constraints** — all working (see ARCHITECTURE.md).
 

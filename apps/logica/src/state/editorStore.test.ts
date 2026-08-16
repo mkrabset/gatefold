@@ -136,6 +136,26 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.getState().renameDef('and', 'Nope')
     expect(useEditorStore.getState().design.defs['and'].name).toBe('AND')
   })
+
+  it('promotes a single component to a new template, leaving the instance a variant', () => {
+    reset()
+    const state = useEditorStore.getState()
+    state.setSelection(['ha1'])
+    state.openGroupDialog()
+    state.setGroupName('MyAdder')
+    state.confirmGroup()
+
+    const s = useEditorStore.getState()
+    // A new template exists with the dialog name (variant unset).
+    const template = Object.values(s.design.defs).find(
+      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'MyAdder',
+    )
+    expect(template).toBeDefined()
+
+    // The clicked instance still references its own variant def.
+    const ha1 = mainInstances().find((i) => i.id === 'ha1')!
+    expect(s.design.defs[ha1.defId].variant).toBe(true)
+  })
 })
 
 // A design with a 5-input fan-in and an unconnected bus-split.

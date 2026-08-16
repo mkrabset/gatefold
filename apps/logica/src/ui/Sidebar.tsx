@@ -168,6 +168,9 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
     return <div className="props-empty">Nothing selected</div>
   }
   const def = design.defs[inst.defId]
+  if (!def) {
+    return <div className="props-empty">Nothing selected</div>
+  }
   return (
     <div className="props">
       <label className="field">

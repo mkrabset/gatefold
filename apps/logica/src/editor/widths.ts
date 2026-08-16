@@ -140,7 +140,7 @@ export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: P
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return null
   const def = design.defs[inst.defId]
-  if (def.kind !== 'primitive' || !def.primitive) return null
+  if (!def || def.kind !== 'primitive' || !def.primitive) return null
   const prim = primitiveOf(def.primitive)
   if (!prim.undeterminedHint) return null
   const port: Port | undefined = def.ports.find((p) => p.id === ref.portId)

@@ -121,3 +121,12 @@ export function pinRefEquals(a: PinRef, b: PinRef): boolean {
 export function findConnectionTo(connections: Connection[], to: PinRef): Connection | null {
   return connections.find((c) => pinRefEquals(c.to, to)) ?? null
 }
+
+/** True when any instance in the design references `defId` via its `defId`. */
+export function isDefReferenced(design: Design, defId: string): boolean {
+  for (const def of Object.values(design.defs)) {
+    if (def.kind !== 'composite') continue
+    if ((def.instances ?? []).some((i) => i.defId === defId)) return true
+  }
+  return false
+}

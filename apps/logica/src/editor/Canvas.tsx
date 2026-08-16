@@ -222,7 +222,9 @@ export function Canvas() {
           // Axis-aligned rectangle intersection test against each instance's bounds.
           const selected = instances
             .filter((inst) => {
-              const b = instanceBounds(def, inst, state.design.defs[inst.defId])
+              const instDef = state.design.defs[inst.defId]
+              if (!instDef) return false
+              const b = instanceBounds(def, inst, instDef)
               return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
             })
             .map((inst) => inst.id)

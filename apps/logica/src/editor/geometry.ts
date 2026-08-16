@@ -93,6 +93,7 @@ export function hitTest(
   for (let i = instances.length - 1; i >= 0; i--) {
     const inst = instances[i]
     const def = design.defs[inst.defId]
+    if (!def) continue
     const b = instanceBounds(parentDef, inst, def, 4)
     if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) {
       return inst
@@ -129,6 +130,7 @@ export function hitTestPort(
 
   for (const inst of instances) {
     const def = design.defs[inst.defId]
+    if (!def) continue
     const dir = portGroupDirection(def)
     if (dir === 'input') {
       for (const p of inputPorts(parentDef)) {

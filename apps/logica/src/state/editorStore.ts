@@ -18,6 +18,7 @@ import {
   inputPorts,
   instantiateClipboard,
   isArityFixed,
+  isDefReferenced,
   libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
@@ -27,6 +28,7 @@ import {
   parseDesign,
   parseLibrary,
   primitiveDef,
+  sanitizeDesign,
   serializeDesign,
   serializeLibrary,
   withBuiltinPrimitives,
@@ -374,17 +376,21 @@ export const useEditorStore = create<EditorState>()(
         if (!s.pendingGroup) return
         const p = s.pendingGroup
 
-        // Promote a single custom component instance to a template.
+        // Promote a single custom component instance to a template: create a fresh
+        // template (a copy of the instance's def), leaving the instance a variant.
         if (p.promote && p.promoteDefId) {
           const target = s.design.defs[p.promoteDefId]
           if (target) {
-            target.variant = false
-            const others = new Set(
-              Object.values(s.design.defs)
-                .filter((d) => d.id !== p.promoteDefId)
-                .map((d) => d.name),
+            const name = uniqueAgainst(
+              new Set(Object.values(s.design.defs).map((d) => d.name)),
+              p.name.trim() || target.name,
             )
-            target.name = uniqueAgainst(others, p.name.trim() || target.name)
+            const id = uniqueAgainst(new Set(Object.keys(s.design.defs)), name)
+            const copy = cloneDef(target)
+            copy.id = id
+            copy.name = name
+            copy.variant = false
+            s.design.defs[id] = copy
           }
           s.pendingGroup = null
           return
@@ -427,6 +433,14 @@ export const useEditorStore = create<EditorState>()(
         const id = s.pendingDelete
         s.pendingDelete = null
         if (id === s.design.root) return
+        if (s.navStack.includes(id)) {
+          s.notice = 'Exit the component before deleting it'
+          return
+        }
+        if (isDefReferenced(s.design, id)) {
+          s.notice = 'Component is in use'
+          return
+        }
         delete s.design.defs[id]
       }),
     renamePort: (portId, name) =>
@@ -598,6 +612,7 @@ export const useEditorStore = create<EditorState>()(
           const inst = def.instances?.find((i) => i.id === id)
           if (!inst) continue
           const instDef = s.design.defs[inst.defId]
+          if (!instDef) continue
           const isPortGroup = instDef.primitive === 'input-port' || instDef.primitive === 'output-port'
           if (!isPortGroup) deleted.add(id)
         }
@@ -632,7 +647,10 @@ export const useEditorStore = create<EditorState>()(
     },
     loadProject: (json) => {
       try {
-        const design = withBuiltinPrimitives(parseDesign(json))
+        const { design, issues } = sanitizeDesign(withBuiltinPrimitives(parseDesign(json)))
+        if (issues.length > 0) {
+          console.warn('Design repaired on load:', issues)
+        }
         set((s) => {
           s.design = design
           s.navStack = [design.root]
@@ -642,6 +660,9 @@ export const useEditorStore = create<EditorState>()(
           s.hoverPort = null
           s.pendingGroup = null
           s.pendingDelete = null
+          if (issues.length > 0) {
+            s.notice = `Removed ${issues.length} invalid reference(s) — see console`
+          }
         })
         useEditorStore.temporal.getState().clear()
       } catch (e) {

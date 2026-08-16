@@ -22,6 +22,53 @@ export function parseDesign(json: string): Design {
   return data
 }
 
+/**
+ * Remove dangling references from a design: connections whose endpoints reference
+ * missing instances, and instances whose `defId` is not present in `defs`. Used on
+ * load so a partially-inconsistent file can still be opened and edited without
+ * crashing. Returns the repaired design plus details of what was removed.
+ */
+export interface SanitizeIssue {
+  type: 'dangling-connection' | 'dangling-instance'
+  defId: string
+  connectionId?: string
+  endpoint?: 'from' | 'to'
+  missingInstanceId?: string
+  instanceId?: string
+  instanceName?: string
+  missingDefId?: string
+}
+
+export function sanitizeDesign(design: Design): { design: Design; issues: SanitizeIssue[] } {
+  const defs: Record<string, ComponentDef> = {}
+  const issues: SanitizeIssue[] = []
+  for (const [id, def] of Object.entries(design.defs)) {
+    if (def.kind !== 'composite') {
+      defs[id] = def
+      continue
+    }
+    const instances = (def.instances ?? []).filter((i) => {
+      if (design.defs[i.defId]) return true
+      issues.push({ type: 'dangling-instance', defId: id, instanceId: i.id, instanceName: i.name, missingDefId: i.defId })
+      return false
+    })
+    const instanceIds = new Set(instances.map((i) => i.id))
+    const connections = (def.connections ?? []).filter((c) => {
+      if (!instanceIds.has(c.from.instanceId)) {
+        issues.push({ type: 'dangling-connection', defId: id, connectionId: c.id, endpoint: 'from', missingInstanceId: c.from.instanceId })
+        return false
+      }
+      if (!instanceIds.has(c.to.instanceId)) {
+        issues.push({ type: 'dangling-connection', defId: id, connectionId: c.id, endpoint: 'to', missingInstanceId: c.to.instanceId })
+        return false
+      }
+      return true
+    })
+    defs[id] = { ...def, instances, connections }
+  }
+  return { design: { ...design, defs }, issues }
+}
+
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }

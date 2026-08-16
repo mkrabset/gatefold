@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Connection, PinRef } from '../src/types'
-import { findConnectionTo, pinRefEquals } from '../src/types'
+import type { Connection, Design, PinRef } from '../src/types'
+import { findConnectionTo, isDefReferenced, pinRefEquals } from '../src/types'
 
 const iRef = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef): Connection => ({ id, from, to })
@@ -19,5 +19,28 @@ describe('findConnectionTo', () => {
     expect(findConnectionTo(cs, iRef('b', 'in:0'))?.id).toBe('c1')
     expect(findConnectionTo(cs, iRef('b', 'in:1'))).toBeNull()
     expect(findConnectionTo(cs, iRef('c', 'in:0'))).toBeNull()
+  })
+})
+
+describe('isDefReferenced', () => {
+  it('detects when an instance references a def', () => {
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: {
+        main: {
+          id: 'main',
+          name: 'main',
+          kind: 'composite',
+          ports: [],
+          instances: [{ id: 'x1', name: 'x1', defId: 'foo', pos: { x: 0, y: 0 } }],
+          connections: [],
+        },
+        foo: { id: 'foo', name: 'foo', kind: 'composite', ports: [], instances: [], connections: [] },
+        bar: { id: 'bar', name: 'bar', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
+    }
+    expect(isDefReferenced(design, 'foo')).toBe(true)
+    expect(isDefReferenced(design, 'bar')).toBe(false)
   })
 })

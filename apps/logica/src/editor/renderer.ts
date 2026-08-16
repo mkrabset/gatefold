@@ -345,7 +345,9 @@ export function drawScene(
   const resolveEndpoint = (ref: PinRef): { x: number; y: number } | null => {
     const inst = byId.get(ref.instanceId)
     if (!inst) return null
-    return portPosition(def, inst, design.defs[inst.defId], ref.portId)
+    const instDef = design.defs[inst.defId]
+    if (!instDef) return null
+    return portPosition(def, inst, instDef, ref.portId)
   }
 
   interface Trace {
@@ -422,6 +424,7 @@ export function drawScene(
 
   for (const inst of instances) {
     const instDef = design.defs[inst.defId]
+    if (!instDef) continue
     if (isPortGroupDef(instDef)) {
       drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
     } else {

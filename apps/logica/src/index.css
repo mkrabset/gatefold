@@ -679,6 +679,16 @@ body {
   background: var(--red);
 }
 
+.lib-remove.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lib-remove.disabled:hover {
+  color: var(--text-faint);
+  background: transparent;
+}
+
 .lib-glyph {
   font-size: 18px;
   color: var(--accent);

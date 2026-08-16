@@ -12,6 +12,7 @@ import { useEditorStore } from '../state/editorStore'
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
   const design = useEditorStore((s) => s.design)
+  const navStack = useEditorStore((s) => s.navStack)
   const navigateTo = useEditorStore((s) => s.navigateTo)
   const requestDeleteTemplate = useEditorStore((s) => s.requestDeleteTemplate)
   const exportLibrary = useEditorStore((s) => s.exportLibrary)
@@ -57,30 +58,33 @@ export function LibraryPanel({ width }: { width: number }) {
       </div>
       {composites.length > 0 && (
         <div className="lib-grid">
-          {composites.map((d) => (
-            <button
-              key={d.id}
-              className={`lib-card${active === d.id ? ' active' : ''}`}
-              draggable
-              onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
-              onClick={() => setActive(d.id)}
-              onDoubleClick={() => navigateTo(d.id)}
-              title={`Drag to place · double-click to edit ${d.name}`}
-            >
-              <span
-                className="lib-remove"
-                title={`Delete ${d.name}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  requestDeleteTemplate(d.id)
-                }}
+          {composites.map((d) => {
+            const editing = navStack.includes(d.id)
+            return (
+              <button
+                key={d.id}
+                className={`lib-card${active === d.id ? ' active' : ''}`}
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
+                onClick={() => setActive(d.id)}
+                onDoubleClick={() => navigateTo(d.id)}
+                title={`Drag to place · double-click to edit ${d.name}`}
               >
-                ×
-              </span>
-              <span className="lib-glyph">▣</span>
-              <span className="lib-label">{d.name}</span>
-            </button>
-          ))}
+                <span
+                  className={`lib-remove${editing ? ' disabled' : ''}`}
+                  title={editing ? "You're editing this component" : `Delete ${d.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!editing) requestDeleteTemplate(d.id)
+                  }}
+                >
+                  ×
+                </span>
+                <span className="lib-glyph">▣</span>
+                <span className="lib-label">{d.name}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </aside>

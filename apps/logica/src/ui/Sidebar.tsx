@@ -222,6 +222,7 @@ function NameField({ id, initial }: { id: string; initial: string }) {
         if (e.key === 'Enter') {
           e.preventDefault()
           commit()
+          e.currentTarget.blur()
         }
       }}
       onBlur={commit}
@@ -267,6 +268,7 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
           if (e.key === 'Enter') {
             e.preventDefault()
             commit()
+            e.currentTarget.blur()
           }
         }}
         onBlur={commit}
@@ -282,6 +284,7 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
         if (e.key === 'Enter') {
           e.preventDefault()
           commit()
+          e.currentTarget.blur()
         }
       }}
       onBlur={commit}

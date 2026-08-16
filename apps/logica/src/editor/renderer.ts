@@ -18,9 +18,9 @@ const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
 
-/** Pin radius, scaled up for bus terminals (proportional to width). */
-function pinRadius(width: number): number {
-  return 3.5 * Math.sqrt(width)
+/** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
+function pinRadius(width: number, zoom: number): number {
+  return 3.5 * Math.sqrt(width) * zoom
 }
 
 /** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
@@ -109,7 +109,7 @@ function drawPorts(
     const s = w2s(pos.x, pos.y, w, h, vp)
     const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, pinRadius(width), 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pin
     ctx.fill()
   }
@@ -118,7 +118,7 @@ function drawPorts(
     const s = w2s(pos.x, pos.y, w, h, vp)
     const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, pinRadius(width), 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pinHover
     ctx.fill()
   }
@@ -143,6 +143,7 @@ function drawInstance(
     const b = instanceBounds(parentDef, instance, def, 6)
     const tl = w2s(b.x, b.y, cw, ch, vp)
     ctx.strokeStyle = p.selection
+    ctx.lineWidth = 1
     ctx.setLineDash([4, 3])
     ctx.strokeRect(tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom)
     ctx.setLineDash([])
@@ -253,6 +254,7 @@ function drawPortGroupBox(
   if (selected) {
     const tl = w2s(b.x - 6, b.y - 6, cw, ch, vp)
     ctx.strokeStyle = p.selection
+    ctx.lineWidth = 1
     ctx.setLineDash([4, 3])
     ctx.strokeRect(tl.x, tl.y, (b.w + 12) * vp.zoom, (b.h + 12) * vp.zoom)
     ctx.setLineDash([])
@@ -274,7 +276,7 @@ function drawPortGroupBox(
     const x = pos.x + (isInput ? w / 2 : -w / 2)
     const s = w2s(x, y, cw, ch, vp)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, pinRadius(widthFor(port)), 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, pinRadius(widthFor(port), vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = isInput ? p.pinHover : p.pin
     ctx.fill()
     ctx.fillStyle = p.text
@@ -378,8 +380,8 @@ export function drawScene(
   }
 
   for (const traces of groups.values()) {
-    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, WIRE_WIDTH * t.width + HALO_WIDTH * 2)
-    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, (WIRE_WIDTH * t.width + HALO_WIDTH * 2) * vp.zoom)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width * vp.zoom)
   }
 
   // Preview of a wire currently being drawn (dashed, accent color).
@@ -395,7 +397,7 @@ export function drawScene(
       ctx.moveTo(s.x, s.y)
       ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
       ctx.strokeStyle = p.selection
-      ctx.lineWidth = WIRE_WIDTH
+      ctx.lineWidth = WIRE_WIDTH * vp.zoom
       ctx.setLineDash([5, 4])
       ctx.stroke()
       ctx.setLineDash([])
@@ -420,9 +422,9 @@ export function drawScene(
       // created from) — show the arity tooltip but no interaction ring.
       if (hoverPort.action !== 'inspect') {
         ctx.beginPath()
-        ctx.arc(s.x, s.y, 6, 0, Math.PI * 2)
+        ctx.arc(s.x, s.y, 6 * vp.zoom, 0, Math.PI * 2)
         ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
-        ctx.lineWidth = 2
+        ctx.lineWidth = 2 * vp.zoom
         ctx.stroke()
       }
 

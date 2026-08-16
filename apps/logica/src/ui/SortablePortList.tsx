@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -73,6 +74,7 @@ function SortablePortRow({
   onRemove: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const inputRef = useRef<HTMLInputElement>(null)
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -84,16 +86,31 @@ function SortablePortRow({
     : connected
       ? `${port.name} is connected`
       : `Remove ${port.name}`
+
+  const commit = () => {
+    if (!renameAllowed) return
+    const value = inputRef.current?.value.trim()
+    if (value) onRename(port.id, value)
+  }
+
   return (
     <div ref={setNodeRef} style={style} className="port-row">
       <span ref={setActivatorNodeRef} {...attributes} {...listeners} className="drag-handle" title="Drag to reorder">
         ⣿
       </span>
       <input
-        value={port.name}
+        ref={inputRef}
+        defaultValue={port.name}
         title={port.name}
         readOnly={!renameAllowed}
-        onChange={(e) => onRename(port.id, e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            commit()
+            e.currentTarget.blur()
+          }
+        }}
+        onBlur={commit}
       />
       <button
         className="mini-btn"

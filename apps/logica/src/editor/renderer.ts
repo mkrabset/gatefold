@@ -1,6 +1,15 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
 import { inputPorts, isPortGroupDef, outputPorts, portGroupDirection, portWidth, primitiveOf } from '@logica/model'
-import { defBodySize, instanceBounds, isNeutralPin, pinWidth, portGroupSize, portPosition, undeterminedHint } from './geometry'
+import {
+  instanceBodySize,
+  instanceBounds,
+  isNeutralPin,
+  pinRadiusWorld,
+  pinWidth,
+  sizeForPorts,
+  portPosition,
+  undeterminedHint,
+} from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from '@logica/model'
 import { canvasVectorContext } from './canvasVector'
@@ -20,7 +29,7 @@ const HALO_WIDTH = 2.5
 
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
 function pinRadius(width: number, zoom: number): number {
-  return 3.5 * Math.sqrt(width) * zoom
+  return pinRadiusWorld(width) * zoom
 }
 
 /** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
@@ -105,7 +114,7 @@ function drawPorts(
   p: Palette,
 ) {
   for (const port of inputPorts(def)) {
-    const pos = portPosition(parentDef, instance, def, port.id)
+    const pos = portPosition(design, parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
     const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
     ctx.beginPath()
@@ -114,7 +123,7 @@ function drawPorts(
     ctx.fill()
   }
   for (const port of outputPorts(def)) {
-    const pos = portPosition(parentDef, instance, def, port.id)
+    const pos = portPosition(design, parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
     const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
     ctx.beginPath()
@@ -136,11 +145,11 @@ function drawInstance(
   selected: boolean,
   p: Palette,
 ) {
-  const { w, h } = defBodySize(def)
+  const { w, h } = instanceBodySize(design, parentDef, instance, def)
   const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
 
   if (selected) {
-    const b = instanceBounds(parentDef, instance, def, 6)
+    const b = instanceBounds(design, parentDef, instance, def, 6)
     const tl = w2s(b.x, b.y, cw, ch, vp)
     ctx.strokeStyle = p.selection
     ctx.lineWidth = 1
@@ -171,25 +180,30 @@ function drawInstance(
     ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
     ctx.fillStyle = p.text
     for (const port of inputPorts(def)) {
-      const pos = portPosition(parentDef, instance, def, port.id)
+      const pos = portPosition(design, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
+      const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
       ctx.textAlign = 'right'
-      ctx.fillText(port.name, ps.x - 6 * vp.zoom, ps.y)
+      ctx.fillText(port.name, ps.x - (pinRadiusWorld(width) + 6) * vp.zoom, ps.y)
     }
     for (const port of outputPorts(def)) {
-      const pos = portPosition(parentDef, instance, def, port.id)
+      const pos = portPosition(design, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
+      const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
       ctx.textAlign = 'left'
-      ctx.fillText(port.name, ps.x + 6 * vp.zoom, ps.y)
+      ctx.fillText(port.name, ps.x + (pinRadiusWorld(width) + 6) * vp.zoom, ps.y)
     }
   } else {
     if (def.primitive) {
+      const pinRadiusOf = (portId: string) =>
+        pinRadiusWorld(pinWidth(design, parentDef, { instanceId: instance.id, portId })) * vp.zoom
       primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
         x: s.x,
         y: s.y,
         w: w * vp.zoom,
         h: h * vp.zoom,
         palette: p,
+        pinRadius: pinRadiusOf,
       })
     }
     // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
@@ -248,7 +262,8 @@ function drawPortGroupBox(
   p: Palette,
 ) {
   const n = ports.length
-  const { w, h } = portGroupSize(n)
+  const rMax = ports.reduce((m, p) => Math.max(m, pinRadiusWorld(widthFor(p))), 0)
+  const { w, h } = sizeForPorts(n, rMax)
   const b = { x: pos.x - w / 2, y: pos.y - h / 2, w, h }
 
   if (selected) {
@@ -282,10 +297,10 @@ function drawPortGroupBox(
     ctx.fillStyle = p.text
     if (isInput) {
       ctx.textAlign = 'right'
-      ctx.fillText(port.name, s.x - 6 * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x - (pinRadiusWorld(widthFor(port)) + 6) * vp.zoom, s.y)
     } else {
       ctx.textAlign = 'left'
-      ctx.fillText(port.name, s.x + 6 * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x + (pinRadiusWorld(widthFor(port)) + 6) * vp.zoom, s.y)
     }
   })
 }
@@ -347,7 +362,7 @@ export function drawScene(
     if (!inst) return null
     const instDef = design.defs[inst.defId]
     if (!instDef) return null
-    return portPosition(def, inst, instDef, ref.portId)
+    return portPosition(design, def, inst, instDef, ref.portId)
   }
 
   interface Trace {

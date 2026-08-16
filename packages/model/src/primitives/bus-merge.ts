@@ -48,11 +48,13 @@ export class BusMerge extends Gate {
     const r = cx + w / 2
     const t = cy - h / 2
     const b = cy + h / 2
-    // Trapezoid narrowing from the two inputs on the left toward the single bus output.
+    // Trapezoid narrowing from the two inputs on the left toward the single bus output;
+    // the neck grows with the bus pin so the terminal stays flush within the shape.
+    const neck = Math.max(12, opts.pinRadius?.('out:0') ?? 0)
     ctx.beginPath()
     ctx.moveTo(l, t)
-    ctx.lineTo(r, cy - 12)
-    ctx.lineTo(r, cy + 12)
+    ctx.lineTo(r, cy - neck)
+    ctx.lineTo(r, cy + neck)
     ctx.lineTo(l, b)
     ctx.closePath()
     ctx.fill(palette.gateFill)

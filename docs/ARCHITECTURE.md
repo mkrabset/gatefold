@@ -157,10 +157,17 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 ## 4. Editor (`apps/logica/src/editor`)
 
 ### Geometry (`geometry.ts`)
-- `defBodySize(def)` — per-primitive body dimensions (composites use a fixed box).
-- `portPosition(parentDef, instance, def, portId)` — input pins on the left edge, output
-  pins on the right, evenly spaced; port-group pins are derived from the parent's ports.
-- `instanceBounds(...)`, `hitTest(...)` — world-space bounds and topmost hit detection.
+- `defBodySize(def)` — base body dimensions (before pin radii).
+- `pinRadiusWorld(width)` — a terminal's circle radius (`3.5·√width`).
+- `neededHeight(total, maxRadius)` / `instanceBodySize(design, parentDef, instance, def)` —
+  the effective body height grows to fit the (bus-scaled) pin radii, so terminal circles
+  neither overlap nor stick out above/below the body; `sizeForPorts` does the same for a
+  port group.
+- `portPosition(design, parentDef, instance, def, portId)` — input pins on the left edge,
+  output pins on the right, evenly spaced over the *effective* height; port-group pins are
+  derived from the parent's ports.
+- `instanceBounds(design, parentDef, instance, def, pad)` / `hitTest(...)` — world-space
+  bounds (using the effective size) and topmost hit detection.
 - `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin within a
   radius, returning `{ ref, role }` where `role` is `source` (output pin) or `sink`
   (input pin).
@@ -184,7 +191,9 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   (trapezoids).
 - **Buses**: pin radius and wire thickness scale with a pin's width (`pinWidth`), so a
   composite port wired to an internal fan-in/fan-out renders as a bus even from the outside;
-  hovering a bus pin shows an `×n` arity tooltip.
+  hovering a bus pin shows an `×n` arity tooltip. Gate shapes size their bus "neck" to the
+  pin radius (via `DrawOptions.pinRadius`), and port-name labels are offset by the radius so
+  they never sit under a large pin.
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.

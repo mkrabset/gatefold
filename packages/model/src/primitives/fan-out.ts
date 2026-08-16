@@ -38,12 +38,14 @@ export class FanOut extends Gate {
     const r = cx + w / 2
     const t = cy - h / 2
     const b = cy + h / 2
-    // Trapezoid widening from the bus input on the left toward the outputs.
+    // Trapezoid widening from the bus input on the left toward the outputs; the neck
+    // grows with the bus pin so the terminal stays flush within the shape.
+    const neck = Math.max(8, opts.pinRadius?.('in:0') ?? 0)
     ctx.beginPath()
-    ctx.moveTo(l, cy - 8)
+    ctx.moveTo(l, cy - neck)
     ctx.lineTo(r, t)
     ctx.lineTo(r, b)
-    ctx.lineTo(l, cy + 8)
+    ctx.lineTo(l, cy + neck)
     ctx.closePath()
     ctx.fill(palette.gateFill)
     ctx.stroke(palette.gateStroke, 1.5)

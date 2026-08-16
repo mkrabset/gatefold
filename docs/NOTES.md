@@ -56,6 +56,10 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   the label) committed via `setInstanceProp`.
 - **Bus split/merge** — new `bus-split` (1 bus in → 2 bus out, `in = 2×out`) and `bus-merge`
   (2 bus in → 1 bus out, `out = 2×in`) primitives, with fixed arity and no stored width.
+- **Terminal layout scales with arity** — body height grows to fit bus pin radii
+  (`instanceBodySize`/`sizeForPorts`/`neededHeight` in `geometry.ts`), gate shapes size their
+  bus neck to the pin radius (`DrawOptions.pinRadius`), and port-name labels are offset by
+  the radius — so large terminals neither overlap nor stick out of their component.
 - **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
   `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
   connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the

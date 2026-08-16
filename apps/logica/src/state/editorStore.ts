@@ -192,7 +192,7 @@ function portPlacement(def: ComponentDef, design: Design, direction: PortDirecti
     const instDef = design.defs[inst.defId]
     // Ignore existing port groups so placement is relative to real components only.
     if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') continue
-    const b = instanceBounds(def, inst, instDef)
+    const b = instanceBounds(design, def, inst, instDef)
     minX = Math.min(minX, b.x)
     maxX = Math.max(maxX, b.x + b.w)
     minY = Math.min(minY, b.y)

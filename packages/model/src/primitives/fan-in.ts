@@ -32,11 +32,13 @@ export class FanIn extends Gate {
     const r = cx + w / 2
     const t = cy - h / 2
     const b = cy + h / 2
-    // Trapezoid narrowing toward the bus output on the right.
+    // Trapezoid narrowing toward the bus output on the right; the neck grows with the
+    // bus pin so the terminal stays flush within the shape.
+    const neck = Math.max(8, opts.pinRadius?.('out:0') ?? 0)
     ctx.beginPath()
     ctx.moveTo(l, t)
-    ctx.lineTo(r, cy - 8)
-    ctx.lineTo(r, cy + 8)
+    ctx.lineTo(r, cy - neck)
+    ctx.lineTo(r, cy + neck)
     ctx.lineTo(l, b)
     ctx.closePath()
     ctx.fill(palette.gateFill)

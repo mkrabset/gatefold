@@ -26,6 +26,8 @@ export interface DrawOptions {
   w: number
   h: number
   palette: Palette
+  /** Radius (screen px) of the pin with the given port id, so shapes can size their bus neck. */
+  pinRadius?: (portId: string) => number
 }
 
 /**

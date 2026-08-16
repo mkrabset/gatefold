@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ComponentDef, Design, Port } from '@logica/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
-import { isNeutralPin, pinWidth } from './geometry'
+import { defBodySize, instanceBodySize, isNeutralPin, neededHeight, pinRadiusWorld, pinWidth, portPosition } from './geometry'
 import { connectionError } from './widths'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
@@ -211,5 +211,41 @@ describe('bus-split / bus-merge derived width', () => {
     }
     const design: Design = { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
     expect(connectionError(design, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBeNull()
+  })
+})
+
+describe('dynamic body sizing', () => {
+  it('computes the height needed to fit a stack of pins', () => {
+    expect(neededHeight(0, 10)).toBe(0)
+    expect(neededHeight(1, 10)).toBe(20)
+    expect(neededHeight(2, 10)).toBe(3 * 2 * 10 + 4)
+  })
+
+  it('grows a bus-split body and spaces its outputs for high arity', () => {
+    const design = makeRelationDesign(32)
+    const main = design.defs['main']
+    const bs = main.instances!.find((i) => i.id === 'bs')!
+    const def = design.defs[bs.defId]
+
+    const base = defBodySize(def)
+    const eff = instanceBodySize(design, main, bs, def)
+    expect(eff.h).toBeGreaterThan(base.h)
+
+    const p0 = portPosition(design, main, bs, def, 'out:0')
+    const p1 = portPosition(design, main, bs, def, 'out:1')
+    const r = pinRadiusWorld(pinWidth(design, main, { instanceId: bs.id, portId: 'out:0' }))
+    // No overlap between the two bus outputs.
+    expect(Math.abs(p1.y - p0.y)).toBeGreaterThanOrEqual(2 * r)
+    // The top/bottom pins stay inside the grown body.
+    expect(p0.y - (bs.pos.y - eff.h / 2)).toBeGreaterThanOrEqual(r)
+    expect((bs.pos.y + eff.h / 2) - p1.y).toBeGreaterThanOrEqual(r)
+  })
+
+  it('keeps the default size when all pins are single-wire', () => {
+    const design = makeBusDesign()
+    const main = design.defs['main']
+    const fi = main.instances!.find((i) => i.id === 'fi')!
+    const def = design.defs[fi.defId]
+    expect(instanceBodySize(design, main, fi, def)).toEqual(defBodySize(def))
   })
 })

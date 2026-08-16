@@ -224,7 +224,7 @@ export function Canvas() {
             .filter((inst) => {
               const instDef = state.design.defs[inst.defId]
               if (!instDef) return false
-              const b = instanceBounds(def, inst, instDef)
+              const b = instanceBounds(state.design, def, inst, instDef)
               return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
             })
             .map((inst) => inst.id)

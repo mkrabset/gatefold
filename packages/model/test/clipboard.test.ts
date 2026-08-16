@@ -104,4 +104,40 @@ describe('captureClipboard + instantiateClipboard', () => {
     const newInst = pasted.defs['main'].instances!.find((i) => i.id === newIds[0])!
     expect(newInst.props).toEqual({ period: 250 })
   })
+
+  it('copies internal connections among the selected instances', () => {
+    const defs: Record<string, ComponentDef> = {
+      and: primitiveDef('and'),
+      or: primitiveDef('or'),
+      not: primitiveDef('not'),
+    }
+    defs['main'] = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [inst('a1', 'and', 0, 0), inst('o1', 'or', 100, 0), inst('n1', 'not', 200, 0)],
+      connections: [
+        { id: 'c1', from: { instanceId: 'a1', portId: 'out:0' }, to: { instanceId: 'o1', portId: 'in:0' } },
+        { id: 'c2', from: { instanceId: 'o1', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } },
+      ],
+    }
+    const design: Design = { version: 1, root: 'main', defs }
+
+    // a1 + o1 share the internal connection c1; c2 crosses into the unselected n1.
+    const clip = captureClipboard(design, 'main', ['a1', 'o1'])!
+    expect(clip.connections.map((c) => c.id)).toEqual(['c1'])
+
+    const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 10, y: 10 })
+    const main = pasted.defs['main']
+    expect(main.instances).toHaveLength(5)
+    expect(main.connections).toHaveLength(3)
+
+    // The pasted connection runs between the two newly-created instances.
+    const pastedConn = main.connections!.find((c) => c.id !== 'c1' && c.id !== 'c2')!
+    expect(newIds).toContain(pastedConn.from.instanceId)
+    expect(newIds).toContain(pastedConn.to.instanceId)
+    expect(pastedConn.from.portId).toBe('out:0')
+    expect(pastedConn.to.portId).toBe('in:0')
+  })
 })

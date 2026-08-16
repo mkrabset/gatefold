@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post deep-copy isolation + load repair + delete guards).
+Last updated: 2026-08-15 (post port-group grouping/copy rules + template editing visuals).
 
 ## Where we are
 
@@ -80,6 +80,20 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   a `variant` — no new port layer, and the clicked object remains an instance.
 - **Load repair** — `sanitizeDesign` prunes dangling connections/instances from a loaded file
   and reports them (`console.warn` + a toast); `withBuiltinPrimitives` adds any newer built-ins.
+- **Copy/paste carries internal wiring** — `captureClipboard` records the connections whose
+  both endpoints are in the selection; `instantiateClipboard` re-creates them between the new
+  instance ids.
+- **Port groups are special** — `input-port`/`output-port` instances are never copied
+  (`captureClipboard` filters them), and when included in a grouping they define the new
+  component's interface rather than becoming internals: `inferGroup`/`applyGroup` treat them as
+  external, inherit the parent's terminal **names/count** (even unwired pins), and disable
+  floating-pin discovery on that side; other boundary crossings still become extra terminals.
+- **Template editing visuals** — the canvas background turns light blue (`Palette.templateBg`)
+  while a template is anywhere in the breadcrumb, the library card shows an "editing" badge, and
+  the wire halo uses the current background color.
+- **Template rename** — editing a template with nothing selected shows a name field
+  (`renameDef`); template cards can also be renamed. Port-name inputs in the sidebar now refresh
+  when navigating between components.
 - **Undo/redo, copy/paste/delete, copy-on-place, animated port reorder, enter-any-component
   (double-click) + Escape, arity constraints** — all working (see ARCHITECTURE.md).
 

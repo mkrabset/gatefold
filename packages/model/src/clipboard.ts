@@ -71,10 +71,16 @@ export function copyDefSubgraph(
 /** Snapshot the selected instances (and their def closure) into a clipboard. */
 export function captureClipboard(design: Design, defId: string, instanceIds: string[]): Clipboard | null {
   const def = design.defs[defId]
-  const selected = (def.instances ?? []).filter((i) => instanceIds.includes(i.id))
+  // Port-group instances (a composite's input/output terminal rectangles) are never
+  // copied — they are derived from the enclosing composite's ports.
+  const selected = (def.instances ?? []).filter((i) => {
+    if (!instanceIds.includes(i.id)) return false
+    const idef = design.defs[i.defId]
+    return !!idef && !isPortGroupDef(idef)
+  })
   if (selected.length === 0) return null
 
-  const selectedIds = new Set(instanceIds)
+  const selectedIds = new Set(selected.map((i) => i.id))
   const connections = (def.connections ?? [])
     .filter((c) => selectedIds.has(c.from.instanceId) && selectedIds.has(c.to.instanceId))
     .map((c) => ({ id: c.id, from: { ...c.from }, to: { ...c.to } }))

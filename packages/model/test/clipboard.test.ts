@@ -140,4 +140,38 @@ describe('captureClipboard + instantiateClipboard', () => {
     expect(pastedConn.from.portId).toBe('out:0')
     expect(pastedConn.to.portId).toBe('in:0')
   })
+
+  it('excludes port-group instances and their connections', () => {
+    const defs: Record<string, ComponentDef> = {
+      and: primitiveDef('and'),
+      'input-port': inputPortDef(),
+    }
+    defs['main'] = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [inst('a1', 'and', 0, 0), inst('pg', 'input-port', 100, 0)],
+      connections: [{ id: 'c1', from: { instanceId: 'pg', portId: 'in:0' }, to: { instanceId: 'a1', portId: 'in:0' } }],
+    }
+    const design: Design = { version: 1, root: 'main', defs }
+
+    const clip = captureClipboard(design, 'main', ['a1', 'pg'])!
+    expect(clip.instances.map((i) => i.id)).toEqual(['a1'])
+    expect(clip.connections).toHaveLength(0)
+  })
+
+  it('returns null when only port groups are selected', () => {
+    const defs: Record<string, ComponentDef> = { 'input-port': inputPortDef() }
+    defs['main'] = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [inst('pg', 'input-port', 0, 0)],
+      connections: [],
+    }
+    const design: Design = { version: 1, root: 'main', defs }
+    expect(captureClipboard(design, 'main', ['pg'])).toBeNull()
+  })
 })

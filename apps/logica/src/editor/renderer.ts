@@ -324,8 +324,9 @@ export function drawScene(
   p: Palette,
 ) {
   const def = design.defs[defId]
+  const bg = editingTemplate ? p.templateBg : p.bg
 
-  ctx.fillStyle = editingTemplate ? p.templateBg : p.bg
+  ctx.fillStyle = bg
   ctx.fillRect(0, 0, cw, ch)
   drawGrid(ctx, cw, ch, vp, p)
 
@@ -415,7 +416,7 @@ export function drawScene(
       }
       continue
     }
-    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, (WIRE_WIDTH * t.width + HALO_WIDTH * 2) * vp.zoom)
+    for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, bg, (WIRE_WIDTH * t.width + HALO_WIDTH * 2) * vp.zoom)
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width * vp.zoom)
   }
 

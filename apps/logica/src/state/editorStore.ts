@@ -19,6 +19,7 @@ import {
   instantiateClipboard,
   isArityFixed,
   isDefReferenced,
+  isPortGroupDef,
   libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
@@ -349,12 +350,20 @@ export const useEditorStore = create<EditorState>()(
         }
 
         // Infer the ports from the current selection and seed default names for the
-        // dialog; the actual transformation happens on `confirmGroup`.
+        // dialog; the actual transformation happens on `confirmGroup`. Port-group
+        // instances are never grouped — ignore a selection with no real components.
+        const movable = s.selectedIds.filter((id) => {
+          const inst = def.instances?.find((i) => i.id === id)
+          const instDef = inst && s.design.defs[inst.defId]
+          return !!instDef && !isPortGroupDef(instDef)
+        })
+        if (movable.length === 0) return
+
         const g = inferGroup(s.design, defId, s.selectedIds)
         s.pendingGroup = {
           name: 'component',
-          inputs: g.inputs.map((_, i) => `in${i + 1}`),
-          outputs: g.outputs.map((_, i) => `out${i + 1}`),
+          inputs: g.inputs.map((x, i) => x.name || `in${i + 1}`),
+          outputs: g.outputs.map((x, i) => x.name || `out${i + 1}`),
           promote: false,
           promoteDefId: null,
         }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Connection, Design, Instance, PinRef } from '../src/types'
+import type { ComponentDef, Connection, Design, Instance, PinRef } from '../src/types'
 import { inputPorts, outputPorts } from '../src/types'
-import { primitiveDef } from '../src/primitives'
+import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { applyGroup, inferGroup } from '../src/group'
 
 const inst = (id: string, defId: string, x = 0, y = 0): Instance => ({ id, name: id, defId, pos: { x, y } })
@@ -188,5 +188,179 @@ describe('applyGroup — exposed (floating) pins', () => {
       from: { instanceId: 'src', portId: 'out:0' },
       to: { instanceId: compInst.id, portId: 'in:0' },
     })
+  })
+})
+
+// A composite with its own input/output port groups wired through an AND gate.
+function buildPortGroupDesign(): Design {
+  const defs: Record<string, Design['defs'][string]> = {
+    and: primitiveDef('and'),
+    'input-port': inputPortDef(),
+    'output-port': outputPortDef(),
+  }
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [
+      { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
+      { id: 'in:1', name: 'B', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:1' } },
+      { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+    ],
+    instances: [
+      inst('in', 'input-port', 0, 0),
+      inst('a', 'and', 100, 0),
+      inst('out', 'output-port', 200, 0),
+    ],
+    connections: [
+      conn('c1', iRef('in', 'in:0'), iRef('a', 'in:0')),
+      conn('c2', iRef('in', 'in:1'), iRef('a', 'in:1')),
+      conn('c3', iRef('a', 'out:0'), iRef('out', 'out:0')),
+    ],
+  }
+  return { version: 1, root: 'main', defs }
+}
+
+describe('grouping with port groups in the selection', () => {
+  it('treats port groups as the interface, not internals', () => {
+    const design = buildPortGroupDesign()
+    const g = inferGroup(design, 'main', ['a', 'in', 'out'])
+
+    expect(g.internal).toHaveLength(0)
+    expect(g.inputs.map((p) => p.source)).toEqual([
+      { instanceId: 'in', portId: 'in:0' },
+      { instanceId: 'in', portId: 'in:1' },
+    ])
+    expect(g.outputs.map((p) => p.source)).toEqual([{ instanceId: 'a', portId: 'out:0' }])
+  })
+
+  it('keeps port groups in the parent and moves only the gate', () => {
+    const design = buildPortGroupDesign()
+    const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
+
+    const main = result.defs['main']
+    const comp = result.defs['component']
+
+    // The new component holds the gate + its own port groups, not the parent's.
+    expect(comp.instances!.map((i) => i.id).sort()).toEqual(['a', 'component-in', 'component-out'].sort())
+    // The parent keeps its input/output port groups.
+    expect(main.instances!.some((i) => i.id === 'in')).toBe(true)
+    expect(main.instances!.some((i) => i.id === 'out')).toBe(true)
+    // Ports inferred from the port-group boundary crossings.
+    expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B'])
+    expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])
+
+    // The parent's port groups now drive / are driven by the new instance.
+    const compInst = main.instances!.find((i) => i.defId === 'component')!
+    expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:0'), iRef(compInst.id, 'in:0')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:1'), iRef(compInst.id, 'in:1')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef(compInst.id, 'out:0'), iRef('out', 'out:0')))).toBe(true)
+  })
+})
+
+// A composite whose ports A/B/C (inputs) and Y (output) are wired through a 4-input
+// AND, with C (in:2) and a.in:3 unwired, plus an unselected clock feeding a.in:2.
+function makeAndN(n: number): ComponentDef {
+  const ports: ComponentDef['ports'] = []
+  for (let i = 0; i < n; i++) ports.push({ id: `in:${i}`, name: `A${i}`, direction: 'input' })
+  ports.push({ id: 'out:0', name: 'Y', direction: 'output' })
+  return { id: 'and-n', name: 'AND', kind: 'primitive', primitive: 'and', ports }
+}
+
+function buildInheritedInterfaceDesign(): Design {
+  const defs: Record<string, Design['defs'][string]> = {
+    'and-n': makeAndN(4),
+    clock: primitiveDef('clock'),
+    'input-port': inputPortDef(),
+    'output-port': outputPortDef(),
+  }
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [
+      { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
+      { id: 'in:1', name: 'B', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:1' } },
+      { id: 'in:2', name: 'C', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:2' } },
+      { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+    ],
+    instances: [
+      inst('in', 'input-port', 0, 0),
+      inst('a', 'and-n', 100, 0),
+      inst('out', 'output-port', 200, 0),
+      inst('clk', 'clock', -100, 0),
+    ],
+    connections: [
+      conn('c1', iRef('in', 'in:0'), iRef('a', 'in:0')),
+      conn('c2', iRef('in', 'in:1'), iRef('a', 'in:1')),
+      conn('c3', iRef('clk', 'out:0'), iRef('a', 'in:2')),
+      conn('c4', iRef('a', 'out:0'), iRef('out', 'out:0')),
+    ],
+  }
+  return { version: 1, root: 'main', defs }
+}
+
+describe('grouping with the parent port groups included', () => {
+  it('inherits names/count and disables floating discovery', () => {
+    const design = buildInheritedInterfaceDesign()
+    const g = inferGroup(design, 'main', ['a', 'in', 'out'])
+
+    // Inputs: A, B, C inherited (C unwired) + the clk crossing (no inherited name).
+    expect(g.inputs).toHaveLength(4)
+    expect(g.inputs[0]).toMatchObject({
+      name: 'A',
+      source: { instanceId: 'in', portId: 'in:0' },
+      targets: [{ instanceId: 'a', portId: 'in:0' }],
+    })
+    expect(g.inputs[1]).toMatchObject({
+      name: 'B',
+      source: { instanceId: 'in', portId: 'in:1' },
+      targets: [{ instanceId: 'a', portId: 'in:1' }],
+    })
+    expect(g.inputs[2]).toMatchObject({ name: 'C', source: { instanceId: 'in', portId: 'in:2' }, targets: [] })
+    expect(g.inputs[3].name).toBeUndefined()
+    expect(g.inputs[3].source).toEqual({ instanceId: 'clk', portId: 'out:0' })
+    expect(g.inputs[3].targets).toEqual([{ instanceId: 'a', portId: 'in:2' }])
+    // The floating a.in:3 is NOT discovered (discovery disabled).
+    expect(g.inputs.some((p) => p.targets.some((t) => t.instanceId === 'a' && t.portId === 'in:3'))).toBe(false)
+
+    // Output: Y inherited.
+    expect(g.outputs).toHaveLength(1)
+    expect(g.outputs[0]).toMatchObject({
+      name: 'Y',
+      source: { instanceId: 'a', portId: 'out:0' },
+      targets: [{ instanceId: 'out', portId: 'out:0' }],
+    })
+  })
+
+  it('builds the inherited interface and rewires the parent', () => {
+    const design = buildInheritedInterfaceDesign()
+    const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B', 'C', 'EXTRA'], ['Y'])
+
+    const main = result.defs['main']
+    const comp = result.defs['component']
+
+    expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B', 'C', 'EXTRA'])
+    expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])
+
+    // Internal wiring: A->a.in:0, B->a.in:1, EXTRA->a.in:2, a.out:0->Y; C (in:2) unwired.
+    expect(comp.connections!.some((c) => pinEq(c, iRef('component-in', 'in:0'), iRef('a', 'in:0')))).toBe(true)
+    expect(comp.connections!.some((c) => pinEq(c, iRef('component-in', 'in:1'), iRef('a', 'in:1')))).toBe(true)
+    expect(comp.connections!.some((c) => pinEq(c, iRef('component-in', 'in:3'), iRef('a', 'in:2')))).toBe(true)
+    expect(comp.connections!.some((c) => pinEq(c, iRef('a', 'out:0'), iRef('component-out', 'out:0')))).toBe(true)
+    expect(comp.connections!.some((c) => c.from.portId === 'in:2')).toBe(false)
+
+    // Parent keeps in, out, clk + the new instance.
+    const compInst = main.instances!.find((i) => i.defId === 'component')!
+    expect(main.instances!.some((i) => i.id === 'in')).toBe(true)
+    expect(main.instances!.some((i) => i.id === 'out')).toBe(true)
+    expect(main.instances!.some((i) => i.id === 'clk')).toBe(true)
+
+    // Parent rewiring: every parent input pin (incl. unwired C) drives the new input.
+    expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:0'), iRef(compInst.id, 'in:0')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:1'), iRef(compInst.id, 'in:1')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:2'), iRef(compInst.id, 'in:2')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef('clk', 'out:0'), iRef(compInst.id, 'in:3')))).toBe(true)
+    expect(main.connections!.some((c) => pinEq(c, iRef(compInst.id, 'out:0'), iRef('out', 'out:0')))).toBe(true)
   })
 })

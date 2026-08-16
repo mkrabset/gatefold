@@ -63,12 +63,12 @@ export function LibraryPanel({ width }: { width: number }) {
             return (
               <button
                 key={d.id}
-                className={`lib-card${active === d.id ? ' active' : ''}`}
+                className={`lib-card${active === d.id ? ' active' : ''}${editing ? ' editing' : ''}`}
                 draggable
                 onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
                 onClick={() => setActive(d.id)}
                 onDoubleClick={() => navigateTo(d.id)}
-                title={`Drag to place · double-click to edit ${d.name}`}
+                title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}
               >
                 <span
                   className={`lib-remove${editing ? ' disabled' : ''}`}
@@ -82,6 +82,7 @@ export function LibraryPanel({ width }: { width: number }) {
                 </span>
                 <span className="lib-glyph">▣</span>
                 <span className="lib-label">{d.name}</span>
+                {editing && <span className="lib-editing">editing</span>}
               </button>
             )
           })}

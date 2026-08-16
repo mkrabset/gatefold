@@ -47,7 +47,12 @@ export function Canvas() {
       const palette = theme === 'dark' ? darkPalette : lightPalette
       const cw = wrap.clientWidth
       const ch = wrap.clientHeight
-      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), state.marquee, state.pendingWire, state.hoverPort, palette)
+      // Editing a template (any non-root, non-variant composite in the nav path).
+      const editingTemplate = state.navStack.some((id) => {
+        const d = state.design.defs[id]
+        return !!d && d.kind === 'composite' && d.variant !== true && id !== state.design.root
+      })
+      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette)
     }
 
     const resize = () => {

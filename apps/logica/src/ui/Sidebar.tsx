@@ -370,6 +370,7 @@ function PortsEditor() {
           </button>
         </div>
         <SortablePortList
+          key={current.id}
           direction={direction}
           ports={ports}
           fixed={fixed}

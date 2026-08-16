@@ -660,6 +660,24 @@ body {
   background: var(--accent-soft);
 }
 
+.lib-card.editing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.lib-editing {
+  margin-top: 2px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+}
+
 .lib-remove {
   position: absolute;
   top: 2px;

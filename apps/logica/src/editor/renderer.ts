@@ -317,16 +317,18 @@ export function drawScene(
   vp: Viewport,
   selectedIds: string[],
   defId: string,
+  editingTemplate: boolean,
   marquee: Rect | null,
   pendingWire: PendingWire | null,
   hoverPort: HoverPort | null,
   p: Palette,
 ) {
-  ctx.fillStyle = p.bg
+  const def = design.defs[defId]
+
+  ctx.fillStyle = editingTemplate ? p.templateBg : p.bg
   ctx.fillRect(0, 0, cw, ch)
   drawGrid(ctx, cw, ch, vp, p)
 
-  const def = design.defs[defId]
   if (!def) return
 
   // Primitives have no editable internals — show a centered placeholder plus their

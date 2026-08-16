@@ -19,6 +19,7 @@ export const darkPalette: Palette = {
   grabHover: '#fb923c',
   selection: '#4f8cff',
   text: '#c9d1d9',
+  templateBg: '#12253a',
 }
 
 export const lightPalette: Palette = {
@@ -34,4 +35,5 @@ export const lightPalette: Palette = {
   grabHover: '#c2410c',
   selection: '#2563eb',
   text: '#1f2328',
+  templateBg: '#e7f2fd',
 }

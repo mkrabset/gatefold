@@ -258,8 +258,9 @@ Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** bu
   pins through those instances, then replaces the selection in the parent with a single
   instance at its centroid and re-wires the external connections to that instance's ports.
   Exposed (floating) ports are wired only internally — no external connection is created.
-  The store then deep-copies the new template into a `variant` for the instance
-  (copy-on-place), so editing the instance never touches the library template.
+  The store then deep-copies the new template *and its whole hierarchy* into `variant` defs
+  for the instance (`copyDefSubgraph`, copy-on-place), so the instance never shares any data
+  with the library template.
 
 Pure (no input mutation) and fully unit-tested.
 

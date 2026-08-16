@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post bus-split/merge + solver-based width).
+Last updated: 2026-08-15 (post deep-copy isolation + load repair + delete guards).
 
 ## Where we are
 
@@ -65,6 +65,8 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   wires render dashed; hovering an undetermined relation pin shows a hint (`"2x?"`/`"?"`).
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
+  Grouping/promotion now **deep-copy** the whole hierarchy (`copyDefSubgraph`), so canvas
+  instances never share data with library templates.
 - **Template editing** — double-click a composite card in the library to edit its template
   (breadcrumb shows a `template` badge); an `×` on each card deletes it (disabled while that
   template is in the breadcrumb; the store also refuses to delete a referenced or currently-
@@ -90,9 +92,6 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 ## Open items / decisions to revisit
 
 - **Name uniqueness** not enforced (`renameInstance`/`renamePort`/port names) — cosmetic.
-- **Deeply-nested grouping** isolation imperfect: a grouped *template* can reference a
-  `variant` def (the store deep-copies only the top level; nested variants are shared).
-- Composite **definition** renaming not implemented (only instance + port names).
 - Cross-level **bus width consistency** is enforced at connection time via the width solver;
   width still doesn't propagate *inward* through a composite boundary (the internal terminal
   stays authoritative), and there is no global invariant scan for pre-existing designs.

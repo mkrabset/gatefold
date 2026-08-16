@@ -155,6 +155,33 @@ describe('editorStore undo/redo + clipboard', () => {
     // The clicked instance still references its own variant def.
     const ha1 = mainInstances().find((i) => i.id === 'ha1')!
     expect(s.design.defs[ha1.defId].variant).toBe(true)
+
+    // The promoted template's internals are deep-copied (not shared with the instance).
+    const instanceDef = s.design.defs[ha1.defId]
+    const templateXor = template!.instances!.find((i) => i.id === 'ha-xor')!
+    const instanceXor = instanceDef.instances!.find((i) => i.id === 'ha-xor')!
+    expect(templateXor.defId).not.toBe(instanceXor.defId)
+  })
+
+  it('grouping deep-copies nested components so the instance is independent of the template', () => {
+    reset()
+    const state = useEditorStore.getState()
+    state.setSelection(['ha1', 'and1'])
+    state.openGroupDialog()
+    state.setGroupName('combo')
+    state.confirmGroup()
+
+    const s = useEditorStore.getState()
+    const template = Object.values(s.design.defs).find(
+      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'combo',
+    )!
+    const newInst = mainInstances()[mainInstances().length - 1]
+    const variant = s.design.defs[newInst.defId]
+    expect(variant.variant).toBe(true)
+
+    const templateHa = template.instances!.find((i) => i.id === 'ha1')!
+    const variantHa = variant.instances!.find((i) => i.id === 'ha1')!
+    expect(variantHa.defId).not.toBe(templateHa.defId)
   })
 })
 

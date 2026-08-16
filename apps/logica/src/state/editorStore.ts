@@ -376,8 +376,9 @@ export const useEditorStore = create<EditorState>()(
         if (!s.pendingGroup) return
         const p = s.pendingGroup
 
-        // Promote a single custom component instance to a template: create a fresh
-        // template (a copy of the instance's def), leaving the instance a variant.
+        // Promote a single custom component instance to a template: deep-copy the
+        // instance's def (and its whole hierarchy) into a fresh template, leaving the
+        // instance and its variant untouched.
         if (p.promote && p.promoteDefId) {
           const target = s.design.defs[p.promoteDefId]
           if (target) {
@@ -385,12 +386,14 @@ export const useEditorStore = create<EditorState>()(
               new Set(Object.values(s.design.defs).map((d) => d.name)),
               p.name.trim() || target.name,
             )
-            const id = uniqueAgainst(new Set(Object.keys(s.design.defs)), name)
-            const copy = cloneDef(target)
-            copy.id = id
-            copy.name = name
-            copy.variant = false
-            s.design.defs[id] = copy
+            const usedIds = new Set(Object.keys(s.design.defs))
+            const { defs, idMap } = copyDefSubgraph(s.design.defs, [p.promoteDefId], usedIds)
+            for (const [copyId, d] of Object.entries(defs)) {
+              s.design.defs[copyId] = d
+            }
+            const top = s.design.defs[idMap.get(p.promoteDefId) ?? p.promoteDefId]
+            top.name = name
+            top.variant = false
           }
           s.pendingGroup = null
           return
@@ -405,18 +408,18 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId]
         const last = def.instances?.[def.instances.length - 1]
         if (last) {
-          // Copy-on-place: the grouped instance gets its own variant, leaving the
-          // template in the library pristine.
-          const template = s.design.defs[last.defId]
-          const copyId = uniqueAgainst(new Set(Object.keys(s.design.defs)), `${template.id}~${last.id}`)
-          const copy = cloneDef(template)
-          copy.id = copyId
-          copy.variant = true
-          s.design.defs[copyId] = copy
-          last.defId = copyId
+          // Copy-on-place: deep-copy the template and its whole hierarchy into fresh
+          // variants so the grouped instance is fully independent of the library template.
+          const usedIds = new Set(Object.keys(s.design.defs))
+          const { defs, idMap } = copyDefSubgraph(s.design.defs, [last.defId], usedIds)
+          for (const [copyId, d] of Object.entries(defs)) {
+            s.design.defs[copyId] = d
+          }
+          const newDefId = idMap.get(last.defId) ?? last.defId
+          last.defId = newDefId
           // Place the new composite's port groups relative to its components: inputs
           // left of the leftmost input pin, outputs right of the rightmost output pin.
-          const newDef = s.design.defs[copyId]
+          const newDef = s.design.defs[newDefId]
           for (const inst of newDef.instances ?? []) {
             if (inst.defId === 'input-port') inst.pos = portPlacement(newDef, s.design, 'input')
             else if (inst.defId === 'output-port') inst.pos = portPlacement(newDef, s.design, 'output')

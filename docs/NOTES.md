@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post polymorphic-primitives + custom-properties).
+Last updated: 2026-08-15 (post bus-split/merge + solver-based width).
 
 ## Where we are
 
@@ -54,6 +54,15 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   (`addInstance`, paste) seeds them from `defaultPropsOf(kind)`, and `cloneDef` deep-copies
   them. The sidebar properties panel renders a generic editor (number/string/boolean, unit in
   the label) committed via `setInstanceProp`.
+- **Bus split/merge** — new `bus-split` (1 bus in → 2 bus out, `in = 2×out`) and `bus-merge`
+  (2 bus in → 1 bus out, `out = 2×in`) primitives, with fixed arity and no stored width.
+- **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
+  `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
+  connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the
+  `×2` relations of bus-split/merge (via `Primitive.deriveWidth`). Undetermined pins are
+  neutral; a conflict or a non-integer result (odd bus into a splitter) marks the sheet
+  invalid. `addConnection`/`retargetConnection` validate via `connectionError`. Undetermined
+  wires render dashed; hovering an undetermined relation pin shows a hint (`"2x?"`/`"?"`).
 - **Grouping** — bus width propagates through inferred ports automatically (derived from
   internal fan-in/fan-out and external connection), so `applyGroup` needed no change.
 - **Template editing** — double-click a composite card in the library to edit its template
@@ -79,14 +88,16 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 - **Deeply-nested grouping** isolation imperfect: a grouped *template* can reference a
   `variant` def (the store deep-copies only the top level; nested variants are shared).
 - Composite **definition** renaming not implemented (only instance + port names).
-- Cross-level **bus width consistency** is enforced at connection time (a composite port's
-  internal width is now visible to `addConnection`/`retargetConnection`); there is still no
-  global invariant scan to flag a pre-existing inconsistent design.
+- Cross-level **bus width consistency** is enforced at connection time via the width solver;
+  width still doesn't propagate *inward* through a composite boundary (the internal terminal
+  stays authoritative), and there is no global invariant scan for pre-existing designs.
 - Cycle detection deferred until the simulator needs it.
 - OS-clipboard integration deferred (clipboard is in-app only).
 - Orthogonal bus/wire routing deferred (cubic-bezier `routing.ts` isolates this).
 - Property values are stored but not yet consumed (no simulator); number props only clamp
   to min/max (no per-spec validation); `PropertySpec` has no schema version stamp.
+- The primitive "internal circuitry" placeholder shows single pins for bus-split/merge
+  (their width is instance-specific, so it can't be shown without an instance).
 
 ## Commands
 

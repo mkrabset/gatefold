@@ -144,6 +144,19 @@ export function Sidebar({ width }: { width: number }) {
 function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   const design = useEditorStore((s) => s.design)
   if (selectedIds.length === 0) {
+    // Editing a composite template with nothing selected: allow renaming the template.
+    const current = design.defs[currentDefId(useEditorStore.getState())]
+    const isTemplate = current && current.kind === 'composite' && current.variant !== true && current.id !== design.root
+    if (isTemplate) {
+      return (
+        <div className="props">
+          <label className="field">
+            <span>Name</span>
+            <DefNameField key={current.id} defId={current.id} initial={current.name} />
+          </label>
+        </div>
+      )
+    }
     return <div className="props-empty">Nothing selected</div>
   }
   if (selectedIds.length > 1) {
@@ -212,6 +225,32 @@ function NameField({ id, initial }: { id: string; initial: string }) {
   const commit = () => {
     const value = ref.current?.value.trim()
     if (value) renameInstance(id, value)
+  }
+
+  return (
+    <input
+      ref={ref}
+      defaultValue={initial}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit()
+          e.currentTarget.blur()
+        }
+      }}
+      onBlur={commit}
+    />
+  )
+}
+
+/** Composite-template name input that commits on Enter or blur. */
+function DefNameField({ defId, initial }: { defId: string; initial: string }) {
+  const renameDef = useEditorStore((s) => s.renameDef)
+  const ref = useRef<HTMLInputElement>(null)
+
+  const commit = () => {
+    const value = ref.current?.value.trim()
+    if (value) renameDef(defId, value)
   }
 
   return (

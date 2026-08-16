@@ -74,6 +74,13 @@ export interface Primitive {
   /** Intrinsic bus width of `port` given the full port list (1 for single wires). */
   intrinsicWidth(ports: Port[], port: Port): number
 
+  /** Relation-based width: given determined sibling widths (portId → width), return
+   *  this pin's width or null (undetermined). May return a non-integer to flag an
+   *  invalid configuration (the solver reports it). Only consulted for unconnected pins. */
+  deriveWidth?(port: Port, siblings: ReadonlyMap<string, number>): number | null
+  /** Hover hint shown when this pin's width is undetermined, or null. */
+  undeterminedHint?(port: Port): string | null
+
   /** Body dimensions in world units. */
   bodySize(): { w: number; h: number }
   /** Draw the component body (screen space). */

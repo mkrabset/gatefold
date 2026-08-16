@@ -11,7 +11,8 @@ authoritative — update this when a term's meaning changes.
 - **Instance** — a concrete placement of a definition at a position, with its own unique
   `id` and `name`. References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, CLOCK,
-  FAN-IN, FAN-OUT (plus the internal INPUT-PORT / OUTPUT-PORT). Not editable as a circuit.
+  FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT). Not
+  editable as a circuit.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max); stored per-instance in `Instance.props`. E.g. a CLOCK's `period`.
 - **Composite / custom component** — a user-defined component whose behavior is its
@@ -44,8 +45,13 @@ authoritative — update this when a term's meaning changes.
 - **Width / arity** — the number of wires a terminal carries (`1` = single wire, `n` = bus).
 - **Fan-in** — primitive with `n` single-wire inputs → `1` bus output (width `n`).
 - **Fan-out** — primitive with `1` bus input (width `n`) → `n` single-wire outputs.
-- **Neutral port** — a composite port with no connections; its width is unconstrained and
-  *adopts* the width of whatever bus it is connected to.
+- **Bus-split** — primitive with `1` bus input (width `n`) → `2` bus outputs (width `n/2`).
+- **Bus-merge** — primitive with `2` bus inputs (width `m`) → `1` bus output (width `2m`).
+- **Neutral port** — a terminal whose width is undetermined (no constant reaches it); it
+  *adopts* the width of whatever bus it is connected to. Rendered as a thin dashed wire.
+- **Width solver** — the fixpoint that derives every terminal's width from fan-in/fan-out
+  arity constants, connection equalities, composite-terminal mirrors, and the split/merge
+  relations. A conflict or non-integer result (odd bus into a splitter) is invalid.
 
 ## Editing operations
 

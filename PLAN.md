@@ -120,6 +120,8 @@ The palette of primitives, initially:
 - **CLOCK** (0 inputs, 1 output)
 - **FAN-IN** (n inputs, 1 bus output — bundles n single wires into a bus)
 - **FAN-OUT** (1 bus input, n outputs — splits a bus into n single wires)
+- **BUS-SPLIT** (1 bus input of width n, 2 bus outputs of width n/2)
+- **BUS-MERGE** (2 bus inputs of width m, 1 bus output of width 2m)
 
 Notes:
 

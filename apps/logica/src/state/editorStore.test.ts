@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { primitiveDef } from '@logica/model'
+import type { ComponentDef, Design } from '@logica/model'
 import {
   beginMoveTransaction,
   createDemoDesign,
@@ -112,4 +114,47 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.temporal.getState().undo()
     expect(mainInstances().find((i) => i.id === 'clk')!.props?.period).toBe(1000)
   })
+
+  it('rejects connecting an odd-width bus to a splitter input', () => {
+    reset()
+    useEditorStore.setState({ design: makeSplitterDesign(), navStack: ['main'], selectedIds: [] })
+    useEditorStore.temporal.getState().clear()
+
+    useEditorStore.getState().addConnection({ instanceId: 'fi', portId: 'out:0' }, { instanceId: 'bs', portId: 'in:0' })
+    expect(useEditorStore.getState().notice).toBe('Bus width must be even')
+    expect(useEditorStore.getState().design.defs['main'].connections).toHaveLength(0)
+  })
+
+  it('renames a composite template but not the root or primitives', () => {
+    reset()
+    useEditorStore.getState().renameDef('half-adder', 'RippleAdder')
+    expect(useEditorStore.getState().design.defs['half-adder'].name).toBe('RippleAdder')
+
+    useEditorStore.getState().renameDef('main', 'Nope')
+    expect(useEditorStore.getState().design.defs['main'].name).toBe('main')
+
+    useEditorStore.getState().renameDef('and', 'Nope')
+    expect(useEditorStore.getState().design.defs['and'].name).toBe('AND')
+  })
 })
+
+// A design with a 5-input fan-in and an unconnected bus-split.
+function makeSplitterDesign(): Design {
+  const ports = []
+  for (let i = 0; i < 5; i++) ports.push({ id: `in:${i}`, name: `A${i}`, direction: 'input' as const })
+  ports.push({ id: 'out:0', name: 'BUS', direction: 'output' as const })
+  const fanIn: ComponentDef = { id: 'fan-in-5', name: 'FAN-IN', kind: 'primitive', primitive: 'fan-in', ports }
+  const split = primitiveDef('bus-split')
+  const main: ComponentDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      { id: 'fi', name: 'fi', defId: 'fan-in-5', pos: { x: 0, y: 0 } },
+      { id: 'bs', name: 'bs', defId: 'bus-split', pos: { x: 100, y: 0 } },
+    ],
+    connections: [],
+  }
+  return { version: 1, root: 'main', defs: { 'fan-in-5': fanIn, 'bus-split': split, main } }
+}

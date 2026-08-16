@@ -29,9 +29,11 @@ import {
   primitiveDef,
   serializeDesign,
   serializeLibrary,
+  withBuiltinPrimitives,
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
-import { instanceBounds, isNeutralPin, pinWidth } from '../editor/geometry'
+import { instanceBounds } from '../editor/geometry'
+import { connectionError } from '../editor/widths'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -114,6 +116,7 @@ interface EditorState {
   cancelDeleteTemplate: () => void
   renamePort: (portId: string, name: string) => void
   renameInstance: (id: string, name: string) => void
+  renameDef: (defId: string, name: string) => void
   setInstanceProp: (id: string, name: string, value: unknown) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
@@ -439,6 +442,14 @@ export const useEditorStore = create<EditorState>()(
         const inst = def.instances?.find((x) => x.id === id)
         if (inst) inst.name = name
       }),
+    renameDef: (defId, name) =>
+      set((s) => {
+        const def = s.design.defs[defId]
+        // Only composite templates (not the root, not primitives, not variant copies)
+        // are renameable.
+        if (!def || def.kind !== 'composite' || def.variant === true || defId === s.design.root) return
+        def.name = name
+      }),
     setInstanceProp: (id, name, value) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
@@ -545,12 +556,11 @@ export const useEditorStore = create<EditorState>()(
           s.notice = 'Input already has a driver'
           return
         }
-        // Bus width must match (neutral composite ports adopt the other side's width).
-        if (!isNeutralPin(s.design, def, from) && !isNeutralPin(s.design, def, to)) {
-          if (pinWidth(s.design, def, from) !== pinWidth(s.design, def, to)) {
-            s.notice = 'Bus width mismatch'
-            return
-          }
+        // Width must be consistent (and splitters require even buses).
+        const err = connectionError(s.design, def, from, to)
+        if (err) {
+          s.notice = err
+          return
         }
         const ids = new Set(def.connections.map((c) => c.id))
         let i = def.connections.length + 1
@@ -568,12 +578,10 @@ export const useEditorStore = create<EditorState>()(
           s.notice = 'Input already has a driver'
           return
         }
-        // Bus width must match the existing source (neutral ports adopt).
-        if (!isNeutralPin(s.design, def, original.from) && !isNeutralPin(s.design, def, to)) {
-          if (pinWidth(s.design, def, original.from) !== pinWidth(s.design, def, to)) {
-            s.notice = 'Bus width mismatch'
-            return
-          }
+        const err = connectionError(s.design, def, original.from, to)
+        if (err) {
+          s.notice = err
+          return
         }
         original.to = to
       }),
@@ -624,7 +632,7 @@ export const useEditorStore = create<EditorState>()(
     },
     loadProject: (json) => {
       try {
-        const design = parseDesign(json)
+        const design = withBuiltinPrimitives(parseDesign(json))
         set((s) => {
           s.design = design
           s.navStack = [design.root]

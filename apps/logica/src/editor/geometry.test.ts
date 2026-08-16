@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design } from '@logica/model'
+import type { ComponentDef, Design, Port } from '@logica/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
 import { isNeutralPin, pinWidth } from './geometry'
+import { connectionError } from './widths'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 
@@ -128,3 +129,87 @@ function makeBusHolderDesign(): Design {
     defs: { 'fan-in': fanIn, 'fan-out': fanOut, 'input-port': inputPortDef(), 'output-port': outputPortDef(), and: andGate, 'bus-holder': busHolder, main },
   }
 }
+
+function makeFanIn(n: number): ComponentDef {
+  const ports: Port[] = []
+  for (let i = 0; i < n; i++) ports.push({ id: `in:${i}`, name: `A${i}`, direction: 'input' })
+  ports.push({ id: 'out:0', name: 'BUS', direction: 'output' })
+  return { id: `fan-in-${n}`, name: 'FAN-IN', kind: 'primitive', primitive: 'fan-in', ports }
+}
+
+// fan-in(n) -> bus-merge -> bus-split
+function makeRelationDesign(n: number): Design {
+  const fanIn = makeFanIn(n)
+  const split = primitiveDef('bus-split')
+  const merge = primitiveDef('bus-merge')
+  const main: ComponentDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      { id: 'fi', name: 'fi', defId: fanIn.id, pos: { x: 0, y: 0 } },
+      { id: 'bm', name: 'bm', defId: 'bus-merge', pos: { x: 100, y: 0 } },
+      { id: 'bs', name: 'bs', defId: 'bus-split', pos: { x: 200, y: 0 } },
+    ],
+    connections: [
+      { id: 'c1', from: iref('fi', 'out:0'), to: iref('bm', 'in:0') },
+      { id: 'c2', from: iref('bm', 'out:0'), to: iref('bs', 'in:0') },
+    ],
+  }
+  return { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, 'bus-merge': merge, main } }
+}
+
+describe('bus-split / bus-merge derived width', () => {
+  it('propagates width through a merge→split chain', () => {
+    const design = makeRelationDesign(6)
+    const main = design.defs['main']
+    expect(pinWidth(design, main, iref('fi', 'out:0'))).toBe(6)
+    expect(pinWidth(design, main, iref('bm', 'in:0'))).toBe(6)
+    expect(pinWidth(design, main, iref('bm', 'in:1'))).toBe(6)
+    expect(pinWidth(design, main, iref('bm', 'out:0'))).toBe(12)
+    expect(pinWidth(design, main, iref('bs', 'in:0'))).toBe(12)
+    expect(pinWidth(design, main, iref('bs', 'out:0'))).toBe(6)
+    expect(pinWidth(design, main, iref('bs', 'out:1'))).toBe(6)
+    expect(isNeutralPin(design, main, iref('bs', 'out:0'))).toBe(false)
+  })
+
+  it('leaves an unwired merge→split chain undetermined (neutral)', () => {
+    const design = makeRelationDesign(6)
+    const main = design.defs['main']
+    main.connections = [{ id: 'c2', from: iref('bm', 'out:0'), to: iref('bs', 'in:0') }]
+    expect(isNeutralPin(design, main, iref('bm', 'out:0'))).toBe(true)
+    expect(isNeutralPin(design, main, iref('bs', 'in:0'))).toBe(true)
+    expect(pinWidth(design, main, iref('bm', 'out:0'))).toBe(1)
+  })
+
+  it('rejects an odd-width bus feeding a splitter input', () => {
+    const fanIn = makeFanIn(5)
+    const split = primitiveDef('bus-split')
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite', ports: [],
+      instances: [
+        { id: 'fi', name: 'fi', defId: fanIn.id, pos: { x: 0, y: 0 } },
+        { id: 'bs', name: 'bs', defId: 'bus-split', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
+    expect(connectionError(design, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBe('Bus width must be even')
+  })
+
+  it('accepts an even-width bus feeding a splitter input', () => {
+    const fanIn = makeFanIn(6)
+    const split = primitiveDef('bus-split')
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite', ports: [],
+      instances: [
+        { id: 'fi', name: 'fi', defId: fanIn.id, pos: { x: 0, y: 0 } },
+        { id: 'bs', name: 'bs', defId: 'bus-split', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
+    expect(connectionError(design, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBeNull()
+  })
+})

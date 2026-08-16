@@ -26,7 +26,18 @@ export interface Port {
   terminal?: { instanceId: string; pinId: string }
 }
 
-export type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port'
+export type PrimitiveKind =
+  | 'and'
+  | 'or'
+  | 'xor'
+  | 'not'
+  | 'clock'
+  | 'fan-in'
+  | 'fan-out'
+  | 'bus-split'
+  | 'bus-merge'
+  | 'input-port'
+  | 'output-port'
 
 export interface ComponentDef {
   id: string

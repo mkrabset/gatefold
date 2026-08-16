@@ -1,6 +1,6 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
 import { inputPorts, isPortGroupDef, outputPorts, portGroupDirection, portWidth, primitiveOf } from '@logica/model'
-import { defBodySize, instanceBounds, pinWidth, portGroupSize, portPosition } from './geometry'
+import { defBodySize, instanceBounds, isNeutralPin, pinWidth, portGroupSize, portPosition, undeterminedHint } from './geometry'
 import { wirePath } from './routing'
 import type { Palette } from '@logica/model'
 import { canvasVectorContext } from './canvasVector'
@@ -107,7 +107,7 @@ function drawPorts(
   for (const port of inputPorts(def)) {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
-    const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
+    const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
     ctx.beginPath()
     ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pin
@@ -116,7 +116,7 @@ function drawPorts(
   for (const port of outputPorts(def)) {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, w, h, vp)
-    const width = def.kind === 'composite' ? pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id }) : portWidth(def, port)
+    const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
     ctx.beginPath()
     ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pinHover
@@ -354,6 +354,7 @@ export function drawScene(
     c2: { x: number; y: number }
     e: { x: number; y: number }
     width: number
+    undetermined: boolean
   }
 
   const groups = new Map<string, Trace[]>()
@@ -370,6 +371,7 @@ export function drawScene(
       c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
       e: w2s(path.end.x, path.end.y, cw, ch, vp),
       width: pinWidth(design, def, conn.from),
+      undetermined: isNeutralPin(design, def, conn.from),
     }
     // Group by source so fan-out wires render as one bundle (all halos, then all
     // lines) rather than cutting into each other at their shared terminal.
@@ -380,6 +382,20 @@ export function drawScene(
   }
 
   for (const traces of groups.values()) {
+    if (traces[0].undetermined) {
+      // Width not yet determined: a thin dashed single wire.
+      for (const t of traces) {
+        ctx.beginPath()
+        ctx.moveTo(t.s.x, t.s.y)
+        ctx.bezierCurveTo(t.c1.x, t.c1.y, t.c2.x, t.c2.y, t.e.x, t.e.y)
+        ctx.strokeStyle = p.wire
+        ctx.lineWidth = WIRE_WIDTH * vp.zoom
+        ctx.setLineDash([5, 5])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+      continue
+    }
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.bg, (WIRE_WIDTH * t.width + HALO_WIDTH * 2) * vp.zoom)
     for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width * vp.zoom)
   }
@@ -428,10 +444,13 @@ export function drawScene(
         ctx.stroke()
       }
 
-      // Tooltip showing the arity of a bus terminal.
+      // Tooltip showing the arity of a bus terminal (or a hint when undetermined).
       const width = pinWidth(design, def, hoverPort.ref)
       if (width > 1) {
         drawTooltip(ctx, `×${width}`, s.x, s.y, p)
+      } else {
+        const hint = undeterminedHint(design, def, hoverPort.ref)
+        if (hint) drawTooltip(ctx, hint, s.x, s.y, p)
       }
     }
   }

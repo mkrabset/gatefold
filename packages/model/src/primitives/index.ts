@@ -1,4 +1,4 @@
-import type { ComponentDef, Port, PortDirection, PrimitiveKind } from '../types'
+import type { ComponentDef, Design, Port, PortDirection, PrimitiveKind } from '../types'
 import type { Primitive } from './primitive'
 import { AndGate } from './and'
 import { OrGate } from './or'
@@ -7,6 +7,8 @@ import { NotGate } from './not'
 import { Clock } from './clock'
 import { FanIn } from './fan-in'
 import { FanOut } from './fan-out'
+import { BusSplit } from './bus-split'
+import { BusMerge } from './bus-merge'
 import { InputPort } from './input-port'
 import { OutputPort } from './output-port'
 
@@ -21,12 +23,14 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   clock: new Clock(),
   'fan-in': new FanIn(),
   'fan-out': new FanOut(),
+  'bus-split': new BusSplit(),
+  'bus-merge': new BusMerge(),
   'input-port': new InputPort(),
   'output-port': new OutputPort(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'clock', 'fan-in', 'fan-out']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {
@@ -59,6 +63,21 @@ export function outputPortDef(): ComponentDef {
 
 export function portPrimitiveDef(direction: PortDirection): ComponentDef {
   return direction === 'input' ? inputPortDef() : outputPortDef()
+}
+
+/**
+ * Return a design whose built-in primitive defs are ensured: the canonical primitive
+ * defs (library primitives + the internal port groups) are added/overwritten so a
+ * design loaded from an older file still has every current built-in available.
+ */
+export function withBuiltinPrimitives(design: Design): Design {
+  const defs = { ...design.defs }
+  for (const kind of LIBRARY_KINDS) {
+    defs[kind] = primitiveDef(kind)
+  }
+  defs['input-port'] = inputPortDef()
+  defs['output-port'] = outputPortDef()
+  return { ...design, defs }
 }
 
 /** True for the internal input-port/output-port primitive defs. */

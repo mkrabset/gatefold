@@ -60,6 +60,10 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   (`instanceBodySize`/`sizeForPorts`/`neededHeight` in `geometry.ts`), gate shapes size their
   bus neck to the pin radius (`DrawOptions.pinRadius`), and port-name labels are offset by
   the radius — so large terminals neither overlap nor stick out of their component.
+- **Terminal inversion** — `Port.inverted` (default false) renders a hollow ring around the
+  pin (50% larger), on instances/composites/port groups. New `buffer` primitive (triangle);
+  `not` is now a buffer with an inverted output. Toggle via the ports-editor checkbox or by
+  pressing `i` while hovering a terminal. Grouping inherits `inverted` on included port groups.
 - **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
   `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
   connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the

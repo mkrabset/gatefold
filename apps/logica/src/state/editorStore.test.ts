@@ -183,6 +183,31 @@ describe('editorStore undo/redo + clipboard', () => {
     const variantHa = variant.instances!.find((i) => i.id === 'ha1')!
     expect(variantHa.defId).not.toBe(templateHa.defId)
   })
+
+  it('sets and clears a port inversion', () => {
+    reset()
+    useEditorStore.setState({ navStack: ['half-adder'] })
+    const port = () => useEditorStore.getState().design.defs['half-adder'].ports.find((p) => p.id === 'in:0')!
+
+    useEditorStore.getState().setPortInverted('in:0', true)
+    expect(port().inverted).toBe(true)
+
+    useEditorStore.getState().setPortInverted('in:0', false)
+    expect(port().inverted).toBeUndefined()
+  })
+
+  it('toggles pin inversion on the hovered pin', () => {
+    reset()
+    const ha1 = mainInstances().find((i) => i.id === 'ha1')!
+    const defId = ha1.defId
+    const port = () => useEditorStore.getState().design.defs[defId].ports.find((p) => p.id === 'in:0')!
+
+    useEditorStore.getState().togglePinInversion({ instanceId: 'ha1', portId: 'in:0' })
+    expect(port().inverted).toBe(true)
+
+    useEditorStore.getState().togglePinInversion({ instanceId: 'ha1', portId: 'in:0' })
+    expect(port().inverted).toBeUndefined()
+  })
 })
 
 // A design with a 5-input fan-in and an unconnected bus-split.

@@ -4,6 +4,7 @@ import { AndGate } from './and'
 import { OrGate } from './or'
 import { XorGate } from './xor'
 import { NotGate } from './not'
+import { Buffer } from './buffer'
 import { Clock } from './clock'
 import { FanIn } from './fan-in'
 import { FanOut } from './fan-out'
@@ -20,6 +21,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   or: new OrGate(),
   xor: new XorGate(),
   not: new NotGate(),
+  buffer: new Buffer(),
   clock: new Clock(),
   'fan-in': new FanIn(),
   'fan-out': new FanOut(),
@@ -30,7 +32,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

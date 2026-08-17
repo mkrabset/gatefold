@@ -41,9 +41,12 @@ interface Port {
   name: string
   direction: PortDirection
   terminal?: { instanceId: string; pinId: string } // composite only: internal port instance
+  inverted?: boolean                               // logical inversion (rendered as a bubble)
 }
 
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port'
+type PrimitiveKind =
+  | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
+  | 'bus-split' | 'bus-merge' | 'input-port' | 'output-port'
 
 interface ComponentDef {
   id: string
@@ -94,13 +97,14 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
 - **Primitive library** (`primitives/`): built-in components are polymorphic — one
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
-  `clock.ts`, `fan-in.ts`, `fan-out.ts`, plus the internal `input-port.ts`/`output-port.ts`).
-  Each supplies its label/glyph, default ports, arity constraints (`fixedInputs` /
-  `fixedOutputs`), terminal renaming (`allowRenameTerminals`), input-name suggestion,
-  intrinsic bus width, body size, and its own `draw(ctx, opts)` via a DOM-free
-  `VectorContext`. The registry (`index.ts`) maps a `PrimitiveKind` to its behaviour object;
-  `primitiveDef(kind)` produces the serializable `ComponentDef`. The port primitives are not
-  listed in the library (their pins are derived from the enclosing composite).
+  `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, plus the internal
+  `input-port.ts`/`output-port.ts`). Each supplies its label/glyph, default ports, arity
+  constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
+  input-name suggestion, intrinsic bus width, body size, and its own `draw(ctx, opts)` via a
+  DOM-free `VectorContext`. The registry (`index.ts`) maps a `PrimitiveKind` to its behaviour
+  object; `primitiveDef(kind)` produces the serializable `ComponentDef`. The port primitives
+  are not listed in the library (their pins are derived from the enclosing composite). The
+  `not` gate is a `buffer` whose output port is `inverted`.
 - **Buses**: a terminal's *width* (wire count) is derived, never stored. `portWidth` reports
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the editor's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
@@ -197,6 +201,9 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.
+- **Inversion**: a port with `inverted` set is drawn with a hollow ring (50% larger than the
+  pin dot) around the terminal, on instances, composites, and port groups alike. Press `i`
+  while hovering a terminal to toggle it (or use the checkbox in the ports editor).
 - **Labels**: primitives show type above and instance name below; composites show the
   instance name centered with the type above and port names beside the pins.
 - **Wires**: two strokes — a thick background "halo" then the thin wire — so crossings read

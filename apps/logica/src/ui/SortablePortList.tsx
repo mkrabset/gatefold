@@ -12,6 +12,7 @@ interface SortablePortListProps {
   renameAllowed: boolean
   isConnected: (port: Port) => boolean
   onRename: (id: string, name: string) => void
+  onToggleInverted: (id: string, inverted: boolean) => void
   onRemove: (id: string) => void
   onReorder: (direction: 'input' | 'output', ids: string[]) => void
 }
@@ -21,7 +22,7 @@ interface SortablePortListProps {
  * @dnd-kit (items slide out of the way during the drag); the final order is committed
  * to the store on drop, computed from the store's current order.
  */
-export function SortablePortList({ direction, ports, fixed, renameAllowed, isConnected, onRename, onRemove, onReorder }: SortablePortListProps) {
+export function SortablePortList({ direction, ports, fixed, renameAllowed, isConnected, onRename, onToggleInverted, onRemove, onReorder }: SortablePortListProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const items = ports.map((p) => p.id)
 
@@ -48,6 +49,7 @@ export function SortablePortList({ direction, ports, fixed, renameAllowed, isCon
             fixed={fixed}
             renameAllowed={renameAllowed}
             onRename={onRename}
+            onToggleInverted={onToggleInverted}
             onRemove={onRemove}
           />
         ))}
@@ -63,6 +65,7 @@ function SortablePortRow({
   fixed,
   renameAllowed,
   onRename,
+  onToggleInverted,
   onRemove,
 }: {
   id: string
@@ -71,6 +74,7 @@ function SortablePortRow({
   fixed: boolean
   renameAllowed: boolean
   onRename: (id: string, name: string) => void
+  onToggleInverted: (id: string, inverted: boolean) => void
   onRemove: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
@@ -111,6 +115,13 @@ function SortablePortRow({
           }
         }}
         onBlur={commit}
+      />
+      <input
+        type="checkbox"
+        className="port-invert"
+        title="Invert terminal"
+        checked={port.inverted === true}
+        onChange={(e) => onToggleInverted(port.id, e.target.checked)}
       />
       <button
         className="mini-btn"

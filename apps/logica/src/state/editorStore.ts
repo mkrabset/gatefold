@@ -118,6 +118,8 @@ interface EditorState {
   confirmDeleteTemplate: () => void
   cancelDeleteTemplate: () => void
   renamePort: (portId: string, name: string) => void
+  setPortInverted: (portId: string, inverted: boolean) => void
+  togglePinInversion: (ref: PinRef) => void
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
   setInstanceProp: (id: string, name: string, value: unknown) => void
@@ -461,6 +463,28 @@ export const useEditorStore = create<EditorState>()(
         if (!allowRenameTerminals(def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (port) port.name = name
+      }),
+    setPortInverted: (portId, inverted) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const port = def.ports.find((p) => p.id === portId)
+        if (!port) return
+        if (inverted) port.inverted = true
+        else delete port.inverted
+      }),
+    togglePinInversion: (ref) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const inst = def.instances?.find((i) => i.id === ref.instanceId)
+        if (!inst) return
+        const instDef = s.design.defs[inst.defId]
+        if (!instDef) return
+        // A port-group pin is derived from the current composite's own port.
+        const ownerDef = isPortGroupDef(instDef) ? def : instDef
+        const port = ownerDef.ports.find((p) => p.id === ref.portId)
+        if (!port) return
+        if (port.inverted) delete port.inverted
+        else port.inverted = true
       }),
     renameInstance: (id, name) =>
       set((s) => {

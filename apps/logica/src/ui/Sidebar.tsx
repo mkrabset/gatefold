@@ -52,6 +52,7 @@ const GLYPHS: Record<string, string> = {
   or: '≥1',
   xor: '=1',
   not: '1',
+  buffer: '▷',
   clock: '∿',
 }
 
@@ -337,6 +338,7 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
 function PortsEditor() {
   const design = useEditorStore((s) => s.design)
   const renamePort = useEditorStore((s) => s.renamePort)
+  const setPortInverted = useEditorStore((s) => s.setPortInverted)
   const addPort = useEditorStore((s) => s.addPort)
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
@@ -377,6 +379,7 @@ function PortsEditor() {
           renameAllowed={renameAllowed}
           isConnected={isConnected}
           onRename={renamePort}
+          onToggleInverted={setPortInverted}
           onRemove={removePort}
           onReorder={setPortOrder}
         />

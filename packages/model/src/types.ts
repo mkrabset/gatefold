@@ -24,6 +24,8 @@ export interface Port {
   name: string
   direction: PortDirection
   terminal?: { instanceId: string; pinId: string }
+  /** True when the terminal is logically inverted (shown as a bubble). */
+  inverted?: boolean
 }
 
 export type PrimitiveKind =
@@ -31,6 +33,7 @@ export type PrimitiveKind =
   | 'or'
   | 'xor'
   | 'not'
+  | 'buffer'
   | 'clock'
   | 'fan-in'
   | 'fan-out'

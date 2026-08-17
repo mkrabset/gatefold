@@ -26,6 +26,8 @@ export interface InferredInput {
   targets: InstancePin[]
   /** Inherited terminal name (when the parent's input-port is included in the group). */
   name?: string
+  /** Inherited terminal inversion (when the parent's input-port is included in the group). */
+  inverted?: boolean
 }
 
 /** An inferred output: one selected output pin driving one or more external pins. */
@@ -36,6 +38,8 @@ export interface InferredOutput {
   targets: InstancePin[]
   /** Inherited terminal name (when the parent's output-port is included in the group). */
   name?: string
+  /** Inherited terminal inversion (when the parent's output-port is included in the group). */
+  inverted?: boolean
 }
 
 export interface InferredGroup {
@@ -188,7 +192,7 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
             !isPortGroupInst(c.to.instanceId),
         )
         .map((c) => ({ instanceId: c.to.instanceId, portId: c.to.portId }))
-      inheritedInputs.push({ name: p.name, source, targets })
+      inheritedInputs.push({ name: p.name, inverted: p.inverted, source, targets })
     }
   }
   const inheritedOutputs: InferredOutput[] = []
@@ -204,6 +208,7 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
       )
       inheritedOutputs.push({
         name: p.name,
+        inverted: p.inverted,
         source: driver ? { instanceId: driver.from.instanceId, portId: driver.from.portId } : undefined,
         targets: [target],
       })
@@ -286,7 +291,13 @@ export function applyGroup(
 
   inferred.inputs.forEach((g, i) => {
     const name = inputNames[i] || `in${i + 1}`
-    ports.push({ id: inputPortId(i), name, direction: 'input', terminal: { instanceId: inputGroupId!, pinId: inputPortId(i) } })
+    ports.push({
+      id: inputPortId(i),
+      name,
+      direction: 'input',
+      terminal: { instanceId: inputGroupId!, pinId: inputPortId(i) },
+      ...(g.inverted ? { inverted: true } : {}),
+    })
     for (const t of g.targets) {
       connections.push({
         id: genConn(),
@@ -298,7 +309,13 @@ export function applyGroup(
 
   inferred.outputs.forEach((g, i) => {
     const name = outputNames[i] || `out${i + 1}`
-    ports.push({ id: outputPortId(i), name, direction: 'output', terminal: { instanceId: outputGroupId!, pinId: outputPortId(i) } })
+    ports.push({
+      id: outputPortId(i),
+      name,
+      direction: 'output',
+      terminal: { instanceId: outputGroupId!, pinId: outputPortId(i) },
+      ...(g.inverted ? { inverted: true } : {}),
+    })
     if (g.source) {
       connections.push({
         id: genConn(),

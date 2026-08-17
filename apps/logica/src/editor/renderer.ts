@@ -32,6 +32,22 @@ function pinRadius(width: number, zoom: number): number {
   return pinRadiusWorld(width) * zoom
 }
 
+/** Draw the hollow inversion bubble (a ring 50% larger than the pin dot). */
+function drawInversionRing(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  zoom: number,
+  p: Palette,
+) {
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.strokeStyle = p.gateStroke
+  ctx.lineWidth = 1.5 * zoom
+  ctx.stroke()
+}
+
 /** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
 function drawTooltip(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, p: Palette) {
   ctx.font = '11px system-ui, sans-serif'
@@ -121,6 +137,7 @@ function drawPorts(
     ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pin
     ctx.fill()
+    if (port.inverted) drawInversionRing(ctx, s.x, s.y, 1.5 * pinRadius(width, vp.zoom), vp.zoom, p)
   }
   for (const port of outputPorts(def)) {
     const pos = portPosition(design, parentDef, instance, def, port.id)
@@ -130,6 +147,7 @@ function drawPorts(
     ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
     ctx.fillStyle = p.pinHover
     ctx.fill()
+    if (port.inverted) drawInversionRing(ctx, s.x, s.y, 1.5 * pinRadius(width, vp.zoom), vp.zoom, p)
   }
 }
 
@@ -183,15 +201,17 @@ function drawInstance(
       const pos = portPosition(design, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
       const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
+      const offset = ((port.inverted ? 1.5 : 1) * pinRadiusWorld(width) + 6) * vp.zoom
       ctx.textAlign = 'right'
-      ctx.fillText(port.name, ps.x - (pinRadiusWorld(width) + 6) * vp.zoom, ps.y)
+      ctx.fillText(port.name, ps.x - offset, ps.y)
     }
     for (const port of outputPorts(def)) {
       const pos = portPosition(design, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
       const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
+      const offset = ((port.inverted ? 1.5 : 1) * pinRadiusWorld(width) + 6) * vp.zoom
       ctx.textAlign = 'left'
-      ctx.fillText(port.name, ps.x + (pinRadiusWorld(width) + 6) * vp.zoom, ps.y)
+      ctx.fillText(port.name, ps.x + offset, ps.y)
     }
   } else {
     if (def.primitive) {
@@ -290,17 +310,20 @@ function drawPortGroupBox(
     const y = n <= 1 ? pos.y : pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
     const x = pos.x + (isInput ? w / 2 : -w / 2)
     const s = w2s(x, y, cw, ch, vp)
+    const radius = pinRadius(widthFor(port), vp.zoom)
     ctx.beginPath()
-    ctx.arc(s.x, s.y, pinRadius(widthFor(port), vp.zoom), 0, Math.PI * 2)
+    ctx.arc(s.x, s.y, radius, 0, Math.PI * 2)
     ctx.fillStyle = isInput ? p.pinHover : p.pin
     ctx.fill()
+    if (port.inverted) drawInversionRing(ctx, s.x, s.y, 1.5 * radius, vp.zoom, p)
+    const offset = ((port.inverted ? 1.5 : 1) * pinRadiusWorld(widthFor(port)) + 6) * vp.zoom
     ctx.fillStyle = p.text
     if (isInput) {
       ctx.textAlign = 'right'
-      ctx.fillText(port.name, s.x - (pinRadiusWorld(widthFor(port)) + 6) * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x - offset, s.y)
     } else {
       ctx.textAlign = 'left'
-      ctx.fillText(port.name, s.x + (pinRadiusWorld(widthFor(port)) + 6) * vp.zoom, s.y)
+      ctx.fillText(port.name, s.x + offset, s.y)
     }
   })
 }

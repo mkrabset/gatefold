@@ -14,8 +14,15 @@ import {
 } from '../src/primitives'
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge'])
+  })
+
+  it('inverts the NOT output and leaves the buffer un-inverted', () => {
+    expect(outputPorts(primitiveDef('not'))[0].inverted).toBe(true)
+    expect(inputPorts(primitiveDef('not'))[0].inverted).toBeUndefined()
+    expect(outputPorts(primitiveDef('buffer'))[0].inverted).toBeUndefined()
+    expect(inputPorts(primitiveDef('and'))[0].inverted).toBeUndefined()
   })
 
   it('builds a primitive def with ports of the correct arity', () => {

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { hitTest, hitTestPort, instanceBounds, pinWidth, undeterminedHint } from './geometry'
+import { hitTest, hitTestPort, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
@@ -173,14 +173,7 @@ export function Canvas() {
           state.setHoverPort({ ref: port.ref, action: 'create' })
         } else {
           const hasWire = findConnectionTo(def.connections ?? [], port.ref)
-          if (hasWire) {
-            state.setHoverPort({ ref: port.ref, action: 'grab' })
-          } else if (pinWidth(state.design, def, port.ref) > 1 || undeterminedHint(state.design, def, port.ref)) {
-            // An unconnected bus (or undetermined relation) terminal — surface its arity/hint.
-            state.setHoverPort({ ref: port.ref, action: 'inspect' })
-          } else {
-            state.setHoverPort(null)
-          }
+          state.setHoverPort({ ref: port.ref, action: hasWire ? 'grab' : 'inspect' })
         }
         return
       }
@@ -329,6 +322,12 @@ export function Canvas() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && pointerOver) {
         useEditorStore.getState().navigateUp()
+      } else if ((e.key === 'i' || e.key === 'I') && pointerOver) {
+        const hover = useEditorStore.getState().hoverPort
+        if (hover) {
+          e.preventDefault()
+          useEditorStore.getState().togglePinInversion(hover.ref)
+        }
       }
     }
 

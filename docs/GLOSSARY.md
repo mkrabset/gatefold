@@ -10,9 +10,11 @@ authoritative — update this when a term's meaning changes.
   Has `id`, `name`, `kind`, `ports`, and (composites only) `instances` + `connections`.
 - **Instance** — a concrete placement of a definition at a position, with its own unique
   `id` and `name`. References its def via `defId`.
-- **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, CLOCK,
-  FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT). Not
-  editable as a circuit.
+- **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT).
+  Not editable as a circuit.
+- **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
+  gate is a buffer whose output terminal is inverted.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max); stored per-instance in `Instance.props`. E.g. a CLOCK's `period`.
 - **Composite / custom component** — a user-defined component whose behavior is its
@@ -27,6 +29,8 @@ authoritative — update this when a term's meaning changes.
 
 - **Port** — a declared terminal on a *definition* (`id`, `name`, `direction`), ordered
   inputs-first. For composites, `terminal` links it to its internal port-group pin.
+- **Inverted terminal** — a port whose `inverted` flag is set, rendered as a hollow ring
+  around its pin (a logic negation bubble).
 - **Terminal / pin** — a connectable endpoint on an *instance*. (We use "port" for the
   declaration and "pin/terminal" for the concrete endpoint; often interchangeable.)
 - **PinRef** — `{ instanceId, portId }`: a reference to one specific pin.

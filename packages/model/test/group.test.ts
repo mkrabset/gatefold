@@ -280,9 +280,9 @@ function buildInheritedInterfaceDesign(): Design {
     kind: 'composite',
     ports: [
       { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
-      { id: 'in:1', name: 'B', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:1' } },
+      { id: 'in:1', name: 'B', direction: 'input', inverted: true, terminal: { instanceId: 'in', pinId: 'in:1' } },
       { id: 'in:2', name: 'C', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:2' } },
-      { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+      { id: 'out:0', name: 'Y', direction: 'output', inverted: true, terminal: { instanceId: 'out', pinId: 'out:0' } },
     ],
     instances: [
       inst('in', 'input-port', 0, 0),
@@ -314,6 +314,7 @@ describe('grouping with the parent port groups included', () => {
     })
     expect(g.inputs[1]).toMatchObject({
       name: 'B',
+      inverted: true,
       source: { instanceId: 'in', portId: 'in:1' },
       targets: [{ instanceId: 'a', portId: 'in:1' }],
     })
@@ -328,6 +329,7 @@ describe('grouping with the parent port groups included', () => {
     expect(g.outputs).toHaveLength(1)
     expect(g.outputs[0]).toMatchObject({
       name: 'Y',
+      inverted: true,
       source: { instanceId: 'a', portId: 'out:0' },
       targets: [{ instanceId: 'out', portId: 'out:0' }],
     })
@@ -342,6 +344,9 @@ describe('grouping with the parent port groups included', () => {
 
     expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B', 'C', 'EXTRA'])
     expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])
+    // Inversion is inherited on B (input) and Y (output), not on A/C/EXTRA.
+    expect(inputPorts(comp).map((p) => p.inverted === true)).toEqual([false, true, false, false])
+    expect(outputPorts(comp)[0].inverted).toBe(true)
 
     // Internal wiring: A->a.in:0, B->a.in:1, EXTRA->a.in:2, a.out:0->Y; C (in:2) unwired.
     expect(comp.connections!.some((c) => pinEq(c, iRef('component-in', 'in:0'), iRef('a', 'in:0')))).toBe(true)

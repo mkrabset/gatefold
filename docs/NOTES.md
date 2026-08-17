@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post port-group grouping/copy rules + template editing visuals).
+Last updated: 2026-08-15 (post terminal inversion / buffer).
 
 ## Where we are
 
@@ -60,10 +60,17 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   (`instanceBodySize`/`sizeForPorts`/`neededHeight` in `geometry.ts`), gate shapes size their
   bus neck to the pin radius (`DrawOptions.pinRadius`), and port-name labels are offset by
   the radius — so large terminals neither overlap nor stick out of their component.
-- **Terminal inversion** — `Port.inverted` (default false) renders a hollow ring around the
-  pin (50% larger), on instances/composites/port groups. New `buffer` primitive (triangle);
-  `not` is now a buffer with an inverted output. Toggle via the ports-editor checkbox or by
-  pressing `i` while hovering a terminal. Grouping inherits `inverted` on included port groups.
+- **Terminal inversion** — `Port.inverted?: boolean` (default false) renders a hollow ring
+  around the pin dot (radius `1.5×` the pin, zoom-scaled) via `drawInversionRing` in
+  `renderer.ts`, on instances, composites, and port groups alike. New `buffer` primitive
+  (triangle, apex at the edge); `not` now `extends Buffer` and defaults its output to
+  `inverted: true` (the bubble moved out of the gate's `draw`, fixing the zoom bug).
+  Toggling: `setPortInverted(portId, inverted)` (ports-editor checkbox, current def) and
+  `togglePinInversion(ref)` (general pin→owning-port resolution; a port-group pin resolves to
+  the current def's port). Press `i` while hovering a terminal (Canvas `onKeyDown`, gated on
+  `pointerOver` + `hoverPort`) to toggle; sink hover was unified to `hasWire ? 'grab' :
+  'inspect'` so every terminal is hoverable. `inverted` serializes verbatim and is inherited
+  through grouping when a port group is included (`InferredInput`/`InferredOutput.inverted`).
 - **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
   `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
   connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the
@@ -108,7 +115,8 @@ hierarchical circuits, with JSON save/load and library export/import; only the
    detection; fan-in/fan-out are per-bit identities (`out[i] = in[i]`); buses = `n`
    independent bits. The per-kind `transfer(inputs)` method belongs on the `Primitive`
    classes (next to `draw`/`properties`); the CLOCK's `period` (ms) is read from
-   `Instance.props` and drives the square-wave source.
+   `Instance.props` and drives the square-wave source. **`Port.inverted` must be applied**
+   (per-terminal negation) at each pin in the evaluation.
 2. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
 
 ## Open items / decisions to revisit

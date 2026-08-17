@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-15 (post terminal inversion / buffer).
+Last updated: 2026-08-17 (stroke terminals + drop-target hover).
 
 ## Where we are
 
@@ -71,6 +71,19 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   `pointerOver` + `hoverPort`) to toggle; sink hover was unified to `hasWire ? 'grab' :
   'inspect'` so every terminal is hoverable. `inverted` serializes verbatim and is inherited
   through grouping when a port group is included (`InferredInput`/`InferredOutput.inverted`).
+- **Stroke terminals** — pins are no longer filled circles: each terminal is a vertical
+  **stroke** along the component edge (color `pin`=blue sink / `pinHover`=green source,
+  thickness `4·√width·zoom`, length `2·pinRadius`). The inversion bubble is shifted just
+  outside the edge (`bubbleOnLeft`: inputs left, outputs right; port groups use `!isInput`)
+  so it touches the component at the port position, and its interior fill now matches the
+  effective canvas background (`templateBg` when editing a template). Shared `drawPin` helper
+  (used by `drawPorts` and `drawPortGroupBox`) + `pinLabelOffset`/`PIN_LABEL_GAP`; ring draw
+  order fixed (fill before stroke). Composite port labels restored to outside placement
+  (inputs left / outputs right).
+- **Drop-target hover** — while dragging a wire, `Canvas` `onPointerMove` (case `'wire'`)
+  now hit-tests the cursor and sets `hoverPort` to a sink under it, so the renderer draws the
+  highlight ring exactly when the wire can be released to connect/re-target (same
+  `hitTestPort` call as `onPointerUp`).
 - **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
   `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
   connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the

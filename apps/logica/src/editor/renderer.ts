@@ -30,7 +30,7 @@ function pinRadius(width: number, zoom: number): number {
     return pinRadiusWorld(width) * zoom
 }
 
-/** Draw the hollow inversion bubble (a ring 50% larger than the pin dot). */
+/** Draw the hollow inversion bubble (a ring 50% larger than the pin). */
 function drawInversionRing(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -38,14 +38,52 @@ function drawInversionRing(
     radius: number,
     zoom: number,
     p: Palette,
+    bg: string,
 ) {
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
-    ctx.strokeStyle = p.gateStroke
-    ctx.fillStyle = p.bg
-    ctx.lineWidth = 1.5 * zoom
-    ctx.stroke()
+    ctx.fillStyle = bg
     ctx.fill()
+    ctx.strokeStyle = p.gateStroke
+    ctx.lineWidth = 0.5 * zoom
+    ctx.stroke()
+}
+
+/** Gap between a terminal and its name label, in world units. */
+const PIN_LABEL_GAP = 10
+
+/** Screen-space offset for a terminal label (clears the pin stroke and any bubble). */
+function pinLabelOffset(radiusWorld: number, inverted: boolean, zoom: number): number {
+    return ((inverted ? 1.5 : 1) * radiusWorld + PIN_LABEL_GAP) * zoom
+}
+
+/**
+ * Draw a single terminal pin: a vertical stroke centred on the edge position, plus —
+ * when the port is inverted — an inversion bubble shifted just outside the edge so it
+ * touches the component at the port position.
+ */
+function drawPin(
+    ctx: CanvasRenderingContext2D,
+    s: { x: number; y: number },
+    width: number,
+    color: string,
+    inverted: boolean,
+    bubbleOnLeft: boolean,
+    vp: Viewport,
+    p: Palette,
+    bg: string,
+) {
+    const radius = pinRadius(width, vp.zoom)
+    ctx.strokeStyle = color
+    ctx.lineWidth = 4 * vp.zoom
+    ctx.beginPath()
+    ctx.moveTo(s.x, s.y - radius)
+    ctx.lineTo(s.x, s.y + radius)
+    ctx.stroke()
+    if (inverted) {
+        const rx = bubbleOnLeft ? s.x - radius : s.x + radius
+        drawInversionRing(ctx, rx, s.y, radius, vp.zoom, p, bg)
+    }
 }
 
 /** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
@@ -128,35 +166,17 @@ function drawPorts(
     h: number,
     vp: Viewport,
     p: Palette,
+    bg: string,
 ) {
-
-    const drawPort = (port: Port, fillStyle: string, input: boolean) => {
+    const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
         const pos = portPosition(design, parentDef, instance, def, port.id)
         const s = w2s(pos.x, pos.y, w, h, vp)
         const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-        //ctx.beginPath()
-        //ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
-        //ctx.fillStyle = fillStyle
-        //ctx.fill()
-        ctx.strokeStyle=fillStyle
-        ctx.lineWidth=4*vp.zoom
-        ctx.beginPath()
-        ctx.moveTo(s.x, s.y-pinRadius(width, vp.zoom))
-        ctx.lineTo(s.x, s.y+pinRadius(width, vp.zoom))
-        ctx.stroke()
-        if (port.inverted) {
-            const invRingRadius= 1.5 * pinRadius(width, vp.zoom)
-            const sx = input ? s.x - invRingRadius : s.x + invRingRadius
-            drawInversionRing(ctx, sx, s.y, invRingRadius, vp.zoom, p)
-        }
+        drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg)
     }
 
-    for (const port of inputPorts(def)) {
-        drawPort(port, p.pin, true)
-    }
-    for (const port of outputPorts(def)) {
-        drawPort(port, p.pinHover, false)
-    }
+    for (const port of inputPorts(def)) drawPort(port, p.pin, true)
+    for (const port of outputPorts(def)) drawPort(port, p.pinHover, false)
 }
 
 function drawInstance(
@@ -170,6 +190,7 @@ function drawInstance(
     vp: Viewport,
     selected: boolean,
     p: Palette,
+    bg: string,
 ) {
     const {w, h} = instanceBodySize(design, parentDef, instance, def)
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
@@ -210,10 +231,10 @@ function drawInstance(
             const pos = portPosition(design, parentDef, instance, def, port.id)
             const ps = w2s(pos.x, pos.y, cw, ch, vp)
             const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-            const offset = ((port.inverted ? 1.5 : 1) * pinRadiusWorld(width) + 10) * vp.zoom
+            const offset = pinLabelOffset(pinRadiusWorld(width), port.inverted ?? false, vp.zoom)
             ctx.textAlign = align
-            const xOffset = align === 'right' ? ps.x + offset : ps.x - offset
-            ctx.fillText(port.name, xOffset, ps.y)
+            const x = align === 'right' ? ps.x - offset : ps.x + offset
+            ctx.fillText(port.name, x, ps.y)
         }
 
         for (const port of inputPorts(def)) {
@@ -251,7 +272,7 @@ function drawInstance(
         ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
     }
 
-    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p)
+    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg)
 }
 
 
@@ -271,11 +292,12 @@ function drawPortGroup(
     vp: Viewport,
     selected: boolean,
     p: Palette,
+    bg: string,
 ) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     const widthFor = (port: Port) => pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p)
+    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg)
 }
 
 /** Core port-group drawing, given the pins, their position, and a width resolver. */
@@ -290,6 +312,7 @@ function drawPortGroupBox(
     vp: Viewport,
     selected: boolean,
     p: Palette,
+    bg: string,
 ) {
     const n = ports.length
     const rMax = ports.reduce((m, p) => Math.max(m, pinRadiusWorld(widthFor(p))), 0)
@@ -320,13 +343,8 @@ function drawPortGroupBox(
         const y = n <= 1 ? pos.y : pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
         const x = pos.x + (isInput ? w / 2 : -w / 2)
         const s = w2s(x, y, cw, ch, vp)
-        const radius = pinRadius(widthFor(port), vp.zoom)
-        ctx.beginPath()
-        ctx.arc(s.x, s.y, radius, 0, Math.PI * 2)
-        ctx.fillStyle = isInput ? p.pinHover : p.pin
-        ctx.fill()
-        if (port.inverted) drawInversionRing(ctx, s.x, s.y, 1.5 * radius, vp.zoom, p)
-        const offset = ((port.inverted ? 1.5 : 1) * pinRadiusWorld(widthFor(port)) + 6) * vp.zoom
+        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg)
+        const offset = PIN_LABEL_GAP * vp.zoom
         ctx.fillStyle = p.text
         if (isInput) {
             ctx.textAlign = 'right'
@@ -388,11 +406,11 @@ export function drawScene(
         drawPortGroupBox(ctx, true, inputPorts(def), {
             x: vp.x - W / 2 - margin,
             y: vp.y
-        }, (port) => portWidth(def, port), cw, ch, vp, false, p)
+        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg)
         drawPortGroupBox(ctx, false, outputPorts(def), {
             x: vp.x + W / 2 + margin,
             y: vp.y
-        }, (port) => portWidth(def, port), cw, ch, vp, false, p)
+        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg)
         return
     }
 
@@ -483,9 +501,9 @@ export function drawScene(
         const instDef = design.defs[inst.defId]
         if (!instDef) continue
         if (isPortGroupDef(instDef)) {
-            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg)
         } else {
-            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p)
+            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg)
         }
     }
 

@@ -233,6 +233,11 @@ export function Canvas() {
           const rect = wrap.getBoundingClientRect()
           const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
           state.setPendingWire({ from: d.from, x: cur.x, y: cur.y, originalId: d.originalId ?? undefined })
+          // Highlight a sink under the cursor so it's obvious when the wire can be
+          // released to connect (or re-target) there.
+          const def = state.design.defs[currentDefId(state)]
+          const target = hitTestPort(cur.x, cur.y, currentInstances(), state.design, def)
+          state.setHoverPort(target && target.role === 'sink' ? { ref: target.ref, action: 'create' } : null)
         }
       }
     }

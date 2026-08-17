@@ -42,8 +42,10 @@ function drawInversionRing(
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.strokeStyle = p.gateStroke
+    ctx.fillStyle = p.bg
     ctx.lineWidth = 1.5 * zoom
     ctx.stroke()
+    ctx.fill()
 }
 
 /** Draw a small tooltip label (e.g. the bus arity) near a screen point. */
@@ -128,22 +130,32 @@ function drawPorts(
     p: Palette,
 ) {
 
-    const drawPort = (port: Port, fillStyle: string) => {
+    const drawPort = (port: Port, fillStyle: string, input: boolean) => {
         const pos = portPosition(design, parentDef, instance, def, port.id)
         const s = w2s(pos.x, pos.y, w, h, vp)
         const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
+        //ctx.beginPath()
+        //ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
+        //ctx.fillStyle = fillStyle
+        //ctx.fill()
+        ctx.strokeStyle=fillStyle
+        ctx.lineWidth=4*vp.zoom
         ctx.beginPath()
-        ctx.arc(s.x, s.y, pinRadius(width, vp.zoom), 0, Math.PI * 2)
-        ctx.fillStyle = fillStyle
-        ctx.fill()
-        if (port.inverted) drawInversionRing(ctx, s.x, s.y, 1.5 * pinRadius(width, vp.zoom), vp.zoom, p)
+        ctx.moveTo(s.x, s.y-pinRadius(width, vp.zoom))
+        ctx.lineTo(s.x, s.y+pinRadius(width, vp.zoom))
+        ctx.stroke()
+        if (port.inverted) {
+            const invRingRadius= 1.5 * pinRadius(width, vp.zoom)
+            const sx = input ? s.x - invRingRadius : s.x + invRingRadius
+            drawInversionRing(ctx, sx, s.y, invRingRadius, vp.zoom, p)
+        }
     }
 
     for (const port of inputPorts(def)) {
-        drawPort(port, p.pin)
+        drawPort(port, p.pin, true)
     }
     for (const port of outputPorts(def)) {
-        drawPort(port, p.pinHover)
+        drawPort(port, p.pinHover, false)
     }
 }
 

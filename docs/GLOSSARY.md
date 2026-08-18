@@ -23,6 +23,10 @@ authoritative — update this when a term's meaning changes.
   by double-clicking its library card; never mutated by editing an instance.
 - **Variant** — an instance-local copy of a definition (`variant: true`), created on
   placement/grouping (see **Copy-on-place**). Hidden from the library.
+- **Lineage id (`uuid`)** — a `ComponentDef.uuid` shared by a template and every variant
+  copied from it, marking which template a variant originated from. `id` stays the unique key;
+  `uuid` is for origin/apply. Preserved by all copies; freshly assigned on grouping, promote,
+  import, and load-migration.
 - **Root** — the top-level composite (`design.root`, usually `main`); the outermost sheet.
 
 ## Terminals & wiring
@@ -30,9 +34,13 @@ authoritative — update this when a term's meaning changes.
 - **Port** — a declared terminal on a *definition* (`id`, `name`, `direction`), ordered
   inputs-first. For composites, `terminal` links it to its internal port-group pin.
 - **Inverted terminal** — a port whose `inverted` flag is set, rendered as a hollow ring
-  around its pin (a logic negation bubble).
+  just outside the pin (a logic negation bubble). Instance-level: templates keep clean
+  (non-inverted) ports, and inversion lives on variants (preserved when a template is applied).
 - **Terminal / pin** — a connectable endpoint on an *instance*. (We use "port" for the
   declaration and "pin/terminal" for the concrete endpoint; often interchangeable.)
+- **Terminal marker** — the vertical stroke drawn along a component's edge for a pin; its
+  half-height is `pinRadiusWorld(width) = 3.5·width` (linear). Markers on a side are stacked
+  with a constant gap, so a bus does not dictate the spacing of its single-wire neighbours.
 - **PinRef** — `{ instanceId, portId }`: a reference to one specific pin.
 - **Connection / wire** — a directed edge from a source pin to a sink pin.
 - **Source / driver** — the `from` end of a connection (an output pin, or a composite
@@ -63,6 +71,9 @@ authoritative — update this when a term's meaning changes.
   hierarchy into `variant` defs, so instances are independent from birth.
 - **Grouping** — turning a selection into a composite (`inferGroup` → naming dialog →
   `applyGroup`); a single selected custom component is *promoted* to a template instead.
+- **Apply template** — propagating a template's edits to every matching variant in the current
+  scope (same lineage `uuid` + unaltered ports). Replaces internals, preserves external wiring
+  and the variant's inversion.
 - **Navigation (descend/ascend)** — the `navStack` of def ids; double-click a component to
   enter it, Escape / breadcrumb ↑ to exit.
 - **Selection** — `selectedIds`; marquee (drag empty space), Shift+click to toggle, drag a

@@ -55,8 +55,9 @@ function drawInversionRing(
 const PIN_LABEL_GAP = 10
 
 /** Screen-space offset for a terminal label (clears the pin stroke and any bubble). */
-function pinLabelOffset(radiusWorld: number, inverted: boolean, zoom: number): number {
-    return ((inverted ? 1.5 : 1) * radiusWorld + PIN_LABEL_GAP) * zoom
+function pinLabelOffset(inverted: boolean, zoom: number): number {
+    const bubble = inverted ? 2 * pinRadiusWorld(1) : 0
+    return (bubble + PIN_LABEL_GAP) * zoom
 }
 
 /**
@@ -83,8 +84,12 @@ function drawPin(
     ctx.lineTo(s.x, s.y + radius)
     ctx.stroke()
     if (inverted) {
-        const rx = bubbleOnLeft ? s.x - radius : s.x + radius
-        drawInversionRing(ctx, rx, s.y, radius, vp.zoom, p, bg)
+        // One bubble per wire lane, so a wide bus doesn't get a single huge bubble.
+        const laneRadius = pinRadiusWorld(1) * vp.zoom
+        const dir = bubbleOnLeft ? -1 : 1
+        for (const dy of busWireOffsets(width)) {
+            drawInversionRing(ctx, s.x + dir * laneRadius, s.y + dy * vp.zoom, laneRadius, vp.zoom, p, bg)
+        }
     }
 }
 
@@ -232,8 +237,7 @@ function drawInstance(
         const drawPortLabel = (port: Port, align: CanvasTextAlign) => {
             const pos = portPosition(design, parentDef, instance, def, port.id)
             const ps = w2s(pos.x, pos.y, cw, ch, vp)
-            const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-            const offset = pinLabelOffset(pinRadiusWorld(width), port.inverted ?? false, vp.zoom)
+            const offset = pinLabelOffset(port.inverted ?? false, vp.zoom)
             ctx.textAlign = align
             const x = align === 'right' ? ps.x - offset : ps.x + offset
             ctx.fillText(port.name, x, ps.y)

@@ -57,6 +57,7 @@ interface ComponentDef {
   instances?: Instance[]                    // composite internals
   connections?: Connection[]
   variant?: boolean                         // true = instance-local fork (hidden from library)
+  uuid?: string                             // lineage id: shared by a template and its variants
 }
 
 interface Instance {
@@ -113,7 +114,19 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (odd bus into a splitter) marks the sheet invalid.
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
   template (and its whole internal hierarchy) into `variant: true` defs, so every instance
-  owns its own content and edits never affect the template or sibling instances.
+  owns its own content and edits never affect the template or sibling instances. A `uuid`
+  **lineage id** is shared by a template and its variants (and preserved by every copy), which
+  is how "apply template" later finds an instance's origin.
+- **Template apply**: `apply.ts` (`scopeDefIds` / `portsMatch` / `applyTemplate`) propagates a
+  template's edits to matching variants in the current scope (current def + transitive nested
+  defs). Matching requires the same lineage `uuid` and an unaltered interface (port ids/names/
+  order; arity equal or either neutral). Inversion is treated as an external alteration and is
+  preserved from the variant; internals are re-instantiated from the template while external
+  wiring is kept intact.
+- **Terminal inversion is instance-level**: templates keep clean (non-inverted) ports;
+  `inverted` lives on variants. Grouping writes inversion onto the instance variant (not the
+  template); the ports editor / `i` shortcut are disabled while editing a template. Built-in
+  primitives (NOT, BUFFER) keep their intrinsic inverted outputs.
 - **Custom properties**: a primitive declares its properties via `properties(): PropertySpec[]`
   (schema + default + unit/min/max/step). Per-instance values live in `Instance.props`,
   seeded at instantiation from the primitive's defaults and editable in the sidebar's
@@ -162,14 +175,18 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — base body dimensions (before pin radii).
-- `pinRadiusWorld(width)` — a terminal's circle radius (`3.5·√width`).
-- `neededHeight(total, maxRadius)` / `instanceBodySize(design, parentDef, instance, def)` —
-  the effective body height grows to fit the (bus-scaled) pin radii, so terminal circles
-  neither overlap nor stick out above/below the body; `sizeForPorts` does the same for a
-  port group.
+- `pinRadiusWorld(width)` — a terminal marker's half-height (`3.5·width`, linear so each bus
+  lane keeps a constant pitch).
+- `sideHeight(widths)` / `sidePinOffset(widths, index)` — a terminal side is a **stack** of its
+  markers with a constant `TERMINAL_GAP` between edges and `SIDE_PADDING` at the top/bottom;
+  `sideHeight` is the side's total height, `sidePinOffset` the y of one pin relative to the
+  side's center. `instanceBodySize(design, parentDef, instance, def)` takes
+  `max(base, input side, output side)`; `sizeForPorts(widths)` does the same for a port group.
+- `busWireOffsets(width)` — per-lane vertical offsets for a bus, inset one lane from each end
+  of the marker (used to render individual wires).
 - `portPosition(design, parentDef, instance, def, portId)` — input pins on the left edge,
-  output pins on the right, evenly spaced over the *effective* height; port-group pins are
-  derived from the parent's ports.
+  output pins on the right, stacked via `sidePinOffset`; port-group pins are derived from the
+  parent's ports.
 - `instanceBounds(design, parentDef, instance, def, pad)` / `hitTest(...)` — world-space
   bounds (using the effective size) and topmost hit detection.
 - `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin within a
@@ -192,18 +209,22 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 - **Theming**: colors come from `darkPalette` / `lightPalette`.
 - **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
   bubble), CLOCK (rounded rect + sine glyph), FAN-IN/FAN-OUT and BUS-SPLIT/BUS-MERGE
-  (trapezoids).
-- **Buses**: pin radius and wire thickness scale with a pin's width (`pinWidth`), so a
-  composite port wired to an internal fan-in/fan-out renders as a bus even from the outside;
-  hovering a bus pin shows an `×n` arity tooltip. Gate shapes size their bus "neck" to the
-  pin radius (via `DrawOptions.pinRadius`), and port-name labels are offset by the radius so
-  they never sit under a large pin.
+  (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/`drawBusTrapezoid*` helpers).
+- **Terminals**: each pin is a vertical **stroke** along the component edge (blue sink / green
+  source), its length `2·pinRadiusWorld(width)`. A composite port wired to an internal
+  fan-in/fan-out renders as a bus even from the outside; hovering a bus pin shows an `×n`
+  arity tooltip. Gate shapes size their bus "neck" to the marker (`DrawOptions.pinRadius`).
+- **Bus wires**: a bus is drawn as `n` individual single-wire beziers spread vertically across
+  the pin marker (`busWireOffsets`, inset one lane from each end); each lane's control points
+  translate with its endpoint. Undetermined wires still render as a single thin dashed wire.
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.
-- **Inversion**: a port with `inverted` set is drawn with a hollow ring (50% larger than the
-  pin dot) around the terminal, on instances, composites, and port groups alike. Press `i`
-  while hovering a terminal to toggle it (or use the checkbox in the ports editor).
+- **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
+  (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
+  small bubble per lane (aligned with each individual wire). Inversion is instance-level
+  (templates stay clean); press `i` while hovering a terminal or use the ports-editor checkbox
+  — both disabled while editing a template.
 - **Labels**: primitives show type above and instance name below; composites show the
   instance name centered with the type above and port names beside the pins.
 - **Wires**: two strokes — a thick background "halo" then the thin wire — so crossings read
@@ -269,16 +290,38 @@ Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** bu
   selected output with no outgoing wire becomes an inferred output (no targets), so unused
   terminals become ports wired only internally.
 - **`applyGroup(design, defId, ids, inputNames, outputNames)`** clones the design, creates
-  the new `ComponentDef` (a library template), and for each inferred port creates an
-  `input-port`/`output-port` group instance (linked via `Port.terminal`), wires the moved
-  pins through those instances, then replaces the selection in the parent with a single
-  instance at its centroid and re-wires the external connections to that instance's ports.
-  Exposed (floating) ports are wired only internally — no external connection is created.
-  The store then deep-copies the new template *and its whole hierarchy* into `variant` defs
-  for the instance (`copyDefSubgraph`, copy-on-place), so the instance never shares any data
-  with the library template.
+  the new `ComponentDef` (a library template, stamped with a fresh `uuid`), and for each
+  inferred port creates an `input-port`/`output-port` group instance (linked via
+  `Port.terminal`), wires the moved pins through those instances, then replaces the selection
+  in the parent with a single instance at its centroid and re-wires the external connections
+  to that instance's ports. Exposed (floating) ports are wired only internally — no external
+  connection is created. The template's ports are **clean (non-inverted)**; inherited
+  inversion is applied to the instance's variant by the store (`confirmGroup`) after
+  copy-on-place (`copyDefSubgraph`), so the instance never shares any data with the template.
+- **Promote ("Save as template")** — selecting a single custom component and grouping copies
+  its def into a new library template with a *fresh* `uuid` (independent of the original) and
+  clean ports, leaving the instance and its variant untouched.
 
 Pure (no input mutation) and fully unit-tested.
+
+---
+
+## 6b. Applying template changes to instances
+
+New `apps/logica/src/editor/apply.ts`, exposed via `applyTemplateToInstances(templateId)`:
+
+- **Scope** — `scopeDefIds(design, currentDefId)` BFSs instance references downward, so the
+  apply reaches matching instances in the currently-viewed def and everything nested in it
+  (including components inside a template being edited).
+- **Matching** — a def is a candidate when it is a `variant` with the template's `uuid`; it
+  matches when its ports are unaltered (same ordered ids and names) and each port's arity is
+  equal or either side neutral. `inverted` is deliberately excluded (external).
+- **Apply** — for each match, `copyDefSubgraph` re-instantiates the template's internals
+  (fresh nested variant closure); the variant keeps its id, port ids, `inverted` flags, and
+  external wiring, and adopts the template's name and internals. Returns a count for the
+  notice. Undoable via the normal history.
+
+Known limitation: applying orphans the variant's old nested closure defs (no def GC yet).
 
 ---
 
@@ -289,6 +332,7 @@ Pure (no input mutation) and fully unit-tested.
 - Instance/definition name-uniqueness validation.
 - A global bus-width invariant scan (connections are validated at creation time; an
   inconsistent pre-existing design isn't proactively flagged).
+- Def reachability GC (applying a template orphans its variant's old nested defs).
 
 ---
 
@@ -300,8 +344,8 @@ Pure (no input mutation) and fully unit-tested.
 - **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` /
   `parseLibrary`). Export collects the template composites and their transitive composite
   closure, deep-cloned with `variant` stripped and references to primitive defs normalized to
-  built-in ids. Import merges with fresh collision-free ids/names (never overwriting) and
-  remaps internal references.
+  built-in ids. Import merges with fresh collision-free ids/names (never overwriting), assigns
+  fresh lineage `uuid`s, and remaps internal references.
 - **File I/O** lives in the app: the toolbar's Open/Save JSON buttons and the library
   panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
   the design and resets navigation/selection and the undo history.

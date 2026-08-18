@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-17 (stroke terminals + drop-target hover).
+Last updated: 2026-08-18 (template apply / lineage uuid / linear terminal layout).
 
 ## Where we are
 
@@ -10,7 +10,47 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 **simulator** remains unimplemented. See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
-## Latest endeavors (this session)
+## Latest (end of this session)
+
+- **Lineage `uuid`** — `ComponentDef.uuid?: string` tracks a component's *origin*. A template
+  and every variant copied from it share the same `uuid`; def identity stays `id`.
+  `newUuid()` (model `util.ts`) generates it. Assigned in `applyGroup`, `importLibrary`, the
+  demo design, and on `loadProject` (migration for older saves). `cloneDef`/`copyDefSubgraph`
+  preserve it (variants inherit), so `addInstance`/paste/group all link variants to their
+  template automatically.
+- **Apply template to matching instances** — new `apps/logica/src/editor/apply.ts`:
+  `scopeDefIds` (current def + transitive nested defs), `portsMatch` (same lineage `uuid`,
+  `variant`, and unaltered port ids/names/order; arity equal or either neutral; `inverted`
+  ignored), and `applyTemplate` (re-instantiates a variant's internals from the template,
+  preserving its port ids + `inverted` and external wiring). Store action
+  `applyTemplateToInstances` sets a notice and is undoable; the library panel shows an
+  "Apply to instances" button when a template card is selected.
+- **Inversion is instance-level** — templates keep clean (non-inverted) terminals.
+  `applyGroup` no longer writes `inverted` onto template ports; `confirmGroup` applies the
+  inherited inversion to the *instance variant* instead; promote ("Save as template") gets a
+  fresh `uuid` + stripped inversion (independent — no shared uuid with the original).
+  `setPortInverted`/`togglePinInversion` and the ports-editor checkbox are disabled on
+  templates; variants and primitives (NOT/BUFFER) still invert freely.
+- **Linear terminal markers + constant-gap stacking** — `pinRadiusWorld` is now `3.5·width`
+  (linear, so each bus lane keeps a constant pitch). Terminal placement no longer spreads by
+  the largest radius: each side's markers are **stacked** with a constant `TERMINAL_GAP` gap
+  and `SIDE_PADDING` at top/bottom (`sideHeight`/`sidePinOffset` in `geometry.ts`); the body
+  height is `max(base, input side, output side)`. Removed `neededHeight`/`distributedY`/
+  `maxPinRadius`/`portGroupSize`.
+- **Individual bus wires** — buses render as `n` single-wire beziers spread across the pin
+  marker (`busWireOffsets`, inset one lane from each end), instead of one thick wire. Control
+  points translate with each lane's endpoint (same horizontal offset as a single wire).
+- **Per-lane inversion bubbles** — an inverted bus terminal now draws a small bubble at the
+  end of each individual wire (one per lane, single-wire sized) instead of one huge bubble;
+  inverted/non-inverted label clearance is now a constant (no longer scales with width).
+- **Code-deduplication pass** — shared `pinKey`, `uniqueId`, `remapInstanceDefs`,
+  `collectClosure` (model `util.ts`/`types.ts`); `isPortGroupDef` reused in the store;
+  `portGroupInstPredicate` hoisted in `group.ts`. Primitives refactored: `PortGroup` base
+  (`input-port`/`output-port`), `twoInputGatePorts`/`twoInputGateBody`, `gateBounds`/
+  `fillAndStroke`, `drawBusTrapezoidLeft/Right`, `deriveBusWidth`. React: shared `CommitInput`;
+  `GLYPHS` replaced with `primitiveOf(kind).glyph`.
+
+## Earlier (kept as historical log)
 
 - **Buses** — new `fan-in` / `fan-out` primitives (variable arity; bus terminal `BUS`).
 - **Width is derived, not stored** — `Port.width` was removed. `portWidth(def, port)` gives
@@ -134,6 +174,11 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 
 ## Open items / decisions to revisit
 
+- **No def GC** — applying a template orphans the variant's old nested closure defs (pre-existing
+  pattern; serialized/save bloat only). A reachability GC pass is future work.
+- **Apply-template arity matching is soft** — a neutral port matches, and a post-apply width
+  conflict (neutral port wired to a fixed-width net) surfaces via the solver as a dashed wire,
+  not rejected up-front.
 - **Name uniqueness** not enforced (`renameInstance`/`renamePort`/port names) — cosmetic.
 - Cross-level **bus width consistency** is enforced at connection time via the width solver;
   width still doesn't propagate *inward* through a composite boundary (the internal terminal

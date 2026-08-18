@@ -285,6 +285,8 @@ function PortsEditor() {
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
   const current = design.defs[currentDefId(useEditorStore.getState())]
   const renameAllowed = allowRenameTerminals(current)
+  // Templates keep clean (non-inverted) terminals; inversion is instance-level.
+  const invertAllowed = !(current.kind === 'composite' && current.variant !== true && current.id !== design.root)
 
   // A port is connected if any wire touches its pin on the port group.
   const isConnected = (port: Port): boolean => {
@@ -318,6 +320,7 @@ function PortsEditor() {
           ports={ports}
           fixed={fixed}
           renameAllowed={renameAllowed}
+          invertAllowed={invertAllowed}
           isConnected={isConnected}
           onRename={renamePort}
           onToggleInverted={setPortInverted}

@@ -344,9 +344,10 @@ describe('grouping with the parent port groups included', () => {
 
     expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B', 'C', 'EXTRA'])
     expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])
-    // Inversion is inherited on B (input) and Y (output), not on A/C/EXTRA.
-    expect(inputPorts(comp).map((p) => p.inverted === true)).toEqual([false, true, false, false])
-    expect(outputPorts(comp)[0].inverted).toBe(true)
+    // Templates keep clean (non-inverted) terminals; inversion is applied to the
+    // instance variant at the store level, not to the template.
+    expect(inputPorts(comp).map((p) => p.inverted === true)).toEqual([false, false, false, false])
+    expect(outputPorts(comp)[0].inverted).toBeUndefined()
 
     // Internal wiring: A->a.in:0, B->a.in:1, EXTRA->a.in:2, a.out:0->Y; C (in:2) unwired.
     expect(comp.connections!.some((c) => pinEq(c, iRef('component-in', 'in:0'), iRef('a', 'in:0')))).toBe(true)

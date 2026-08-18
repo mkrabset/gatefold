@@ -57,6 +57,15 @@ describe('copyDefSubgraph', () => {
     const innerCopy = defs[idMap.get('inner')!]
     expect(innerCopy.instances!.find((i) => i.id === 'pg')!.defId).toBe('input-port')
   })
+
+  it('preserves the lineage uuid on copies', () => {
+    const design = makeDesign()
+    design.defs['outer'].uuid = 'U-outer'
+    design.defs['inner'].uuid = 'U-inner'
+    const { defs, idMap } = copyDefSubgraph(design.defs, ['outer'], new Set())
+    expect(defs[idMap.get('outer')!].uuid).toBe('U-outer')
+    expect(defs[idMap.get('inner')!].uuid).toBe('U-inner')
+  })
 })
 
 describe('captureClipboard + instantiateClipboard', () => {

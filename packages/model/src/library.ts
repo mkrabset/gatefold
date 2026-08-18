@@ -1,7 +1,7 @@
 import type { ComponentDef, Design } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isComponentDef, isRecord } from './serialize'
-import { collectClosure, remapInstanceDefs, uniqueId } from './util'
+import { collectClosure, newUuid, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Export/import of the custom component library. A library file is the set of
@@ -95,6 +95,7 @@ export function importLibrary(design: Design, lib: LibraryFile): Design {
     const def = cloneDef(c)
     def.id = idMap.get(c.id) ?? c.id
     delete def.variant
+    def.uuid = newUuid()
     def.name = nextId(usedNames, def.name || 'component')
     usedNames.add(def.name)
     remapInstanceDefs(def, idMap)

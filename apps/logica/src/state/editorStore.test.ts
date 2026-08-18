@@ -184,16 +184,22 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(variantHa.defId).not.toBe(templateHa.defId)
   })
 
-  it('sets and clears a port inversion', () => {
+  it('keeps template ports clean and allows inverting a variant', () => {
     reset()
+    // A template's terminals cannot be inverted.
     useEditorStore.setState({ navStack: ['half-adder'] })
-    const port = () => useEditorStore.getState().design.defs['half-adder'].ports.find((p) => p.id === 'in:0')!
-
+    const tPort = () => useEditorStore.getState().design.defs['half-adder'].ports.find((p) => p.id === 'in:0')!
     useEditorStore.getState().setPortInverted('in:0', true)
-    expect(port().inverted).toBe(true)
+    expect(tPort().inverted).toBeUndefined()
 
+    // An instance-local variant can be inverted.
+    const ha1 = mainInstances().find((i) => i.id === 'ha1')!
+    useEditorStore.setState({ navStack: [ha1.defId] })
+    const vPort = () => useEditorStore.getState().design.defs[ha1.defId].ports.find((p) => p.id === 'in:0')!
+    useEditorStore.getState().setPortInverted('in:0', true)
+    expect(vPort().inverted).toBe(true)
     useEditorStore.getState().setPortInverted('in:0', false)
-    expect(port().inverted).toBeUndefined()
+    expect(vPort().inverted).toBeUndefined()
   })
 
   it('toggles pin inversion on the hovered pin', () => {

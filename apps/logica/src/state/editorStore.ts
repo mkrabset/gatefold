@@ -23,6 +23,7 @@ import {
   libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
+  newUuid,
   outputPortDef,
   outputPortId,
   outputPorts,
@@ -38,6 +39,7 @@ import {
 import type { Clipboard } from '@logica/model'
 import { instanceBounds } from '../editor/geometry'
 import { connectionError } from '../editor/widths'
+import { applyTemplate, scopeDefIds } from '../editor/apply'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -134,6 +136,7 @@ interface EditorState {
   deleteSelection: () => void
   copySelection: () => void
   paste: () => void
+  applyTemplateToInstances: (templateId: string) => void
   saveProject: () => void
   loadProject: (json: string) => void
   exportLibrary: () => void
@@ -141,6 +144,10 @@ interface EditorState {
 }
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
+
+/** True for a reusable composite template (non-root, non-variant). */
+const isTemplateDef = (design: Design, def: ComponentDef): boolean =>
+  def.kind === 'composite' && def.variant !== true && def.id !== design.root
 
 // Trigger a browser download of `text` as a file named `filename`.
 function downloadText(filename: string, text: string): void {
@@ -227,6 +234,7 @@ export function createDemoDesign(): Design {
     id: 'half-adder',
     name: 'half-adder',
     kind: 'composite',
+    uuid: newUuid(),
     ports: [
       { id: inputPortId(0), name: 'A', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:0' } },
       { id: inputPortId(1), name: 'B', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:1' } },
@@ -246,6 +254,7 @@ export function createDemoDesign(): Design {
     id: 'main',
     name: 'main',
     kind: 'composite',
+    uuid: newUuid(),
     ports: [],
     instances: [
       { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 1000 } },
@@ -401,6 +410,9 @@ export const useEditorStore = create<EditorState>()(
             const top = s.design.defs[idMap.get(p.promoteDefId) ?? p.promoteDefId]
             top.name = name
             top.variant = false
+            top.uuid = newUuid()
+            // Templates keep clean (non-inverted) terminals.
+            for (const port of top.ports) delete port.inverted
           }
           s.pendingGroup = null
           return
@@ -408,6 +420,12 @@ export const useEditorStore = create<EditorState>()(
 
         const defId = currentDefId(s)
         const { name, inputs, outputs } = p
+        // Capture inherited inversion before grouping: `applyGroup` now produces clean
+        // (non-inverted) template ports, so the inversion is applied to the instance
+        // variant below instead.
+        const inferred = inferGroup(s.design, defId, s.selectedIds)
+        const inputInverted = inferred.inputs.map((g) => g.inverted === true)
+        const outputInverted = inferred.outputs.map((g) => g.inverted === true)
         // applyGroup returns a fresh design (pure); assign it wholesale and select
         // the newly created instance, which is appended last in the parent.
         s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs, name)
@@ -424,9 +442,18 @@ export const useEditorStore = create<EditorState>()(
           }
           const newDefId = idMap.get(last.defId) ?? last.defId
           last.defId = newDefId
+          const newDef = s.design.defs[newDefId]
+          // Carry the inherited inversion onto the instance variant's ports.
+          for (const [i, inv] of inputInverted.entries()) {
+            const port = inputPorts(newDef)[i]
+            if (port && inv) port.inverted = true
+          }
+          for (const [i, inv] of outputInverted.entries()) {
+            const port = outputPorts(newDef)[i]
+            if (port && inv) port.inverted = true
+          }
           // Place the new composite's port groups relative to its components: inputs
           // left of the leftmost input pin, outputs right of the rightmost output pin.
-          const newDef = s.design.defs[newDefId]
           for (const inst of newDef.instances ?? []) {
             if (inst.defId === 'input-port') inst.pos = portPlacement(newDef, s.design, 'input')
             else if (inst.defId === 'output-port') inst.pos = portPlacement(newDef, s.design, 'output')
@@ -463,6 +490,7 @@ export const useEditorStore = create<EditorState>()(
     setPortInverted: (portId, inverted) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (isTemplateDef(s.design, def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (!port) return
         if (inverted) port.inverted = true
@@ -477,6 +505,7 @@ export const useEditorStore = create<EditorState>()(
         if (!instDef) return
         // A port-group pin is derived from the current composite's own port.
         const ownerDef = isPortGroupDef(instDef) ? def : instDef
+        if (isTemplateDef(s.design, ownerDef)) return
         const port = ownerDef.ports.find((p) => p.id === ref.portId)
         if (!port) return
         if (port.inverted) delete port.inverted
@@ -673,15 +702,27 @@ export const useEditorStore = create<EditorState>()(
         s.design = design
         s.selectedIds = newIds
       }),
+    applyTemplateToInstances: (templateId) =>
+      set((s) => {
+        const scope = scopeDefIds(s.design, currentDefId(s))
+        const { design, updated } = applyTemplate(s.design, templateId, scope)
+        s.design = design
+        s.notice = updated > 0 ? `Applied to ${updated} instance(s)` : 'No matching instances'
+      }),
     saveProject: () => {
       const s = get()
       downloadText('design.logica.json', serializeDesign(s.design))
     },
     loadProject: (json) => {
       try {
-        const { design, issues } = sanitizeDesign(withBuiltinPrimitives(parseDesign(json)))
+        const parsed = sanitizeDesign(withBuiltinPrimitives(parseDesign(json)))
+        const { design, issues } = parsed
         if (issues.length > 0) {
           console.warn('Design repaired on load:', issues)
+        }
+        // Migrate: give any composite def missing a lineage id a fresh one.
+        for (const def of Object.values(design.defs)) {
+          if (def.kind === 'composite' && !def.uuid) def.uuid = newUuid()
         }
         set((s) => {
           s.design = design

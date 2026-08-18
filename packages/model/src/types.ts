@@ -52,6 +52,8 @@ export interface ComponentDef {
   connections?: Connection[]
   /** True when this def is an instance-local fork (hidden from the library). */
   variant?: boolean
+  /** Lineage id: shared by a template and every variant copied from it. */
+  uuid?: string
 }
 
 export interface Instance {

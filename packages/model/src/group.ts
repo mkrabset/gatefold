@@ -1,6 +1,6 @@
 import type { ComponentDef, Connection, Design, Instance, PinRef, Port } from './types'
 import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals } from './types'
-import { uniqueId } from './util'
+import { uniqueId, newUuid } from './util'
 import { isPortGroupDef } from './primitives'
 
 /**
@@ -287,7 +287,6 @@ export function applyGroup(
       name,
       direction: 'input',
       terminal: { instanceId: inputGroupId!, pinId: inputPortId(i) },
-      ...(g.inverted ? { inverted: true } : {}),
     })
     for (const t of g.targets) {
       connections.push({
@@ -305,7 +304,6 @@ export function applyGroup(
       name,
       direction: 'output',
       terminal: { instanceId: outputGroupId!, pinId: outputPortId(i) },
-      ...(g.inverted ? { inverted: true } : {}),
     })
     if (g.source) {
       connections.push({
@@ -323,6 +321,7 @@ export function applyGroup(
     ports,
     instances: [...movedInstances, ...portInstances],
     connections,
+    uuid: newUuid(),
   }
 
   const remaining = def.instances?.filter((i) => !movable.has(i.id)) ?? []

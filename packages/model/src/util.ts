@@ -1,5 +1,16 @@
 import type { ComponentDef } from './types'
 
+/** Generate a fresh UUID for a template lineage (browser + node). */
+export function newUuid(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 /** Produce an id/name unique against `existing`: `base`, then `base<sep>2`, `base<sep>3`… */
 export function uniqueId(existing: Set<string>, base: string, sep = '-'): string {
   if (!existing.has(base)) return base

@@ -17,8 +17,11 @@ export function LibraryPanel({ width }: { width: number }) {
   const requestDeleteTemplate = useEditorStore((s) => s.requestDeleteTemplate)
   const exportLibrary = useEditorStore((s) => s.exportLibrary)
   const importLibrary = useEditorStore((s) => s.importLibrary)
+  const applyTemplateToInstances = useEditorStore((s) => s.applyTemplateToInstances)
   const fileRef = useRef<HTMLInputElement>(null)
   const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
+  const activeDef = active ? design.defs[active] : null
+  const activeTemplate = activeDef && activeDef.kind === 'composite' && activeDef.variant !== true && activeDef.id !== design.root ? active : null
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -54,6 +57,11 @@ export function LibraryPanel({ width }: { width: number }) {
         <button className="lib-action" onClick={() => fileRef.current?.click()} title="Import components from JSON">
           Import
         </button>
+        {activeTemplate && (
+          <button className="lib-action" onClick={() => applyTemplateToInstances(activeTemplate)} title="Apply this template's changes to matching instances in the current scope">
+            Apply to instances
+          </button>
+        )}
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportFile} />
       </div>
       {composites.length > 0 && (

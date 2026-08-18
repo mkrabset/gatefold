@@ -10,6 +10,7 @@ interface SortablePortListProps {
   ports: Port[]
   fixed: boolean
   renameAllowed: boolean
+  invertAllowed: boolean
   isConnected: (port: Port) => boolean
   onRename: (id: string, name: string) => void
   onToggleInverted: (id: string, inverted: boolean) => void
@@ -22,7 +23,7 @@ interface SortablePortListProps {
  * @dnd-kit (items slide out of the way during the drag); the final order is committed
  * to the store on drop, computed from the store's current order.
  */
-export function SortablePortList({ direction, ports, fixed, renameAllowed, isConnected, onRename, onToggleInverted, onRemove, onReorder }: SortablePortListProps) {
+export function SortablePortList({ direction, ports, fixed, renameAllowed, invertAllowed, isConnected, onRename, onToggleInverted, onRemove, onReorder }: SortablePortListProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const items = ports.map((p) => p.id)
 
@@ -48,6 +49,7 @@ export function SortablePortList({ direction, ports, fixed, renameAllowed, isCon
             connected={isConnected(port)}
             fixed={fixed}
             renameAllowed={renameAllowed}
+            invertAllowed={invertAllowed}
             onRename={onRename}
             onToggleInverted={onToggleInverted}
             onRemove={onRemove}
@@ -64,6 +66,7 @@ function SortablePortRow({
   connected,
   fixed,
   renameAllowed,
+  invertAllowed,
   onRename,
   onToggleInverted,
   onRemove,
@@ -73,6 +76,7 @@ function SortablePortRow({
   connected: boolean
   fixed: boolean
   renameAllowed: boolean
+  invertAllowed: boolean
   onRename: (id: string, name: string) => void
   onToggleInverted: (id: string, inverted: boolean) => void
   onRemove: (id: string) => void
@@ -109,6 +113,7 @@ function SortablePortRow({
         className="port-invert"
         title="Invert terminal"
         checked={port.inverted === true}
+        disabled={!invertAllowed}
         onChange={(e) => onToggleInverted(port.id, e.target.checked)}
       />
       <button

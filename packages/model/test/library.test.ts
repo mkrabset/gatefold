@@ -100,6 +100,10 @@ describe('importLibrary', () => {
     const result = importLibrary(target, lib)
     expect(result.defs['foo']).toBeDefined()
     expect(result.defs['bar']).toBeDefined()
+    // Imported components get fresh lineage ids.
+    expect(result.defs['foo'].uuid).toBeTruthy()
+    expect(result.defs['bar'].uuid).toBeTruthy()
+    expect(result.defs['foo'].uuid).not.toBe(result.defs['bar'].uuid)
     // Internal nested reference resolves to the imported bar.
     const foo = result.defs['foo']
     expect(foo.instances!.find((i) => i.id === 'b1')!.defId).toBe('bar')

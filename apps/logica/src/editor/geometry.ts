@@ -10,27 +10,25 @@ export { isNeutralPin, pinWidth, undeterminedHint }
  *
  * Composite ports are represented by a single `input-port` / `output-port` instance
  * whose pins are *derived* from the enclosing composite's ports. Functions that need
- * those pins therefore take `parentDef` (the composite currently being edited). Body
- * heights are *dynamic*: they grow to fit the (bus-scaled) pin radii, so terminal
- * circles neither overlap nor stick out above/below the component.
+ * those pins therefore take `parentDef` (the composite currently being edited).
+ *
+ * Terminal placement stacks each side's markers top-to-bottom with a constant gap
+ * between adjacent markers and a fixed padding at the top and bottom, so a bus does
+ * not dictate the spacing of its single-wire neighbours. Body heights grow to fit the
+ * taller of the two sides.
  */
 
 const PORT_GROUP_W = 56
-const PORT_GROUP_SPACING = 24
 const PORT_HIT_RADIUS = 6
-/** Extra world-unit gap between adjacent pin circles. */
-const PIN_GAP = 4
+/** Fixed edge-to-edge gap between adjacent terminal markers. */
+const TERMINAL_GAP = 4
+/** Fixed extra space at the top and bottom of a terminal-bearing side. */
+const SIDE_PADDING = 6
 
 /** Pin marker half-height in world units (pre-zoom) for a terminal of the given width.
  *  Scales linearly so each bus lane keeps a constant pitch. */
 export function pinRadiusWorld(width: number): number {
   return 3.5 * width
-}
-
-/** The y-position of the `index`-th of `total` pins, evenly distributed along `height` around `centerY`. */
-export function distributedY(index: number, total: number, centerY: number, height: number): number {
-  if (total <= 1) return centerY
-  return centerY - height / 2 + ((index + 1) * height) / (total + 1)
 }
 
 /** World-space vertical offsets for each lane of a bus, inset one lane from each end
@@ -42,16 +40,26 @@ export function busWireOffsets(width: number): number[] {
   return Array.from({ length: width }, (_, i) => -r + pitch * (i + 1))
 }
 
-/** Minimum height needed for `total` evenly-distributed pins of max radius to fit. */
-export function neededHeight(total: number, maxRadius: number): number {
-  if (total === 0) return 0
-  if (total === 1) return 2 * maxRadius
-  return (total + 1) * 2 * maxRadius + PIN_GAP
+/** The resolved widths (one per port, in order) of a side's terminals. */
+function widthsOf(design: Design, parentDef: ComponentDef, instanceId: string, ports: Port[]): number[] {
+  return ports.map((p) => pinWidth(design, parentDef, { instanceId, portId: p.id }))
 }
 
-/** Size of a port-group rectangle given its pin count (base size). */
-export function portGroupSize(n: number): { w: number; h: number } {
-  return { w: PORT_GROUP_W, h: Math.max(28, n * PORT_GROUP_SPACING) }
+/** Total height of a terminal side: its markers stacked with a constant gap, plus
+ *  fixed padding at the top and bottom. */
+export function sideHeight(widths: number[]): number {
+  if (widths.length === 0) return 0
+  const markers = widths.reduce((sum, w) => sum + 2 * pinRadiusWorld(w), 0)
+  return 2 * SIDE_PADDING + markers + (widths.length - 1) * TERMINAL_GAP
+}
+
+/** World y of the `index`-th terminal, relative to the side's center (which coincides
+ *  with the instance's center). */
+export function sidePinOffset(widths: number[], index: number): number {
+  const h = sideHeight(widths)
+  let y = -h / 2 + SIDE_PADDING
+  for (let i = 0; i < index; i++) y += 2 * pinRadiusWorld(widths[i]) + TERMINAL_GAP
+  return y + pinRadiusWorld(widths[index])
 }
 
 /** The base body size of a def (before accounting for pin radii). */
@@ -62,18 +70,9 @@ export function defBodySize(def: ComponentDef): { w: number; h: number } {
   return { w: 88, h: 56 }
 }
 
-function maxPinRadius(design: Design, parentDef: ComponentDef, instanceId: string, ports: Port[]): number {
-  let max = 0
-  for (const p of ports) {
-    max = Math.max(max, pinRadiusWorld(pinWidth(design, parentDef, { instanceId, portId: p.id })))
-  }
-  return max
-}
-
-/** Effective size of a port-group rectangle, accounting for pin radii. */
-export function sizeForPorts(n: number, maxRadius: number): { w: number; h: number } {
-  const base = portGroupSize(n)
-  return { w: base.w, h: Math.max(base.h, neededHeight(n, maxRadius)) }
+/** Effective size of a port-group rectangle, accounting for its terminal markers. */
+export function sizeForPorts(widths: number[]): { w: number; h: number } {
+  return { w: PORT_GROUP_W, h: Math.max(28, sideHeight(widths)) }
 }
 
 /** Effective body size of an instance (port group or normal), accounting for pin radii. */
@@ -86,20 +85,19 @@ export function instanceBodySize(
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
-    return sizeForPorts(ports.length, maxPinRadius(design, parentDef, instance.id, ports))
+    return sizeForPorts(widthsOf(design, parentDef, instance.id, ports))
   }
   const base = defBodySize(def)
-  const inR = maxPinRadius(design, parentDef, instance.id, inputPorts(def))
-  const outR = maxPinRadius(design, parentDef, instance.id, outputPorts(def))
-  const h = Math.max(base.h, neededHeight(inputPorts(def).length, inR), neededHeight(outputPorts(def).length, outR))
-  return { w: base.w, h }
+  const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
+  const outH = sideHeight(widthsOf(design, parentDef, instance.id, outputPorts(def)))
+  return { w: base.w, h: Math.max(base.h, inH, outH) }
 }
 
 /**
  * World position of a port pin on an instance. For a normal instance, inputs are
- * distributed along the left edge and outputs along the right. For a port group, the
- * pins come from the parent composite's ports of the matching direction (inputs on
- * the right edge for `input-port`, on the left for `output-port`).
+ * stacked along the left edge and outputs along the right. For a port group, the pins
+ * come from the parent composite's ports of the matching direction (inputs on the
+ * right edge for `input-port`, on the left for `output-port`).
  */
 export function portPosition(
   design: Design,
@@ -112,23 +110,21 @@ export function portPosition(
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     const idx = ports.findIndex((p) => p.id === portId)
-    const n = ports.length
-    const { w, h } = sizeForPorts(n, maxPinRadius(design, parentDef, instance.id, ports))
-    const y = distributedY(idx, n, instance.pos.y, h)
+    const widths = widthsOf(design, parentDef, instance.id, ports)
+    const { w } = sizeForPorts(widths)
+    const y = instance.pos.y + sidePinOffset(widths, idx)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
   }
 
-  const { w, h } = instanceBodySize(design, parentDef, instance, def)
+  const { w } = instanceBodySize(design, parentDef, instance, def)
   const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
-    const total = inputPorts(def).length
-    const y = distributedY(inIdx, total, instance.pos.y, h)
-    return { x: instance.pos.x - w / 2, y }
+    const widths = widthsOf(design, parentDef, instance.id, inputPorts(def))
+    return { x: instance.pos.x - w / 2, y: instance.pos.y + sidePinOffset(widths, inIdx) }
   }
   const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
-  const total = outputPorts(def).length
-  const y = distributedY(outIdx, total, instance.pos.y, h)
-  return { x: instance.pos.x + w / 2, y }
+  const widths = widthsOf(design, parentDef, instance.id, outputPorts(def))
+  return { x: instance.pos.x + w / 2, y: instance.pos.y + sidePinOffset(widths, outIdx) }
 }
 
 export interface Bounds {

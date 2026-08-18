@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ComponentDef, Design, Port } from '@logica/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
-import { defBodySize, instanceBodySize, isNeutralPin, neededHeight, pinRadiusWorld, pinWidth, portPosition } from './geometry'
+import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, portPosition, sideHeight, sidePinOffset } from './geometry'
 import { connectionError } from './widths'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
@@ -215,10 +215,18 @@ describe('bus-split / bus-merge derived width', () => {
 })
 
 describe('dynamic body sizing', () => {
-  it('computes the height needed to fit a stack of pins', () => {
-    expect(neededHeight(0, 10)).toBe(0)
-    expect(neededHeight(1, 10)).toBe(20)
-    expect(neededHeight(2, 10)).toBe(3 * 2 * 10 + 4)
+  it('stacks terminal markers with a constant gap and fixed padding', () => {
+    expect(sideHeight([])).toBe(0)
+    expect(sideHeight([1])).toBe(2 * 6 + 2 * pinRadiusWorld(1))
+    expect(sideHeight([1, 1])).toBe(2 * 6 + 4 * pinRadiusWorld(1) + 4)
+  })
+
+  it('keeps the gap between adjacent markers constant regardless of arity', () => {
+    const widths = [16, 1, 1]
+    const y = widths.map((_, i) => sidePinOffset(widths, i))
+    const gap = (i: number, j: number) => y[j] - pinRadiusWorld(widths[j]) - (y[i] + pinRadiusWorld(widths[i]))
+    expect(gap(0, 1)).toBe(4)
+    expect(gap(1, 2)).toBe(4)
   })
 
   it('grows a bus-split body and spaces its outputs for high arity', () => {

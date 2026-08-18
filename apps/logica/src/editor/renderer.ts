@@ -2,13 +2,13 @@ import type {ComponentDef, Design, Instance, Palette, PinRef, Port} from '@logic
 import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
 import {
     busWireOffsets,
-    distributedY,
     instanceBodySize,
     instanceBounds,
     isNeutralPin,
     pinRadiusWorld,
     pinWidth,
     portPosition,
+    sidePinOffset,
     sizeForPorts,
     undeterminedHint,
 } from './geometry'
@@ -316,9 +316,8 @@ function drawPortGroupBox(
     p: Palette,
     bg: string,
 ) {
-    const n = ports.length
-    const rMax = ports.reduce((m, p) => Math.max(m, pinRadiusWorld(widthFor(p))), 0)
-    const {w, h} = sizeForPorts(n, rMax)
+    const widths = ports.map(widthFor)
+    const {w, h} = sizeForPorts(widths)
     const b = {x: pos.x - w / 2, y: pos.y - h / 2, w, h}
 
     if (selected) {
@@ -342,7 +341,7 @@ function drawPortGroupBox(
     ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
     ctx.textBaseline = 'middle'
     ports.forEach((port, idx) => {
-        const y = distributedY(idx, n, pos.y, h)
+        const y = pos.y + sidePinOffset(widths, idx)
         const x = pos.x + (isInput ? w / 2 : -w / 2)
         const s = w2s(x, y, cw, ch, vp)
         drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg)

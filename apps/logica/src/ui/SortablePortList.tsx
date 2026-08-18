@@ -1,9 +1,9 @@
-import { useRef } from 'react'
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Port } from '@logica/model'
+import { CommitInput } from './CommitInput'
 
 interface SortablePortListProps {
   direction: 'input' | 'output'
@@ -78,7 +78,6 @@ function SortablePortRow({
   onRemove: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
-  const inputRef = useRef<HTMLInputElement>(null)
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -91,30 +90,19 @@ function SortablePortRow({
       ? `${port.name} is connected`
       : `Remove ${port.name}`
 
-  const commit = () => {
-    if (!renameAllowed) return
-    const value = inputRef.current?.value.trim()
-    if (value) onRename(port.id, value)
-  }
-
   return (
     <div ref={setNodeRef} style={style} className="port-row">
       <span ref={setActivatorNodeRef} {...attributes} {...listeners} className="drag-handle" title="Drag to reorder">
         ⣿
       </span>
-      <input
-        ref={inputRef}
+      <CommitInput
         defaultValue={port.name}
         title={port.name}
         readOnly={!renameAllowed}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            commit()
-            e.currentTarget.blur()
-          }
+        onCommit={(value) => {
+          const v = value.trim()
+          if (v) onRename(port.id, v)
         }}
-        onBlur={commit}
       />
       <input
         type="checkbox"

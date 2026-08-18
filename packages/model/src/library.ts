@@ -1,6 +1,7 @@
 import type { ComponentDef, Design } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isComponentDef, isRecord } from './serialize'
+import { collectClosure, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Export/import of the custom component library. A library file is the set of
@@ -16,16 +17,9 @@ export interface LibraryFile {
   components: ComponentDef[]
 }
 
-function nextId(existing: Set<string>, base: string): string {
-  if (!existing.has(base)) return base
-  let i = 2
-  while (existing.has(`${base}~${i}`)) i++
-  return `${base}~${i}`
-}
+const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base, '~')
 
-function isPrimitiveDef(def: ComponentDef | undefined): boolean {
-  return !!def && def.kind === 'primitive'
-}
+const isPrimitiveDef = (def: ComponentDef | undefined): boolean => !!def && def.kind === 'primitive'
 
 /**
  * Collect the library's template composites and their composite def closure, deep-cloned
@@ -37,15 +31,7 @@ export function exportLibrary(design: Design): LibraryFile {
     (d) => d.kind === 'composite' && d.id !== design.root && !d.variant,
   )
 
-  const closure = new Set<string>()
-  const visit = (defId: string) => {
-    if (closure.has(defId)) return
-    const def = design.defs[defId]
-    if (isPrimitiveDef(def)) return
-    closure.add(defId)
-    for (const inst of def.instances ?? []) visit(inst.defId)
-  }
-  for (const r of roots) visit(r.id)
+  const closure = collectClosure(design.defs, roots.map((r) => r.id), isPrimitiveDef)
 
   const components: ComponentDef[] = []
   for (const id of closure) {
@@ -111,10 +97,7 @@ export function importLibrary(design: Design, lib: LibraryFile): Design {
     delete def.variant
     def.name = nextId(usedNames, def.name || 'component')
     usedNames.add(def.name)
-    for (const inst of def.instances ?? []) {
-      const mapped = idMap.get(inst.defId)
-      if (mapped) inst.defId = mapped
-    }
+    remapInstanceDefs(def, idMap)
     result.defs[def.id] = def
   }
 

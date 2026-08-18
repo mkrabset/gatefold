@@ -1,6 +1,6 @@
 import type { Port } from '../types'
 import { inputPortId, outputPortId } from '../types'
-import { countOutputs, Gate } from './gate'
+import { countOutputs, drawBusTrapezoidLeft, Gate } from './gate'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -33,21 +33,6 @@ export class FanOut extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { x: cx, y: cy, w, h, palette } = opts
-    const l = cx - w / 2
-    const r = cx + w / 2
-    const t = cy - h / 2
-    const b = cy + h / 2
-    // Trapezoid widening from the bus input on the left toward the outputs; the neck
-    // grows with the bus pin so the terminal stays flush within the shape.
-    const neck = Math.max(8, opts.pinRadius?.('in:0') ?? 0)
-    ctx.beginPath()
-    ctx.moveTo(l, cy - neck)
-    ctx.lineTo(r, t)
-    ctx.lineTo(r, b)
-    ctx.lineTo(l, cy + neck)
-    ctx.closePath()
-    ctx.fill(palette.gateFill)
-    ctx.stroke(palette.gateStroke, 1.5)
+    drawBusTrapezoidLeft(ctx, opts, 8, 'in:0')
   }
 }

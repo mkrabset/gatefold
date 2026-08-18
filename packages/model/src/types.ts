@@ -116,6 +116,11 @@ export function pinRefEquals(a: PinRef, b: PinRef): boolean {
   return a.instanceId === b.instanceId && a.portId === b.portId
 }
 
+/** Canonical string key for a connection endpoint (instance + port). */
+export function pinKey(ref: PinRef): string {
+  return `${ref.instanceId}:${ref.portId}`
+}
+
 /**
  * The connection currently driving the sink `to`, or null. Enforces the
  * single-driver invariant: each input pin / composite output port has at most one

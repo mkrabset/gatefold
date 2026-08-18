@@ -1,5 +1,5 @@
 import type { ComponentDef, Design, PinRef, Port } from '@logica/model'
-import { primitiveOf } from '@logica/model'
+import { pinKey, primitiveOf } from '@logica/model'
 
 /**
  * Bus-width resolution. Widths are derived (never stored) from a system of constraints
@@ -14,8 +14,6 @@ export interface SheetWidths {
   invalid: boolean
   reason?: 'conflict' | 'non-integer'
 }
-
-const pinKey = (ref: PinRef): string => `${ref.instanceId}:${ref.portId}`
 
 const cache = new WeakMap<Design, Map<string, SheetWidths>>()
 

@@ -1,6 +1,7 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port} from '@logica/model'
-import {inputPorts, isPortGroupDef, outputPorts, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
+import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
 import {
+    distributedY,
     instanceBodySize,
     instanceBounds,
     isNeutralPin,
@@ -340,7 +341,7 @@ function drawPortGroupBox(
     ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
     ctx.textBaseline = 'middle'
     ports.forEach((port, idx) => {
-        const y = n <= 1 ? pos.y : pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
+        const y = distributedY(idx, n, pos.y, h)
         const x = pos.x + (isInput ? w / 2 : -w / 2)
         const s = w2s(x, y, cw, ch, vp)
         drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg)
@@ -354,10 +355,6 @@ function drawPortGroupBox(
             ctx.fillText(port.name, s.x + offset, s.y)
         }
     })
-}
-
-function pinKey(ref: PinRef): string {
-    return `${ref.instanceId}:${ref.portId}`
 }
 
 export function drawScene(

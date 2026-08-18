@@ -1,5 +1,6 @@
 import type { ComponentDef, Connection, Design, Instance, PinRef, Port } from './types'
-import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinRefEquals } from './types'
+import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals } from './types'
+import { uniqueId } from './util'
 import { isPortGroupDef } from './primitives'
 
 /**
@@ -48,18 +49,9 @@ export interface InferredGroup {
   outputs: InferredOutput[]
 }
 
-function pinKey(ref: PinRef): string {
-  return `${ref.instanceId}:${ref.portId}`
-}
-
 // Produce a name/id that is unique against a set of existing ones, e.g. "component",
 // "component-2", "component-3"…
-function nextId(existing: Set<string>, base: string): string {
-  if (!existing.has(base)) return base
-  let i = 2
-  while (existing.has(`${base}-${i}`)) i++
-  return `${base}-${i}`
-}
+const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base)
 
 // The transformation below clones the design so `applyGroup` stays a pure function
 // (no mutation of its input). These helpers do a manual deep clone of the model.
@@ -90,6 +82,17 @@ export function cloneDesign(design: Design): Design {
   }
 }
 
+/** Predicate: is `instanceId` a port-group instance (input-port / output-port)? */
+function portGroupInstPredicate(instances: Instance[], defs: Record<string, ComponentDef>): (instanceId: string) => boolean {
+  const byId = new Map(instances.map((i) => [i.id, i]))
+  return (instanceId) => {
+    const inst = byId.get(instanceId)
+    if (!inst) return false
+    const idef = defs[inst.defId]
+    return !!idef && isPortGroupDef(idef)
+  }
+}
+
 /**
  * Classify the connections of `defId` relative to the selected instances and infer the
  * composite's input/output ports from the wires crossing the selection boundary, plus
@@ -103,13 +106,7 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
   const inputs = new Map<string, InferredInput>()
   const outputs = new Map<string, InferredOutput>()
 
-  const byId = new Map((def.instances ?? []).map((i) => [i.id, i]))
-  const isPortGroupInst = (instanceId: string): boolean => {
-    const inst = byId.get(instanceId)
-    if (!inst) return false
-    const idef = design.defs[inst.defId]
-    return !!idef && isPortGroupDef(idef)
-  }
+  const isPortGroupInst = portGroupInstPredicate(def.instances ?? [], design.defs)
 
   // If the parent's input-port / output-port instance is included, the new component
   // inherits the parent's interface (count + names) instead of inferring it from wiring.
@@ -245,13 +242,7 @@ export function applyGroup(
 
   // Port-group instances are not moved into the new component — they stay in the
   // parent and define the interface instead.
-  const byId = new Map((def.instances ?? []).map((i) => [i.id, i]))
-  const isPortGroupInst = (instanceId: string): boolean => {
-    const inst = byId.get(instanceId)
-    if (!inst) return false
-    const idef = result.defs[inst.defId]
-    return !!idef && isPortGroupDef(idef)
-  }
+  const isPortGroupInst = portGroupInstPredicate(def.instances ?? [], result.defs)
   const movable = new Set(instanceIds.filter((id) => !isPortGroupInst(id)))
 
   const existingNames = new Set(Object.values(result.defs).map((d) => d.name))

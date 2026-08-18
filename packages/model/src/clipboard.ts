@@ -1,6 +1,7 @@
 import type { ComponentDef, Connection, Design, Instance } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isPortGroupDef } from './primitives'
+import { collectClosure, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Copy/paste primitives. A clipboard is a self-contained snapshot: a set of
@@ -17,12 +18,7 @@ export interface Clipboard {
   connections: Connection[]
 }
 
-function nextId(existing: Set<string>, base: string): string {
-  if (!existing.has(base)) return base
-  let i = 2
-  while (existing.has(`${base}~${i}`)) i++
-  return `${base}~${i}`
-}
+const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base, '~')
 
 /**
  * Deep-copy a set of root defs and their transitive closure into fresh, unique defs.
@@ -34,17 +30,7 @@ export function copyDefSubgraph(
   rootIds: string[],
   usedIds: Set<string>,
 ): { defs: Record<string, ComponentDef>; idMap: Map<string, string> } {
-  const closure = new Set<string>()
-  const visit = (defId: string) => {
-    if (closure.has(defId)) return
-    const def = defs[defId]
-    if (!def || isPortGroupDef(def)) return
-    closure.add(defId)
-    for (const inst of def.instances ?? []) {
-      visit(inst.defId)
-    }
-  }
-  for (const id of rootIds) visit(id)
+  const closure = collectClosure(defs, rootIds, (def) => isPortGroupDef(def))
 
   const idMap = new Map<string, string>()
   for (const oldId of closure) {
@@ -58,10 +44,7 @@ export function copyDefSubgraph(
     const def = cloneDef(defs[oldId])
     def.id = idMap.get(oldId)!
     def.variant = true
-    for (const inst of def.instances ?? []) {
-      const mapped = idMap.get(inst.defId)
-      if (mapped) inst.defId = mapped
-    }
+    remapInstanceDefs(def, idMap)
     result[def.id] = def
   }
 

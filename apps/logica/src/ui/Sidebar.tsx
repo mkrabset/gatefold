@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
 import type { PropertySpec } from '@logica/model'
 import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, outputPorts, primitiveOf } from '@logica/model'
+import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 
 /**
@@ -47,15 +48,6 @@ function TreeItem(props: TreeItemProps) {
   )
 }
 
-const GLYPHS: Record<string, string> = {
-  and: '&',
-  or: '≥1',
-  xor: '=1',
-  not: '1',
-  buffer: '▷',
-  clock: '∿',
-}
-
 function CompositeChildren({ def, depth, selectId, onOpen }: {
   def: ComponentDef
   depth: number
@@ -72,7 +64,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
         const childDef = design.defs[inst.defId]
         const isComposite = childDef?.kind === 'composite'
         const isExpanded = expanded[inst.id] ?? false
-        const icon = childDef?.primitive ? GLYPHS[childDef.primitive] ?? '·' : '▣'
+        const icon = childDef?.primitive ? primitiveOf(childDef.primitive).glyph : '▣'
         return (
           <div key={inst.id}>
             <TreeItem
@@ -224,25 +216,13 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
 /** Instance name input that commits on Enter or blur. */
 function NameField({ id, initial }: { id: string; initial: string }) {
   const renameInstance = useEditorStore((s) => s.renameInstance)
-  const ref = useRef<HTMLInputElement>(null)
-
-  const commit = () => {
-    const value = ref.current?.value.trim()
-    if (value) renameInstance(id, value)
-  }
-
   return (
-    <input
-      ref={ref}
+    <CommitInput
       defaultValue={initial}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          commit()
-          e.currentTarget.blur()
-        }
+      onCommit={(value) => {
+        const v = value.trim()
+        if (v) renameInstance(id, v)
       }}
-      onBlur={commit}
     />
   )
 }
@@ -250,25 +230,13 @@ function NameField({ id, initial }: { id: string; initial: string }) {
 /** Composite-template name input that commits on Enter or blur. */
 function DefNameField({ defId, initial }: { defId: string; initial: string }) {
   const renameDef = useEditorStore((s) => s.renameDef)
-  const ref = useRef<HTMLInputElement>(null)
-
-  const commit = () => {
-    const value = ref.current?.value.trim()
-    if (value) renameDef(defId, value)
-  }
-
   return (
-    <input
-      ref={ref}
+    <CommitInput
       defaultValue={initial}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          commit()
-          e.currentTarget.blur()
-        }
+      onCommit={(value) => {
+        const v = value.trim()
+        if (v) renameDef(defId, v)
       }}
-      onBlur={commit}
     />
   )
 }
@@ -276,63 +244,36 @@ function DefNameField({ defId, initial }: { defId: string; initial: string }) {
 /** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */
 function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: PropertySpec; value: unknown }) {
   const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
-  const ref = useRef<HTMLInputElement>(null)
-
-  const commit = () => {
-    const el = ref.current
-    if (!el) return
-    if (spec.type === 'boolean') {
-      setInstanceProp(instanceId, spec.name, el.checked)
-    } else if (spec.type === 'number') {
-      const n = Number(el.value)
-      if (Number.isNaN(n)) return
-      let v = n
-      if (spec.min !== undefined) v = Math.max(spec.min, v)
-      if (spec.max !== undefined) v = Math.min(spec.max, v)
-      setInstanceProp(instanceId, spec.name, v)
-    } else {
-      setInstanceProp(instanceId, spec.name, el.value)
-    }
-  }
 
   if (spec.type === 'boolean') {
-    return <input ref={ref} type="checkbox" defaultChecked={value === true} onChange={commit} />
+    return (
+      <input
+        type="checkbox"
+        defaultChecked={value === true}
+        onChange={(e) => setInstanceProp(instanceId, spec.name, e.target.checked)}
+      />
+    )
   }
   if (spec.type === 'number') {
     return (
-      <input
-        ref={ref}
+      <CommitInput
         type="number"
         defaultValue={String(value)}
         min={spec.min}
         max={spec.max}
         step={spec.step}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            commit()
-            e.currentTarget.blur()
-          }
+        onCommit={(raw) => {
+          const n = Number(raw)
+          if (Number.isNaN(n)) return
+          let v = n
+          if (spec.min !== undefined) v = Math.max(spec.min, v)
+          if (spec.max !== undefined) v = Math.min(spec.max, v)
+          setInstanceProp(instanceId, spec.name, v)
         }}
-        onBlur={commit}
       />
     )
   }
-  return (
-    <input
-      ref={ref}
-      type="text"
-      defaultValue={String(value ?? '')}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          commit()
-          e.currentTarget.blur()
-        }
-      }}
-      onBlur={commit}
-    />
-  )
+  return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setInstanceProp(instanceId, spec.name, raw)} />
 }
 
 function PortsEditor() {

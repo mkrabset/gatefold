@@ -1,6 +1,6 @@
 import type { Port } from '../types'
 import { outputPortId } from '../types'
-import { Gate } from './gate'
+import { Gate, fillAndStroke, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -28,14 +28,11 @@ export class Clock extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { x: cx, y: cy, w, h, palette } = opts
-    const l = cx - w / 2
-    const r = cx + w / 2
-    const t = cy - h / 2
+    const { l, r, t, cy } = gateBounds(opts)
+    const { w, h } = opts
     ctx.beginPath()
     ctx.roundRect(l, t, w, h, 6)
-    ctx.fill(palette.gateFill)
-    ctx.stroke(palette.gateStroke, 1.5)
+    fillAndStroke(ctx, opts.palette)
     // Sine-wave glyph.
     ctx.beginPath()
     for (let x = l + 8; x <= r - 8; x += 1) {
@@ -43,6 +40,6 @@ export class Clock extends Gate {
       if (x === l + 8) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
     }
-    ctx.stroke(palette.pin, 1.5)
+    ctx.stroke(opts.palette.pin, 1.5)
   }
 }

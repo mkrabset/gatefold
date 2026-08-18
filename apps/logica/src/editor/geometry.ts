@@ -26,6 +26,12 @@ export function pinRadiusWorld(width: number): number {
   return 3.5 * Math.sqrt(width)
 }
 
+/** The y-position of the `index`-th of `total` pins, evenly distributed along `height` around `centerY`. */
+export function distributedY(index: number, total: number, centerY: number, height: number): number {
+  if (total <= 1) return centerY
+  return centerY - height / 2 + ((index + 1) * height) / (total + 1)
+}
+
 /** Minimum height needed for `total` evenly-distributed pins of max radius to fit. */
 export function neededHeight(total: number, maxRadius: number): number {
   if (total === 0) return 0
@@ -98,7 +104,7 @@ export function portPosition(
     const idx = ports.findIndex((p) => p.id === portId)
     const n = ports.length
     const { w, h } = sizeForPorts(n, maxPinRadius(design, parentDef, instance.id, ports))
-    const y = n <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((idx + 1) * h) / (n + 1)
+    const y = distributedY(idx, n, instance.pos.y, h)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
   }
 
@@ -106,12 +112,12 @@ export function portPosition(
   const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
     const total = inputPorts(def).length
-    const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((inIdx + 1) * h) / (total + 1)
+    const y = distributedY(inIdx, total, instance.pos.y, h)
     return { x: instance.pos.x - w / 2, y }
   }
   const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
   const total = outputPorts(def).length
-  const y = total <= 1 ? instance.pos.y : instance.pos.y - h / 2 + ((outIdx + 1) * h) / (total + 1)
+  const y = distributedY(outIdx, total, instance.pos.y, h)
   return { x: instance.pos.x + w / 2, y }
 }
 

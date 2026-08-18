@@ -32,6 +32,7 @@ import {
   sanitizeDesign,
   serializeDesign,
   serializeLibrary,
+  uniqueId,
   withBuiltinPrimitives,
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
@@ -176,12 +177,7 @@ export function endMoveTransaction(): void {
 }
 
 // Small helper for generating a name/id that is unique among a set of existing ones.
-function uniqueAgainst(existing: Set<string>, base: string): string {
-  if (!existing.has(base)) return base
-  let i = 2
-  while (existing.has(`${base}${i}`)) i++
-  return `${base}${i}`
-}
+const uniqueAgainst = (existing: Set<string>, base: string): string => uniqueId(existing, base, '')
 
 // Default placement for a newly-added port group: just outside the component bounds
 // (inputs to the left of the leftmost component, outputs to the right of the rightmost).
@@ -194,7 +190,7 @@ function portPlacement(def: ComponentDef, design: Design, direction: PortDirecti
   for (const inst of insts) {
     const instDef = design.defs[inst.defId]
     // Ignore existing port groups so placement is relative to real components only.
-    if (instDef.primitive === 'input-port' || instDef.primitive === 'output-port') continue
+    if (isPortGroupDef(instDef)) continue
     const b = instanceBounds(design, def, inst, instDef)
     minX = Math.min(minX, b.x)
     maxX = Math.max(maxX, b.x + b.w)
@@ -649,7 +645,7 @@ export const useEditorStore = create<EditorState>()(
           if (!inst) continue
           const instDef = s.design.defs[inst.defId]
           if (!instDef) continue
-          const isPortGroup = instDef.primitive === 'input-port' || instDef.primitive === 'output-port'
+          const isPortGroup = isPortGroupDef(instDef)
           if (!isPortGroup) deleted.add(id)
         }
         def.instances = (def.instances ?? []).filter((i) => !deleted.has(i.id))

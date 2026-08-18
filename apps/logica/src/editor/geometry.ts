@@ -21,15 +21,25 @@ const PORT_HIT_RADIUS = 6
 /** Extra world-unit gap between adjacent pin circles. */
 const PIN_GAP = 4
 
-/** Pin circle radius in world units (pre-zoom) for a terminal of the given width. */
+/** Pin marker half-height in world units (pre-zoom) for a terminal of the given width.
+ *  Scales linearly so each bus lane keeps a constant pitch. */
 export function pinRadiusWorld(width: number): number {
-  return 3.5 * Math.sqrt(width)
+  return 3.5 * width
 }
 
 /** The y-position of the `index`-th of `total` pins, evenly distributed along `height` around `centerY`. */
 export function distributedY(index: number, total: number, centerY: number, height: number): number {
   if (total <= 1) return centerY
   return centerY - height / 2 + ((index + 1) * height) / (total + 1)
+}
+
+/** World-space vertical offsets for each lane of a bus, inset one lane from each end
+ *  of the marker (spread as if the bus were `width + 2` lanes wide). */
+export function busWireOffsets(width: number): number[] {
+  if (width <= 1) return [0]
+  const r = pinRadiusWorld(width)
+  const pitch = (2 * r) / (width + 1)
+  return Array.from({ length: width }, (_, i) => -r + pitch * (i + 1))
 }
 
 /** Minimum height needed for `total` evenly-distributed pins of max radius to fit. */

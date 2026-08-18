@@ -1,6 +1,7 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port} from '@logica/model'
 import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
 import {
+    busWireOffsets,
     distributedY,
     instanceBodySize,
     instanceBounds,
@@ -470,8 +471,23 @@ export function drawScene(
             }
             continue
         }
-        for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, bg, (WIRE_WIDTH * t.width + HALO_WIDTH * 2) * vp.zoom)
-        for (const t of traces) strokeWire(ctx, t.s, t.c1, t.c2, t.e, p.wire, WIRE_WIDTH * t.width * vp.zoom)
+        // Render each bus as its individual single wires, spread vertically across the
+        // pin marker (first lane at the top, last at the bottom). Control points move
+        // with their endpoint, keeping the same horizontal offset as a single wire.
+        const wires: { s: { x: number; y: number }; c1: { x: number; y: number }; c2: { x: number; y: number }; e: { x: number; y: number } }[] = []
+        for (const t of traces) {
+            for (const dy of busWireOffsets(t.width)) {
+                const o = dy * vp.zoom
+                wires.push({
+                    s: { x: t.s.x, y: t.s.y + o },
+                    c1: { x: t.c1.x, y: t.c1.y + o },
+                    c2: { x: t.c2.x, y: t.c2.y + o },
+                    e: { x: t.e.x, y: t.e.y + o },
+                })
+            }
+        }
+        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, bg, (WIRE_WIDTH + HALO_WIDTH * 2) * vp.zoom)
+        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, p.wire, WIRE_WIDTH * vp.zoom)
     }
 
     // Preview of a wire currently being drawn (dashed, accent color).

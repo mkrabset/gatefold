@@ -11,8 +11,8 @@ export interface Palette {
   compositeFill: string
   pin: string
   pinHover: string
-  portHover: string
-  grabHover: string
+  /** Hovered-terminal marker highlight. */
+  pinHighlight: string
   selection: string
   text: string
   /** Canvas background while editing a composite template. */

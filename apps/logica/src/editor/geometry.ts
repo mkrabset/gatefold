@@ -183,7 +183,13 @@ export function hitTestPort(
   let best: PortHit | null = null
   let bestDist = Infinity
   const consider = (ref: PinRef, pos: { x: number; y: number }, role: 'source' | 'sink') => {
-    const d = Math.hypot(wx - pos.x, wy - pos.y)
+    // Distance to the terminal marker (a vertical segment of half-height r): anywhere
+    // along the marker counts, not just its centre.
+    const r = pinRadiusWorld(pinWidth(design, parentDef, ref))
+    let d: number
+    if (wy < pos.y - r) d = Math.hypot(wx - pos.x, wy - (pos.y - r))
+    else if (wy > pos.y + r) d = Math.hypot(wx - pos.x, wy - (pos.y + r))
+    else d = Math.abs(wx - pos.x)
     if (d <= PORT_HIT_RADIUS && d < bestDist) {
       bestDist = d
       best = { ref, role }

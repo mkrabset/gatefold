@@ -81,20 +81,12 @@ export interface PendingWire {
   originalId?: string
 }
 
-export type HoverAction = 'create' | 'grab' | 'inspect'
-
-/** The port currently under the cursor, and what pressing there would do. */
-export interface HoverPort {
-  ref: PinRef
-  action: HoverAction
-}
-
 interface EditorState {
   viewport: Viewport
   selectedIds: string[]
   marquee: Rect | null
   pendingWire: PendingWire | null
-  hoverPort: HoverPort | null
+  hoverPort: PinRef | null
   notice: string | null
   navStack: string[]
   design: Design
@@ -106,7 +98,7 @@ interface EditorState {
   setInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
   setMarquee: (rect: Rect | null) => void
   setPendingWire: (wire: PendingWire | null) => void
-  setHoverPort: (hover: HoverPort | null) => void
+  setHoverPort: (hover: PinRef | null) => void
   setNotice: (message: string) => void
   clearNotice: () => void
   navigateTo: (defId: string) => void

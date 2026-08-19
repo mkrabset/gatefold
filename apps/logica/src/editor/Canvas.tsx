@@ -159,22 +159,13 @@ export function Canvas() {
       const state = useEditorStore.getState()
       const d = drag
 
-      // Idle hover: highlight a port and indicate what pressing it would do —
-      // an output starts a new wire (yellow), an input that already has a wire
-      // grabs it (orange).
+      // Idle hover: highlight the terminal marker under the cursor.
       if (!d) {
         const rect = wrap.getBoundingClientRect()
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         const def = state.design.defs[currentDefId(state)]
         const port = hitTestPort(w.x, w.y, currentInstances(), state.design, def)
-        if (!port) {
-          state.setHoverPort(null)
-        } else if (port.role === 'source') {
-          state.setHoverPort({ ref: port.ref, action: 'create' })
-        } else {
-          const hasWire = findConnectionTo(def.connections ?? [], port.ref)
-          state.setHoverPort({ ref: port.ref, action: hasWire ? 'grab' : 'inspect' })
-        }
+        state.setHoverPort(port ? port.ref : null)
         return
       }
 
@@ -237,7 +228,7 @@ export function Canvas() {
           // released to connect (or re-target) there.
           const def = state.design.defs[currentDefId(state)]
           const target = hitTestPort(cur.x, cur.y, currentInstances(), state.design, def)
-          state.setHoverPort(target && target.role === 'sink' ? { ref: target.ref, action: 'create' } : null)
+          state.setHoverPort(target && target.role === 'sink' ? target.ref : null)
         }
       }
     }
@@ -331,7 +322,7 @@ export function Canvas() {
         const hover = useEditorStore.getState().hoverPort
         if (hover) {
           e.preventDefault()
-          useEditorStore.getState().togglePinInversion(hover.ref)
+          useEditorStore.getState().togglePinInversion(hover)
         }
       }
     }

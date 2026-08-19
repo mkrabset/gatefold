@@ -14,7 +14,7 @@ import {
 } from './geometry'
 import {wirePath} from './routing'
 import {canvasVectorContext} from './canvasVector'
-import type {HoverPort, PendingWire, Rect, Viewport} from '../state/editorStore'
+import type {PendingWire, Rect, Viewport} from '../state/editorStore'
 
 /**
  * Canvas renderer. `drawScene` is a pure-ish function of the current design,
@@ -75,9 +75,10 @@ function drawPin(
     vp: Viewport,
     p: Palette,
     bg: string,
+    hovered: boolean,
 ) {
     const radius = pinRadius(width, vp.zoom)
-    ctx.strokeStyle = color
+    ctx.strokeStyle = hovered ? p.pinHighlight : color
     ctx.lineWidth = 4 * vp.zoom
     ctx.beginPath()
     ctx.moveTo(s.x, s.y - radius)
@@ -174,12 +175,14 @@ function drawPorts(
     vp: Viewport,
     p: Palette,
     bg: string,
+    hoverPort: PinRef | null,
 ) {
     const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
         const pos = portPosition(design, parentDef, instance, def, port.id)
         const s = w2s(pos.x, pos.y, w, h, vp)
         const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-        drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg)
+        const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
+        drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered)
     }
 
     for (const port of inputPorts(def)) drawPort(port, p.pin, true)
@@ -198,6 +201,7 @@ function drawInstance(
     selected: boolean,
     p: Palette,
     bg: string,
+    hoverPort: PinRef | null,
 ) {
     const {w, h} = instanceBodySize(design, parentDef, instance, def)
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
@@ -278,7 +282,7 @@ function drawInstance(
         ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
     }
 
-    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg)
+    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort)
 }
 
 
@@ -299,11 +303,12 @@ function drawPortGroup(
     selected: boolean,
     p: Palette,
     bg: string,
+    hoverPort: PinRef | null,
 ) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     const widthFor = (port: Port) => pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg)
+    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id)
 }
 
 /** Core port-group drawing, given the pins, their position, and a width resolver. */
@@ -319,6 +324,8 @@ function drawPortGroupBox(
     selected: boolean,
     p: Palette,
     bg: string,
+    hoverPort: PinRef | null,
+    instanceId: string,
 ) {
     const widths = ports.map(widthFor)
     const {w, h} = sizeForPorts(widths)
@@ -348,7 +355,8 @@ function drawPortGroupBox(
         const y = pos.y + sidePinOffset(widths, idx)
         const x = pos.x + (isInput ? w / 2 : -w / 2)
         const s = w2s(x, y, cw, ch, vp)
-        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg)
+        const hovered = !!hoverPort && hoverPort.instanceId === instanceId && hoverPort.portId === port.id
+        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg, hovered)
         const offset = PIN_LABEL_GAP * vp.zoom
         ctx.fillStyle = p.text
         if (isInput) {
@@ -372,7 +380,7 @@ export function drawScene(
     editingTemplate: boolean,
     marquee: Rect | null,
     pendingWire: PendingWire | null,
-    hoverPort: HoverPort | null,
+    hoverPort: PinRef | null,
     p: Palette,
 ) {
     const def = design.defs[defId]
@@ -407,11 +415,11 @@ export function drawScene(
         drawPortGroupBox(ctx, true, inputPorts(def), {
             x: vp.x - W / 2 - margin,
             y: vp.y
-        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg)
+        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg, null, '')
         drawPortGroupBox(ctx, false, outputPorts(def), {
             x: vp.x + W / 2 + margin,
             y: vp.y
-        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg)
+        }, (port) => portWidth(def, port), cw, ch, vp, false, p, bg, null, '')
         return
     }
 
@@ -493,22 +501,31 @@ export function drawScene(
         for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, p.wire, WIRE_WIDTH * vp.zoom)
     }
 
-    // Preview of a wire currently being drawn (dashed, accent color).
+    // Preview of a wire currently being drawn (dashed, accent color). A bus drag draws
+    // one dashed lane per wire: they spread across the source marker and either spread
+    // across a hovered sink marker or converge on the cursor.
     if (pendingWire) {
         const a = resolveEndpoint(pendingWire.from)
         if (a) {
-            const path = wirePath(a, {x: pendingWire.x, y: pendingWire.y})
-            const s = w2s(path.start.x, path.start.y, cw, ch, vp)
-            const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
-            const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)
-            const e = w2s(path.end.x, path.end.y, cw, ch, vp)
-            ctx.beginPath()
-            ctx.moveTo(s.x, s.y)
-            ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+            const width = pinWidth(design, def, pendingWire.from)
+            const offsets = busWireOffsets(width)
+            const target = hoverPort ? resolveEndpoint(hoverPort) : null
             ctx.strokeStyle = p.selection
             ctx.lineWidth = WIRE_WIDTH * vp.zoom
             ctx.setLineDash([5, 4])
-            ctx.stroke()
+            for (const dy of offsets) {
+                const start = {x: a.x, y: a.y + dy}
+                const end = target ? {x: target.x, y: target.y + dy} : {x: pendingWire.x, y: pendingWire.y}
+                const path = wirePath(start, end)
+                const s = w2s(path.start.x, path.start.y, cw, ch, vp)
+                const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
+                const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)
+                const e = w2s(path.end.x, path.end.y, cw, ch, vp)
+                ctx.beginPath()
+                ctx.moveTo(s.x, s.y)
+                ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+                ctx.stroke()
+            }
             ctx.setLineDash([])
         }
     }
@@ -517,33 +534,22 @@ export function drawScene(
         const instDef = design.defs[inst.defId]
         if (!instDef) continue
         if (isPortGroupDef(instDef)) {
-            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg)
+            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort)
         } else {
-            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg)
+            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort)
         }
     }
 
-    // Highlight the hovered port: yellow = create a wire, orange = grab an existing one.
+    // Tooltip showing the arity of a bus terminal (or a hint when undetermined).
     if (hoverPort) {
-        const pos = resolveEndpoint(hoverPort.ref)
+        const pos = resolveEndpoint(hoverPort)
         if (pos) {
             const s = w2s(pos.x, pos.y, cw, ch, vp)
-            // 'inspect' is informational only (a bus terminal that can't be grabbed or
-            // created from) — show the arity tooltip but no interaction ring.
-            if (hoverPort.action !== 'inspect') {
-                ctx.beginPath()
-                ctx.arc(s.x, s.y, 6 * vp.zoom, 0, Math.PI * 2)
-                ctx.strokeStyle = hoverPort.action === 'grab' ? p.grabHover : p.portHover
-                ctx.lineWidth = 2 * vp.zoom
-                ctx.stroke()
-            }
-
-            // Tooltip showing the arity of a bus terminal (or a hint when undetermined).
-            const width = pinWidth(design, def, hoverPort.ref)
+            const width = pinWidth(design, def, hoverPort)
             if (width > 1) {
                 drawTooltip(ctx, `×${width}`, s.x, s.y, p)
             } else {
-                const hint = undeterminedHint(design, def, hoverPort.ref)
+                const hint = undeterminedHint(design, def, hoverPort)
                 if (hint) drawTooltip(ctx, hint, s.x, s.y, p)
             }
         }

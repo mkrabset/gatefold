@@ -148,7 +148,7 @@ The document and editing state:
 - `selectedIds: string[]` — multi-selection (instance ids in the current def).
 - `marquee: Rect | null` — transient rubber-band rectangle.
 - `pendingWire: { from, x, y, originalId? } | null` — a wire being drawn / re-targeted.
-- `hoverPort: { ref, action: 'create' | 'grab' } | null` — the port under the cursor.
+- `hoverPort: PinRef | null` — the terminal under the cursor (its marker lights up red).
 - `notice: string | null` — transient rejection message (shown as a toast).
 - `pendingGroup` — names collected in the group dialog.
 
@@ -189,9 +189,9 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   parent's ports.
 - `instanceBounds(design, parentDef, instance, def, pad)` / `hitTest(...)` — world-space
   bounds (using the effective size) and topmost hit detection.
-- `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin within a
-  radius, returning `{ ref, role }` where `role` is `source` (output pin) or `sink`
-  (input pin).
+- `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin, hit-tested
+  against the whole terminal marker (a vertical segment of half-height `pinRadiusWorld(width)`),
+  returning `{ ref, role }` where `role` is `source` (output pin) or `sink` (input pin).
 - `pinWidth(design, parentDef, ref)` / `isNeutralPin(design, parentDef, ref)` — re-exported
   from `widths.ts`, which solves the whole sheet's widths by fixpoint propagation (see §2).
 - `undeterminedHint(design, parentDef, ref)` — hover hint for an undetermined relation pin.
@@ -211,12 +211,15 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   bubble), CLOCK (rounded rect + sine glyph), FAN-IN/FAN-OUT and BUS-SPLIT/BUS-MERGE
   (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/`drawBusTrapezoid*` helpers).
 - **Terminals**: each pin is a vertical **stroke** along the component edge (blue sink / green
-  source), its length `2·pinRadiusWorld(width)`. A composite port wired to an internal
+  source), its length `2·pinRadiusWorld(width)`. Hovering a terminal turns its marker **red**
+  (`pinHighlight`) instead of drawing a separate ring. A composite port wired to an internal
   fan-in/fan-out renders as a bus even from the outside; hovering a bus pin shows an `×n`
   arity tooltip. Gate shapes size their bus "neck" to the marker (`DrawOptions.pinRadius`).
 - **Bus wires**: a bus is drawn as `n` individual single-wire beziers spread vertically across
   the pin marker (`busWireOffsets`, inset one lane from each end); each lane's control points
   translate with its endpoint. Undetermined wires still render as a single thin dashed wire.
+  A bus drag preview renders the same `n` lanes as dashed beziers — spreading across a hovered
+  sink, or converging on the cursor otherwise.
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.
@@ -244,10 +247,10 @@ All pointer handling is attached natively to the `<canvas>`; the store drives re
 - **Mouse wheel** → zoom anchored at the cursor.
 - **Double-click** a component → enter it (composites and gates alike); **Escape** (while
   the pointer is over the canvas) → exit back up one level.
-- **Wiring**: press an output pin (yellow hover) → draw a wire → release on an input pin.
-  Press an input pin that already has a wire (orange hover) → grab it → release on a new
-  input to re-target, or on empty space to delete. Dropping onto an already-driven input is
-  rejected (toast).
+- **Wiring**: press an output pin → draw a wire (its marker lights up red) → release on an
+  input pin. Press an input pin that already has a wire → grab it → release on a new input to
+  re-target, or on empty space to delete. Dropping onto an already-driven input is rejected
+  (toast).
 
 Global shortcuts (in `App.tsx`, ignored while typing): Ctrl/Cmd+C copy, Ctrl/Cmd+V paste,
 Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.

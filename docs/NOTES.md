@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-18 (template apply / lineage uuid / linear terminal layout).
+Last updated: 2026-08-19 (terminal hover highlight + bus drag preview).
 
 ## Where we are
 
@@ -49,6 +49,15 @@ hierarchical circuits, with JSON save/load and library export/import; only the
   (`input-port`/`output-port`), `twoInputGatePorts`/`twoInputGateBody`, `gateBounds`/
   `fillAndStroke`, `drawBusTrapezoidLeft/Right`, `deriveBusWidth`. React: shared `CommitInput`;
   `GLYPHS` replaced with `primitiveOf(kind).glyph`.
+- **Terminal hover highlight** — the hover "red circle" overlay is gone; instead the terminal
+  marker itself turns red (`p.pinHighlight`) when hovered. Hit-testing (`hitTestPort`) now
+  tests the whole marker (distance to the vertical segment, half-height `pinRadiusWorld(width)`),
+  so bus markers are hittable along their full length. Unconnected inputs light up too. Removed
+  the now-dead `HoverAction`/`HoverPort` types and `portHover`/`grabHover` palette colors;
+  `hoverPort` is a plain `PinRef | null`.
+- **Bus drag preview** — dragging a wire from a bus output renders `n` dotted beziers (one per
+  lane), spread across the source marker; they converge on the cursor until the mouse enters a
+  sink terminal, where they spread across that sink's marker (lane `i → i`) until release.
 
 ## Earlier (kept as historical log)
 

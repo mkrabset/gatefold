@@ -1,4 +1,4 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import { outputPortId } from '../types'
 import { Gate, fillAndStroke, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
@@ -23,8 +23,13 @@ export class Clock extends Gate {
     return { w: 46, h: 46 }
   }
 
+  transfer(): Signal[][] {
+    // Source: driven by the simulator (square wave from `period`), not by inputs.
+    return []
+  }
+
   properties(): PropertySpec[] {
-    return [{ name: 'period', label: 'Period', type: 'number', default: 1000, unit: 'ms', min: 1 }]
+    return [{ name: 'period', label: 'Period', type: 'number', default: 10_000, unit: 'ps', min: 1 }]
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {

@@ -1,4 +1,4 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { deriveBusWidth, drawBusTrapezoidLeft, Gate } from './gate'
 import type { DrawOptions } from './primitive'
@@ -25,6 +25,12 @@ export class BusSplit extends Gate {
 
   deriveWidth(port: Port, siblings: ReadonlyMap<string, number>): number | null {
     return deriveBusWidth(port, siblings, 'in:0', ['out:0', 'out:1'])
+  }
+
+  transfer(inputs: Signal[][]): Signal[][] {
+    const bits = inputs[0]
+    const m = bits.length / 2
+    return [bits.slice(0, m), bits.slice(m)]
   }
 
   undeterminedHint(port: Port): string | null {

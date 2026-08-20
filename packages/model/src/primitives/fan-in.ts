@@ -1,4 +1,4 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { countInputs, drawBusTrapezoidRight, Gate } from './gate'
 import type { DrawOptions } from './primitive'
@@ -20,6 +20,11 @@ export class FanIn extends Gate {
 
   intrinsicWidth(ports: Port[], port: Port): number {
     return port.direction === 'output' ? countInputs(ports) : 1
+  }
+
+  transfer(inputs: Signal[][]): Signal[][] {
+    // Bundle the n single-wire inputs into one n-wide bus output.
+    return [inputs.flat()]
   }
 
   bodySize(): { w: number; h: number } {

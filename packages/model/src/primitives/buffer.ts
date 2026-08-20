@@ -1,4 +1,4 @@
-import type { Port, PrimitiveKind } from '../types'
+import type { Port, PrimitiveKind, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { Gate, fillAndStroke, gateBounds } from './gate'
 import type { DrawOptions } from './primitive'
@@ -21,6 +21,10 @@ export class Buffer extends Gate {
 
   bodySize(): { w: number; h: number } {
     return { w: 48, h: 44 }
+  }
+
+  transfer(inputs: Signal[][]): Signal[][] {
+    return [inputs[0]]
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {

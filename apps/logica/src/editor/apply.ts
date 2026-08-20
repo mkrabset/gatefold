@@ -1,6 +1,5 @@
 import type { ComponentDef, Design, Port } from '@logica/model'
-import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts } from '@logica/model'
-import { isNeutralPin, pinWidth } from './widths'
+import { cloneDesign, copyDefSubgraph, inputPorts, isNeutralPin, outputPorts, pinWidth } from '@logica/model'
 
 /**
  * Propagate a composite template's changes to every matching variant in a given

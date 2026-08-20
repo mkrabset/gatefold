@@ -1,4 +1,4 @@
-import type { Port, PrimitiveKind } from '../types'
+import type { Port, PrimitiveKind, Signal } from '../types'
 import type { VectorContext } from './vector'
 
 /** Canvas color palette (plain strings — keeps the model framework-free). */
@@ -53,9 +53,7 @@ export interface PropertySpec {
 /**
  * The behaviour of a built-in component. One class per primitive kind; the kind is the
  * serialized discriminant, while instances of these classes supply all per-kind
- * behaviour (ports, arity, naming, bus width, rendering). A future simulator will add a
- * `transfer(inputs)` method here for the component's internal behaviour, and the
- * `defaultProps()` slot below is reserved for the future custom-property system.
+ * behaviour (ports, arity, naming, bus width, rendering, and combinational logic).
  */
 export interface Primitive {
   readonly kind: PrimitiveKind
@@ -89,6 +87,14 @@ export interface Primitive {
   bodySize(): { w: number; h: number }
   /** Draw the component body (screen space). */
   draw(ctx: VectorContext, opts: DrawOptions): void
+
+  /**
+   * Combinational behaviour: given each input port's bit-vector (ordered, after
+   * input-terminal inversion is applied), return each output port's bit-vector (before
+   * output-terminal inversion is applied). Sources (no inputs) and sinks (no outputs)
+   * are driven/consumed by the simulator and return `[]`.
+   */
+  transfer(inputs: Signal[][]): Signal[][]
 
   /** Custom properties declared by this primitive (schema + defaults). */
   properties(): PropertySpec[]

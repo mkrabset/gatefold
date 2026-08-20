@@ -41,6 +41,9 @@ export type PrimitiveKind =
   | 'bus-merge'
   | 'input-port'
   | 'output-port'
+  | 'switch'
+  | 'led'
+  | 'seven-seg'
 
 export interface ComponentDef {
   id: string

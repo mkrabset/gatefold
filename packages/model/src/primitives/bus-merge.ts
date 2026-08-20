@@ -1,4 +1,4 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { deriveBusWidth, drawBusTrapezoidRight, Gate } from './gate'
 import type { DrawOptions } from './primitive'
@@ -25,6 +25,10 @@ export class BusMerge extends Gate {
 
   deriveWidth(port: Port, siblings: ReadonlyMap<string, number>): number | null {
     return deriveBusWidth(port, siblings, 'out:0', ['in:0', 'in:1'])
+  }
+
+  transfer(inputs: Signal[][]): Signal[][] {
+    return [[...inputs[0], ...inputs[1]]]
   }
 
   undeterminedHint(port: Port): string | null {

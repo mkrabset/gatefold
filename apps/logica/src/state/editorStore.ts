@@ -7,6 +7,7 @@ import {
   applyGroup,
   captureClipboard,
   cloneDef,
+  connectionError,
   copyDefSubgraph,
   defaultPropsOf,
   exportLibrary as buildLibraryFile,
@@ -38,7 +39,6 @@ import {
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
 import { instanceBounds } from '../editor/geometry'
-import { connectionError } from '../editor/widths'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
 
 /**
@@ -249,7 +249,7 @@ export function createDemoDesign(): Design {
     uuid: newUuid(),
     ports: [],
     instances: [
-      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 1000 } },
+      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 10_000 } },
       { id: 'inv1', name: 'inv1', defId: variantize(defs, 'not', 'inv1'), pos: { x: 300, y: 100 } },
       { id: 'and1', name: 'and1', defId: variantize(defs, 'and', 'and1'), pos: { x: 300, y: 330 } },
       { id: 'xor1', name: 'xor1', defId: variantize(defs, 'xor', 'xor1'), pos: { x: 500, y: 150 } },

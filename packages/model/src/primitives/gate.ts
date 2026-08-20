@@ -1,4 +1,4 @@
-import type { Port, PrimitiveKind } from '../types'
+import type { Port, PrimitiveKind, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import type { DrawOptions, Palette, Primitive, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
@@ -101,6 +101,7 @@ export abstract class Gate implements Primitive {
   abstract defaultPorts(): Port[]
   abstract bodySize(): { w: number; h: number }
   abstract draw(ctx: VectorContext, opts: DrawOptions): void
+  abstract transfer(inputs: Signal[][]): Signal[][]
 
   nextInputName(ports: Port[]): string | null {
     return INPUT_NAMES[countInputs(ports)] ?? null

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ComponentDef, Design, Port } from '@logica/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
 import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, portPosition, sideHeight, sidePinOffset } from './geometry'
-import { connectionError } from './widths'
+import { connectionError } from '@logica/model'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 

@@ -1,5 +1,6 @@
-import type { ComponentDef, Design, PinRef, Port } from '@logica/model'
-import { pinKey, primitiveOf } from '@logica/model'
+import type { ComponentDef, Design, PinRef, Port } from './types'
+import { pinKey } from './types'
+import { primitiveOf } from './primitives'
 
 /**
  * Bus-width resolution. Widths are derived (never stored) from a system of constraints

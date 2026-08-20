@@ -1,6 +1,5 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
-import { inputPorts, isPortGroupDef, outputPorts, portGroupDirection, primitiveOf } from '@logica/model'
-import { isNeutralPin, pinWidth, undeterminedHint } from './widths'
+import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, undeterminedHint } from '@logica/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 

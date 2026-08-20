@@ -1,4 +1,4 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import type { Primitive, PropertySpec } from './primitive'
 
 /**
@@ -35,6 +35,11 @@ export abstract class PortGroup implements Primitive {
 
   intrinsicWidth(): number {
     return 1
+  }
+
+  transfer(): Signal[][] {
+    // Port groups are netlist wiring, not combinational gates.
+    return []
   }
 
   bodySize(): { w: number; h: number } {

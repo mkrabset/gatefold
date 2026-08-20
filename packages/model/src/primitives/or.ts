@@ -1,5 +1,6 @@
-import type { Port } from '../types'
+import type { Port, Signal } from '../types'
 import { Gate, fillAndStroke, gateBounds, twoInputGateBody, twoInputGatePorts } from './gate'
+import { orBits } from './logic'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -14,6 +15,10 @@ export class OrGate extends Gate {
 
   bodySize(): { w: number; h: number } {
     return twoInputGateBody()
+  }
+
+  transfer(inputs: Signal[][]): Signal[][] {
+    return [[orBits(inputs.map((v) => v[0]))]]
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {

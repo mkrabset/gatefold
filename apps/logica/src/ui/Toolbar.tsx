@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
+import { useSimStore } from '../state/simStore'
 
 /**
  * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
@@ -79,6 +80,14 @@ export function Toolbar() {
   const saveProject = useEditorStore((s) => s.saveProject)
   const loadProject = useEditorStore((s) => s.loadProject)
   const fileRef = useRef<HTMLInputElement>(null)
+  const mode = useSimStore((s) => s.mode)
+  const running = useSimStore((s) => s.running)
+  const toggleMode = useSimStore((s) => s.toggleMode)
+  const run = useSimStore((s) => s.run)
+  const step = useSimStore((s) => s.step)
+  const stop = useSimStore((s) => s.stop)
+  const reset = useSimStore((s) => s.reset)
+  const ascend = useSimStore((s) => s.ascend)
 
   const onOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -102,17 +111,26 @@ export function Toolbar() {
 
       <div className="tb-divider" />
 
+      <IconButton title={mode === 'simulate' ? 'Exit simulation' : 'Simulate'} active={mode === 'simulate'} onClick={toggleMode}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M8 1v6" />
+          <path d="M5.5 3.5a5 5 0 1 0 5 0" />
+        </svg>
+      </IconButton>
+
+      <div className="tb-divider" />
+
       <div className="tb-group">
-        <IconButton title="Run" active>
+        <IconButton title="Run" active={running} onClick={run}>
           <PlayIcon />
         </IconButton>
-        <IconButton title="Step">
+        <IconButton title="Step" onClick={step}>
           <StepIcon />
         </IconButton>
-        <IconButton title="Stop">
+        <IconButton title="Stop" onClick={stop}>
           <StopIcon />
         </IconButton>
-        <IconButton title="Reset">
+        <IconButton title="Reset" onClick={reset}>
           <ResetIcon />
         </IconButton>
       </div>
@@ -135,7 +153,14 @@ export function Toolbar() {
           )
         })}
         {navStack.length > 1 && (
-          <button className="crumb-up" title="Up one level" onClick={navigateUp}>
+          <button
+            className="crumb-up"
+            title="Up one level"
+            onClick={() => {
+              navigateUp()
+              if (mode === 'simulate') ascend()
+            }}
+          >
             ↑
           </button>
         )}

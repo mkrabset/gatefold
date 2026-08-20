@@ -12,6 +12,9 @@ import { BusSplit } from './bus-split'
 import { BusMerge } from './bus-merge'
 import { InputPort } from './input-port'
 import { OutputPort } from './output-port'
+import { Switch } from './switch'
+import { Led } from './led'
+import { SevenSeg } from './seven-seg'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
@@ -29,10 +32,13 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'bus-merge': new BusMerge(),
   'input-port': new InputPort(),
   'output-port': new OutputPort(),
+  switch: new Switch(),
+  led: new Led(),
+  'seven-seg': new SevenSeg(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

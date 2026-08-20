@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
+import { useSimStore, simColorOf, simValueOf } from '../state/simStore'
 import { hitTest, hitTestPort, instanceBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
@@ -52,7 +53,11 @@ export function Canvas() {
         const d = state.design.defs[id]
         return !!d && d.kind === 'composite' && d.variant !== true && id !== state.design.root
       })
-      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette)
+      const simState = useSimStore.getState()
+      const sim = simState.mode === 'simulate' && simState.engine
+        ? { colorOf: simColorOf, valueOf: simValueOf }
+        : undefined
+      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette, sim)
     }
 
     const resize = () => {
@@ -71,6 +76,7 @@ export function Canvas() {
     resize()
     const unsub = useEditorStore.subscribe(draw)
     const unsubTheme = useUiStore.subscribe(draw)
+    const unsubSim = useSimStore.subscribe(draw)
 
     let drag: Drag | null = null
 
@@ -98,6 +104,23 @@ export function Canvas() {
       const def = state.design.defs[currentDefId(state)]
       const hit = hitTest(w.x, w.y, instances, state.design, def)
       state.setHoverPort(null)
+
+      // Simulation mode: no editing — toggle switches, allow shift-drag pan.
+      if (useSimStore.getState().mode === 'simulate') {
+        if (e.shiftKey) {
+          drag = { type: 'pan', startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
+          canvas.style.cursor = 'grabbing'
+          canvas.setPointerCapture(e.pointerId)
+          return
+        }
+        if (hit) {
+          const hitDef = state.design.defs[hit.defId]
+          if (hitDef && hitDef.primitive === 'switch') {
+            useSimStore.getState().toggleSwitch(hit.id)
+          }
+        }
+        return
+      }
 
       if (e.shiftKey) {
         if (hit) {
@@ -159,6 +182,20 @@ export function Canvas() {
     const onPointerMove = (e: PointerEvent) => {
       const state = useEditorStore.getState()
       const d = drag
+
+      // Simulation mode: only panning is interactive.
+      if (useSimStore.getState().mode === 'simulate') {
+        if (d?.type === 'pan') {
+          const dx = e.clientX - d.startX
+          const dy = e.clientY - d.startY
+          state.setViewport({
+            x: d.vp.x - dx / d.vp.zoom,
+            y: d.vp.y - dy / d.vp.zoom,
+            zoom: d.vp.zoom,
+          })
+        }
+        return
+      }
 
       // Idle hover: highlight the terminal marker under the cursor.
       if (!d) {
@@ -303,6 +340,9 @@ export function Canvas() {
       const hit = hitTest(w.x, w.y, currentInstances(), state.design, def)
       const hitDef = hit && state.design.defs[hit.defId]
       if (hit && hitDef && isNavigableDef(hitDef)) {
+        if (useSimStore.getState().mode === 'simulate') {
+          useSimStore.getState().descend(hit.id)
+        }
         state.navigateTo(hit.defId)
       }
     }
@@ -319,6 +359,9 @@ export function Canvas() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && pointerOver) {
         useEditorStore.getState().navigateUp()
+        if (useSimStore.getState().mode === 'simulate') {
+          useSimStore.getState().ascend()
+        }
       } else if ((e.key === 'i' || e.key === 'I') && pointerOver) {
         const hover = useEditorStore.getState().hoverPort
         if (hover) {
@@ -352,6 +395,7 @@ export function Canvas() {
       ro.disconnect()
       unsub()
       unsubTheme()
+      unsubSim()
       endMoveTransaction()
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)

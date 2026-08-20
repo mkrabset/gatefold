@@ -14,8 +14,8 @@ import {
 } from '../src/primitives'
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, SWITCH, LED, 7-SEG', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg'])
   })
 
   it('inverts the NOT output and leaves the buffer un-inverted', () => {
@@ -91,9 +91,9 @@ describe('model primitives', () => {
 
   it('declares the clock period property with unit and default', () => {
     expect(primitiveOf('clock').properties()).toEqual([
-      { name: 'period', label: 'Period', type: 'number', default: 1000, unit: 'ms', min: 1 },
+      { name: 'period', label: 'Period', type: 'number', default: 10_000, unit: 'ps', min: 1 },
     ])
-    expect(defaultPropsOf('clock')).toEqual({ period: 1000 })
+    expect(defaultPropsOf('clock')).toEqual({ period: 10_000 })
   })
 
   it('folds an empty property list into an empty defaults record', () => {

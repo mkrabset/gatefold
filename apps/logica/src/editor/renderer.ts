@@ -1,4 +1,4 @@
-import type {ComponentDef, Design, Instance, Palette, PinRef, Port} from '@logica/model'
+import type {ComponentDef, Design, Instance, Palette, PinRef, Port, Signal} from '@logica/model'
 import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
 import {
     busWireOffsets,
@@ -22,6 +22,12 @@ import type {PendingWire, Rect, Viewport} from '../state/editorStore'
  * redrawn deterministically. Draw order: background → grid → wires → instances →
  * hover highlight → marquee.
  */
+
+/** Simulation view callbacks: resolve a signal color/value for a pin (and bus lane). */
+export interface SimView {
+    colorOf: (instanceId: string, portId: string, lane?: number) => string | undefined
+    valueOf: (instanceId: string, portId: string) => Signal | undefined
+}
 
 const GRID = 24
 const WIRE_WIDTH = 1.5
@@ -76,9 +82,10 @@ function drawPin(
     p: Palette,
     bg: string,
     hovered: boolean,
+    signalColor?: string,
 ) {
     const radius = pinRadius(width, vp.zoom)
-    ctx.strokeStyle = hovered ? p.pinHighlight : color
+    ctx.strokeStyle = signalColor ?? (hovered ? p.pinHighlight : color)
     ctx.lineWidth = 4 * vp.zoom
     ctx.beginPath()
     ctx.moveTo(s.x, s.y - radius)
@@ -176,13 +183,15 @@ function drawPorts(
     p: Palette,
     bg: string,
     hoverPort: PinRef | null,
+    sim?: SimView,
 ) {
     const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
         const pos = portPosition(design, parentDef, instance, def, port.id)
         const s = w2s(pos.x, pos.y, w, h, vp)
         const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
         const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
-        drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered)
+        const signalColor = sim?.colorOf(instance.id, port.id)
+        drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, signalColor)
     }
 
     for (const port of inputPorts(def)) drawPort(port, p.pin, true)
@@ -202,6 +211,7 @@ function drawInstance(
     p: Palette,
     bg: string,
     hoverPort: PinRef | null,
+    sim?: SimView,
 ) {
     const {w, h} = instanceBodySize(design, parentDef, instance, def)
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
@@ -265,6 +275,15 @@ function drawInstance(
                 palette: p,
                 pinRadius: pinRadiusOf,
             })
+            if (sim && def.primitive === 'led') {
+                const v = sim.valueOf(instance.id, 'in:0')
+                if (v === 1) {
+                    ctx.beginPath()
+                    ctx.arc(s.x + 3, s.y, 8, 0, Math.PI * 2)
+                    ctx.fillStyle = sim.colorOf(instance.id, 'in:0') ?? '#ef4444'
+                    ctx.fill()
+                }
+            }
         }
         // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
         if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
@@ -282,7 +301,7 @@ function drawInstance(
         ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
     }
 
-    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort)
+    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
 }
 
 
@@ -304,11 +323,12 @@ function drawPortGroup(
     p: Palette,
     bg: string,
     hoverPort: PinRef | null,
+    sim?: SimView,
 ) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     const widthFor = (port: Port) => pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id)
+    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id, sim)
 }
 
 /** Core port-group drawing, given the pins, their position, and a width resolver. */
@@ -326,6 +346,7 @@ function drawPortGroupBox(
     bg: string,
     hoverPort: PinRef | null,
     instanceId: string,
+    sim?: SimView,
 ) {
     const widths = ports.map(widthFor)
     const {w, h} = sizeForPorts(widths)
@@ -356,7 +377,8 @@ function drawPortGroupBox(
         const x = pos.x + (isInput ? w / 2 : -w / 2)
         const s = w2s(x, y, cw, ch, vp)
         const hovered = !!hoverPort && hoverPort.instanceId === instanceId && hoverPort.portId === port.id
-        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg, hovered)
+        const signalColor = sim?.colorOf(instanceId, port.id)
+        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg, hovered, signalColor)
         const offset = PIN_LABEL_GAP * vp.zoom
         ctx.fillStyle = p.text
         if (isInput) {
@@ -382,6 +404,7 @@ export function drawScene(
     pendingWire: PendingWire | null,
     hoverPort: PinRef | null,
     p: Palette,
+    sim?: SimView,
 ) {
     const def = design.defs[defId]
     const bg = editingTemplate ? p.templateBg : p.bg
@@ -441,6 +464,7 @@ export function drawScene(
         e: { x: number; y: number }
         width: number
         undetermined: boolean
+        from: PinRef
     }
 
     const groups = new Map<string, Trace[]>()
@@ -458,6 +482,7 @@ export function drawScene(
             e: w2s(path.end.x, path.end.y, cw, ch, vp),
             width: pinWidth(design, def, conn.from),
             undetermined: isNeutralPin(design, def, conn.from),
+            from: conn.from,
         }
         // Group by source so fan-out wires render as one bundle (all halos, then all
         // lines) rather than cutting into each other at their shared terminal.
@@ -485,20 +510,22 @@ export function drawScene(
         // Render each bus as its individual single wires, spread vertically across the
         // pin marker (first lane at the top, last at the bottom). Control points move
         // with their endpoint, keeping the same horizontal offset as a single wire.
-        const wires: { s: { x: number; y: number }; c1: { x: number; y: number }; c2: { x: number; y: number }; e: { x: number; y: number } }[] = []
+        const wires: { s: { x: number; y: number }; c1: { x: number; y: number }; c2: { x: number; y: number }; e: { x: number; y: number }; color: string }[] = []
         for (const t of traces) {
-            for (const dy of busWireOffsets(t.width)) {
-                const o = dy * vp.zoom
+            const offsets = busWireOffsets(t.width)
+            for (let i = 0; i < offsets.length; i++) {
+                const o = offsets[i] * vp.zoom
                 wires.push({
                     s: { x: t.s.x, y: t.s.y + o },
                     c1: { x: t.c1.x, y: t.c1.y + o },
                     c2: { x: t.c2.x, y: t.c2.y + o },
                     e: { x: t.e.x, y: t.e.y + o },
+                    color: sim?.colorOf(t.from.instanceId, t.from.portId, i) ?? p.wire,
                 })
             }
         }
         for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, bg, (WIRE_WIDTH + HALO_WIDTH * 2) * vp.zoom)
-        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, p.wire, WIRE_WIDTH * vp.zoom)
+        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, w.color, WIRE_WIDTH * vp.zoom)
     }
 
     // Preview of a wire currently being drawn (dashed, accent color). A bus drag draws
@@ -534,9 +561,9 @@ export function drawScene(
         const instDef = design.defs[inst.defId]
         if (!instDef) continue
         if (isPortGroupDef(instDef)) {
-            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort)
+            drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
         } else {
-            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort)
+            drawInstance(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
         }
     }
 

@@ -18,6 +18,7 @@ import { SevenSeg } from './seven-seg'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
+export { sevenSegGeometry } from './seven-seg'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   and: new AndGate(),

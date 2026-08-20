@@ -20,6 +20,8 @@ export interface Netlist {
   instances: FlatInstance[]
   netCount: number
   netWidths: number[]
+  /** True for nets driven by a gate/source output (false = floating input). */
+  driven: boolean[]
 }
 
 /** Minimal union-find over string keys. */
@@ -93,6 +95,7 @@ export function flatten(design: Design): Netlist {
 
   const netIds = new Map<string, number>()
   const netWidths: number[] = []
+  const driven: boolean[] = []
   const netIdOf = (key: string): number => {
     const root = uf.find(key)
     let id = netIds.get(root)
@@ -100,6 +103,7 @@ export function flatten(design: Design): Netlist {
       id = netWidths.length
       netIds.set(root, id)
       netWidths.push(1)
+      driven.push(false)
     }
     return id
   }
@@ -115,10 +119,13 @@ export function flatten(design: Design): Netlist {
       if (w > netWidths[net]) netWidths[net] = w
       const port = { portId: p.id, net, inverted: p.inverted === true }
       if (p.direction === 'input') inputs.push(port)
-      else outputs.push(port)
+      else {
+        outputs.push(port)
+        driven[net] = true
+      }
     }
     instances.push({ id: leaf.id, kind, props: leaf.inst.props, inputs, outputs })
   }
 
-  return { instances, netCount: netWidths.length, netWidths }
+  return { instances, netCount: netWidths.length, netWidths, driven }
 }

@@ -1,5 +1,5 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, Signal} from '@logica/model'
-import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf} from '@logica/model'
+import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegGeometry} from '@logica/model'
 import {
     busWireOffsets,
     instanceBodySize,
@@ -32,6 +32,26 @@ export interface SimView {
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
+
+/** 7-segment patterns for digits 0–15, ordered a b c d e f g. */
+const SEVEN_SEG: number[][] = [
+  [1, 1, 1, 1, 1, 1, 0], // 0
+  [0, 1, 1, 0, 0, 0, 0], // 1
+  [1, 1, 0, 1, 1, 0, 1], // 2
+  [1, 1, 1, 1, 0, 0, 1], // 3
+  [0, 1, 1, 0, 0, 1, 1], // 4
+  [1, 0, 1, 1, 0, 1, 1], // 5
+  [1, 0, 1, 1, 1, 1, 1], // 6
+  [1, 1, 1, 0, 0, 0, 0], // 7
+  [1, 1, 1, 1, 1, 1, 1], // 8
+  [1, 1, 1, 1, 0, 1, 1], // 9
+  [1, 1, 1, 0, 1, 1, 1], // A
+  [0, 0, 1, 1, 1, 1, 1], // b
+  [1, 0, 0, 1, 1, 1, 0], // C
+  [0, 1, 1, 1, 1, 0, 1], // d
+  [1, 0, 0, 1, 1, 1, 1], // E
+  [1, 0, 0, 0, 1, 1, 1], // F
+]
 
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
 function pinRadius(width: number, zoom: number): number {
@@ -275,15 +295,7 @@ function drawInstance(
                 palette: p,
                 pinRadius: pinRadiusOf,
             })
-            if (sim && def.primitive === 'led') {
-                const v = sim.valueOf(instance.id, 'in:0')
-                if (v === 1) {
-                    ctx.beginPath()
-                    ctx.arc(s.x + 3, s.y, 8, 0, Math.PI * 2)
-                    ctx.fillStyle = sim.colorOf(instance.id, 'in:0') ?? '#ef4444'
-                    ctx.fill()
-                }
-            }
+            if (sim) drawProbeOverlay(ctx, sim, def.primitive, instance.id, s.x, s.y, w * vp.zoom, h * vp.zoom, p)
         }
         // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
         if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
@@ -389,6 +401,56 @@ function drawPortGroupBox(
             ctx.fillText(port.name, s.x + offset, s.y)
         }
     })
+}
+
+/** Draw the live state of a probe primitive (led / switch / seven-seg) during simulation. */
+function drawProbeOverlay(
+    ctx: CanvasRenderingContext2D,
+    sim: SimView,
+    kind: string,
+    instanceId: string,
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    p: Palette,
+) {
+    if (kind === 'led') {
+        if (sim.valueOf(instanceId, 'in:0') === 1) {
+            ctx.beginPath()
+            ctx.arc(cx + 3, cy, 8, 0, Math.PI * 2)
+            ctx.fillStyle = sim.colorOf(instanceId, 'in:0') ?? '#ef4444'
+            ctx.fill()
+        }
+    } else if (kind === 'switch') {
+        if (sim.valueOf(instanceId, 'out:0') === 1) {
+            ctx.beginPath()
+            ctx.arc(cx, cy, 8, 0, Math.PI * 2)
+            ctx.fillStyle = sim.colorOf(instanceId, 'out:0') ?? '#ef4444'
+            ctx.fill()
+        }
+    } else if (kind === 'seven-seg') {
+        const bits = [
+            sim.valueOf(instanceId, 'in:0'),
+            sim.valueOf(instanceId, 'in:1'),
+            sim.valueOf(instanceId, 'in:2'),
+            sim.valueOf(instanceId, 'in:3'),
+        ]
+        if (bits.some((b) => b !== 0 && b !== 1)) return
+        const value = (bits[0] as number) + 2 * (bits[1] as number) + 4 * (bits[2] as number) + 8 * (bits[3] as number)
+        const pattern = SEVEN_SEG[value]
+        const segs = sevenSegGeometry({ x: cx, y: cy, w, h, palette: p })
+        ctx.strokeStyle = '#fbbf24'
+        ctx.lineWidth = 4
+        for (let i = 0; i < 7; i++) {
+            if (!pattern[i]) continue
+            const [x1, y1, x2, y2] = segs[i]
+            ctx.beginPath()
+            ctx.moveTo(x1, y1)
+            ctx.lineTo(x2, y2)
+            ctx.stroke()
+        }
+    }
 }
 
 export function drawScene(

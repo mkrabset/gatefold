@@ -62,8 +62,10 @@ describe('Simulation engine', () => {
       ),
     )
 
-    // Uninitialized hold.
-    expect(sim.signal('n1', 'out:0')).toBe('x')
+    // Power-on: the bi-stable loop resolves to a definite state.
+    expect(sim.signal('n1', 'out:0')).not.toBe('x')
+    expect(sim.signal('n2', 'out:0')).not.toBe('x')
+    expect(sim.signal('n2', 'out:0')).not.toBe(sim.signal('n1', 'out:0'))
 
     // Set.
     sim.setSwitch('s', 1)
@@ -109,6 +111,77 @@ describe('Simulation engine', () => {
     sim.setSwitch('en', 1)
     sim.step()
     expect(sim.signal('a', 'out:0')).toBe('x')
+  })
+
+  it('powers on and sets/resets a gated JK flip-flop (2 NOR + 2 AND)', () => {
+    const nor: ComponentDef = {
+      id: 'nor',
+      name: 'NOR',
+      kind: 'primitive',
+      primitive: 'or',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output', inverted: true },
+      ],
+    }
+    const and3: ComponentDef = {
+      id: 'and3',
+      name: 'AND3',
+      kind: 'primitive',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'in:2', name: 'C', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('j', 'switch'),
+          inst('k', 'switch'),
+          inst('clk', 'switch'),
+          inst('a1', 'and3'),
+          inst('a2', 'and3'),
+          inst('n1', 'nor'),
+          inst('n2', 'nor'),
+        ],
+        [
+          conn('c1', iref('j', 'out:0'), iref('a1', 'in:0')),
+          conn('c2', iref('n2', 'out:0'), iref('a1', 'in:1')),
+          conn('c3', iref('clk', 'out:0'), iref('a1', 'in:2')),
+          conn('c4', iref('k', 'out:0'), iref('a2', 'in:0')),
+          conn('c5', iref('n1', 'out:0'), iref('a2', 'in:1')),
+          conn('c6', iref('clk', 'out:0'), iref('a2', 'in:2')),
+          conn('c7', iref('a2', 'out:0'), iref('n1', 'in:0')),
+          conn('c8', iref('n2', 'out:0'), iref('n1', 'in:1')),
+          conn('c9', iref('a1', 'out:0'), iref('n2', 'in:0')),
+          conn('c10', iref('n1', 'out:0'), iref('n2', 'in:1')),
+        ],
+        { nor, and3 },
+      ),
+    )
+
+    // Power-on: the internal latch resolves to a definite state (deadlock broken).
+    expect(sim.signal('n1', 'out:0')).not.toBe('x')
+    expect(sim.signal('n2', 'out:0')).not.toBe('x')
+    expect(sim.signal('n1', 'out:0')).not.toBe(sim.signal('n2', 'out:0'))
+
+    // Set (J=1, CLK=1).
+    sim.setSwitch('j', 1)
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('n1', 'out:0')).toBe(1)
+    expect(sim.signal('n2', 'out:0')).toBe(0)
+
+    // Reset (J=0, K=1, CLK=1).
+    sim.setSwitch('j', 0)
+    sim.setSwitch('k', 1)
+    sim.step()
+    expect(sim.signal('n1', 'out:0')).toBe(0)
+    expect(sim.signal('n2', 'out:0')).toBe(1)
   })
 
   it('propagates buses through fan-in and bus-split', () => {

@@ -5,6 +5,29 @@ import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
 /**
+ * The seven segment endpoints (a..g) for a display body, in screen space. Order:
+ * a=top, b=top-right, c=bottom-right, d=bottom, e=bottom-left, f=top-left, g=middle.
+ */
+export function sevenSegGeometry(opts: DrawOptions): [number, number, number, number][] {
+  const { l, r, t, b } = gateBounds(opts)
+  const inset = 8
+  const left = l + inset
+  const right = r - inset
+  const top = t + inset
+  const bottom = b - inset
+  const mid = (top + bottom) / 2
+  return [
+    [left + 3, top, right - 3, top],
+    [right, top + 3, right, mid - 3],
+    [right, mid + 3, right, bottom - 3],
+    [left + 3, bottom, right - 3, bottom],
+    [left, mid + 3, left, bottom - 3],
+    [left, top + 3, left, mid - 3],
+    [left + 3, mid, right - 3, mid],
+  ]
+}
+
+/**
  * A 7-segment numeric display: four binary inputs (A..D, A = least significant) and no
  * outputs. The designer draws a dim "8." skeleton; the simulator lights the segments.
  */
@@ -38,26 +61,11 @@ export class SevenSeg extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { l, r, t, b } = gateBounds(opts)
-    const { palette } = opts
-    const inset = 8
-    const left = l + inset
-    const right = r - inset
-    const top = t + inset
-    const bottom = b - inset
-    const mid = (top + bottom) / 2
-    const seg = (x1: number, y1: number, x2: number, y2: number) => {
+    for (const [x1, y1, x2, y2] of sevenSegGeometry(opts)) {
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(x2, y2)
-      ctx.stroke(palette.gateStroke, 4)
+      ctx.stroke(opts.palette.gateStroke, 4)
     }
-    seg(left + 3, top, right - 3, top)
-    seg(right, top + 3, right, mid - 3)
-    seg(right, mid + 3, right, bottom - 3)
-    seg(left + 3, bottom, right - 3, bottom)
-    seg(left, mid + 3, left, bottom - 3)
-    seg(left, top + 3, left, mid - 3)
-    seg(left + 3, mid, right - 3, mid)
   }
 }

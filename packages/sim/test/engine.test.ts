@@ -367,4 +367,48 @@ describe('Simulation engine', () => {
     sim.step()
     expect(sim.signal('l', 'in:0')).toBe(0)
   })
+
+  it('resolves signals on port-group and composite-boundary pins', () => {
+    const comp: ComponentDef = {
+      id: 'comp',
+      name: 'comp',
+      kind: 'composite',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:0' } },
+        { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'co', pinId: 'out:0' } },
+      ],
+      instances: [
+        { id: 'ci', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+        { id: 'b', name: 'b', defId: 'buffer', pos: { x: 60, y: 0 } },
+        { id: 'co', name: '', defId: 'output-port', pos: { x: 120, y: 0 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('ci', 'in:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('co', 'out:0') },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [inst('sw', 'switch'), inst('comp', 'comp')],
+        [conn('w', iref('sw', 'out:0'), iref('comp', 'in:0'))],
+        { comp },
+      ),
+    )
+
+    // Switch off: every pin (leaf, port-group, and composite boundary) reads 0.
+    expect(sim.signal('comp', 'in:0')).toBe(0)
+    expect(sim.signal('comp.ci', 'in:0')).toBe(0)
+    expect(sim.signal('comp.b', 'out:0')).toBe(0)
+    expect(sim.signal('comp.co', 'out:0')).toBe(0)
+    expect(sim.signal('comp', 'out:0')).toBe(0)
+
+    // Switch on: the value propagates through the hierarchy.
+    sim.setSwitch('sw', 1)
+    sim.step()
+    expect(sim.signal('comp', 'in:0')).toBe(1)
+    expect(sim.signal('comp.ci', 'in:0')).toBe(1)
+    expect(sim.signal('comp.b', 'out:0')).toBe(1)
+    expect(sim.signal('comp.co', 'out:0')).toBe(1)
+    expect(sim.signal('comp', 'out:0')).toBe(1)
+  })
 })

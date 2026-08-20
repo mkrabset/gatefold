@@ -74,6 +74,7 @@ export class Simulation {
   private instances: FlatInstance[]
   private netWidths: number[]
   private driven: boolean[]
+  private pinNet: Map<string, number>
   private gates: Gate[]
   private values: (Signal[] | undefined)[]
   private fanout: Gate[][]
@@ -88,6 +89,7 @@ export class Simulation {
     this.instances = netlist.instances
     this.netWidths = netlist.netWidths
     this.driven = netlist.driven
+    this.pinNet = netlist.pinNet
     this.stepMode = config.stepMode
 
     const n = netlist.netCount
@@ -238,13 +240,11 @@ export class Simulation {
     if (inst) this.driveSource(inst, this.timeValue)
   }
 
-  /** Full bit-vector signal on a flattened instance pin, or undefined if unknown. */
+  /** Full bit-vector signal on a flattened pin (leaf, port group, or composite), or undefined. */
   signalOf(id: string, portId: string): Signal[] | undefined {
-    const inst = this.instances.find((i) => i.id === id)
-    if (!inst) return undefined
-    const port = [...inst.inputs, ...inst.outputs].find((p) => p.portId === portId)
-    if (!port) return undefined
-    const v = this.valueOf(port.net)
+    const net = this.pinNet.get(`${id}:${portId}`)
+    if (net === undefined) return undefined
+    const v = this.valueOf(net)
     return v.length === 0 ? undefined : v
   }
 

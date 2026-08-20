@@ -11,10 +11,13 @@ authoritative — update this when a term's meaning changes.
 - **Instance** — a concrete placement of a definition at a position, with its own unique
   `id` and `name`. References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
-  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT).
-  Not editable as a circuit.
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT),
+  and the probe primitives SWITCH, LED, 7-SEG. Not editable as a circuit.
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
+- **Switch** — a probe primitive (no inputs, one output) that acts as a user-toggled source
+  during simulation.
+- **LED / 7-seg** — probe primitives (sinks) that light/display their input during simulation.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max); stored per-instance in `Instance.props`. E.g. a CLOCK's `period`.
 - **Composite / custom component** — a user-defined component whose behavior is its
@@ -79,6 +82,23 @@ authoritative — update this when a term's meaning changes.
 - **Selection** — `selectedIds`; marquee (drag empty space), Shift+click to toggle, drag a
   selected component to move the whole selection.
 
-## Simulation (planned, not yet implemented)
+## Simulation
 
-- **Signal** — 3-state logic value: `0`, `1`, `X` (unknown). `Z` (high-impedance) deferred.
+- **Signal** — 3-state logic value: `0`, `1`, `X` (unknown). `Z` (high-impedance) deferred;
+  `x` also covers hi-Z/undriven for now.
+- **`transfer`** — a primitive's pure combinational function (`Signal[][] → Signal[][]`),
+  used by the simulator; sources/sinks return `[]`.
+- **Flatten** — expand the hierarchy through `Port.terminal` into leaf primitive instances
+  + nets, so the simulator can evaluate the whole design.
+- **Net** — a set of pins wired together (union of connections and composite terminals),
+  carrying one bit-vector.
+- **Event-driven / inertial delay** — the simulator schedules each gate's output change
+  `delay` ps after its inputs change; a newer change within the delay window supersedes the
+  pending one (inertial). Delay is configurable (`defaultDelay` ps + per-kind overrides).
+- **Power-on resolution** — driven nets initialize to `0` (floating stay `x`), then a
+  zero-delay Gauss-Seidel pass settles feedback loops to a valid stable state; true
+  oscillators freeze at `x`. This resolves an otherwise-`x` gated latch/flip-flop.
+- **Step mode** — how the Step button advances: `quiescent` (settle to quiescence) or
+  `clock-edge` (advance to the next clock edge).
+- **Signal coloring** — wires/markers colored by their simulated value: red = `1`, black = `0`,
+  gray = `x`.

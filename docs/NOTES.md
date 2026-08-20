@@ -1,14 +1,50 @@
 # Session Notes
 
-Last updated: 2026-08-19 (terminal hover highlight + bus drag preview).
+Last updated: 2026-08-20 (simulator: engine + UI).
 
 ## Where we are
 
 Logica is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
 HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
-hierarchical circuits, with JSON save/load and library export/import; only the
-**simulator** remains unimplemented. See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
+hierarchical circuits, with JSON save/load and library export/import, **and a working
+event-driven simulator** (combinational + gate-built latches/flip-flops, buses, probe
+components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
 (as-built design), `docs/GLOSSARY.md` (terminology).
+
+## Simulation (this session)
+
+- **`@logica/sim` package** — a pure, framework-free engine (`packages/sim`) that depends
+  only on `@logica/model`. Never mutates the `Design`; holds a flattened netlist + signal
+  state.
+- **`Primitive.transfer(inputs: Signal[][]): Signal[][]`** — pure 3-state (`0`/`1`/`x`)
+  combinational logic per primitive (the previously-reserved slot). `x` propagates; `0`
+  dominates AND, `1` dominates OR. Sources (CLOCK/SWITCH) and sinks (LED/7-SEG) return `[]`;
+  the engine drives/reads them. `Port.inverted` is applied by the engine at pin boundaries
+  (NOT = buffer + inverted output).
+- **Flattening** (`netlist.ts`) — dissolves the hierarchy through `Port.terminal` into leaf
+  primitive instances + nets (union-find); port groups and composite boundaries are unioned
+  into the same net. Returns `instances`, `netWidths`, `driven`, and a **`pinNet`** map so
+  signals can be looked up for *any* pin (leaf, port-group, or composite boundary).
+- **Event-driven evaluation + inertial delays** (`engine.ts`) — a min-heap of timed events;
+  an input change schedules the gate's output at `now + delay` (versioned events supersede
+  pending outputs → inertial). Configurable `defaultDelay` + per-kind overrides (ps).
+- **Power-on resolution** — driven nets initialize to `0` (floating stay `x`), then a
+  zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; true
+  oscillators are detected (per-net change count) and frozen at `x`. This breaks the `x`
+  deadlock in gated feedback (e.g. a JK's set/reset gated by its own outputs).
+- **Clock & step** — CLOCK `period` (ps, now `10 000` default) drives a square wave via
+  `advanceTo(t)`; `step()` is `'quiescent'` (settle) or `'clock-edge'` (advance one edge),
+  per `SimConfig.stepMode`.
+- **Probe primitives** — `switch` (toggle source), `led` (lamp sink), `seven-seg` (4-bit
+  display sink) added to the model registry/library; the sim renderer lights them live.
+- **Sim UI** (`apps/logica/src/state/simStore.ts` + `editor/renderer.ts` + `ui/SimSettingsDialog.tsx`)
+  — design/simulate mode toggle; Run/Step/Stop/Reset; switch toggling; signal-colored wires
+  (red=`1`, black=`0`, gray=`x`) and single-wire markers; a settings dialog (gate delay ps,
+  step mode). In simulate mode editing is disabled but navigation still works (instance-path
+  `descend`/`ascend` parallel to `navStack`).
+- **Tests** — `packages/sim/test/engine.test.ts` covers gates, `x` propagation, SR latch,
+  gated JK, **master-slave JK edge-triggering**, oscillator → `x`, buses, clock, clock-edge
+  stepping, and port-group/composite signal resolution.
 
 ## Latest (end of this session)
 
@@ -172,14 +208,12 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 
 ## Immediate next steps (pick up here)
 
-1. **Simulation engine** — new `packages/sim` (or extend `@logica/model`): event-driven
-   combinational → clocked/sequential; hierarchy flattening via `Port.terminal`; cycle
-   detection; fan-in/fan-out are per-bit identities (`out[i] = in[i]`); buses = `n`
-   independent bits. The per-kind `transfer(inputs)` method belongs on the `Primitive`
-   classes (next to `draw`/`properties`); the CLOCK's `period` (ms) is read from
-   `Instance.props` and drives the square-wave source. **`Port.inverted` must be applied**
-   (per-terminal negation) at each pin in the evaluation.
-2. **Simulation UI** — run/step/stop, clock source, live signal coloring on wires/pins.
+1. **Sim polish** — per-kind/per-instance delay overrides in the settings UI; make `run()`
+   clock-period-aware (currently a fixed `1000 ps`/tick); `simStore` unit tests.
+2. **Sequential primitives (optional)** — a built-in `DFF`/register (behavioral edge
+   triggering) as an alternative to gate-built flops, if desired.
+3. **Timing accuracy (later)** — glitch/setup-hold history view; SCC-based settling for
+   large designs.
 
 ## Open items / decisions to revisit
 
@@ -192,11 +226,12 @@ hierarchical circuits, with JSON save/load and library export/import; only the
 - Cross-level **bus width consistency** is enforced at connection time via the width solver;
   width still doesn't propagate *inward* through a composite boundary (the internal terminal
   stays authoritative), and there is no global invariant scan for pre-existing designs.
-- Cycle detection deferred until the simulator needs it.
+- **Power-on value** is currently fixed at `0` (floating stays `x`); not yet a user setting.
+- **Floating bus pins** resolve to width 1 (`x`) in the sim (their true width is only known
+  via the width solver) — cosmetic.
 - OS-clipboard integration deferred (clipboard is in-app only).
 - Orthogonal bus/wire routing deferred (cubic-bezier `routing.ts` isolates this).
-- Property values are stored but not yet consumed (no simulator); number props only clamp
-  to min/max (no per-spec validation); `PropertySpec` has no schema version stamp.
+- `PropertySpec` has no schema version stamp; number props only clamp to min/max.
 - The primitive "internal circuitry" placeholder shows single pins for bus-split/merge
   (their width is instance-specific, so it can't be shown without an instance).
 

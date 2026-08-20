@@ -22,6 +22,9 @@ export interface Netlist {
   netWidths: number[]
   /** True for nets driven by a gate/source output (false = floating input). */
   driven: boolean[]
+  /** Maps every flattened pin key (`instancePath:portId`) to its net, including
+   *  port-group and composite-boundary pins (not just leaf primitives). */
+  pinNet: Map<string, number>
 }
 
 /** Minimal union-find over string keys. */
@@ -60,6 +63,7 @@ interface Leaf {
 export function flatten(design: Design): Netlist {
   const uf = new UnionFind()
   const leaves: Leaf[] = []
+  const allPins = new Set<string>()
 
   const join = (path: string, id: string): string => (path === '' ? id : `${path}.${id}`)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
@@ -69,13 +73,21 @@ export function flatten(design: Design): Netlist {
     if (!def) return
 
     for (const c of def.connections ?? []) {
-      uf.union(pinKey(join(path, c.from.instanceId), c.from.portId), pinKey(join(path, c.to.instanceId), c.to.portId))
+      const fk = pinKey(join(path, c.from.instanceId), c.from.portId)
+      const tk = pinKey(join(path, c.to.instanceId), c.to.portId)
+      allPins.add(fk)
+      allPins.add(tk)
+      uf.union(fk, tk)
     }
 
     for (const p of def.ports) {
       if (!p.terminal) continue
       if (path === '') continue // the root has no parent boundary
-      uf.union(pinKey(path, p.id), pinKey(join(path, p.terminal.instanceId), p.terminal.pinId))
+      const bk = pinKey(path, p.id)
+      const ik = pinKey(join(path, p.terminal.instanceId), p.terminal.pinId)
+      allPins.add(bk)
+      allPins.add(ik)
+      uf.union(bk, ik)
     }
 
     for (const inst of def.instances ?? []) {
@@ -86,6 +98,7 @@ export function flatten(design: Design): Netlist {
       if (idef.kind === 'composite') {
         flattenDef(inst.defId, childPath)
       } else {
+        for (const p of idef.ports) allPins.add(pinKey(childPath, p.id))
         leaves.push({ id: childPath, inst, def: idef, parentDef: def })
       }
     }
@@ -127,5 +140,10 @@ export function flatten(design: Design): Netlist {
     instances.push({ id: leaf.id, kind, props: leaf.inst.props, inputs, outputs })
   }
 
-  return { instances, netCount: netWidths.length, netWidths, driven }
+  // Resolve the net for every pin (leaf primitives, port groups, and composite pins),
+  // so the engine can answer signals for any of them.
+  const pinNet = new Map<string, number>()
+  for (const key of allPins) pinNet.set(key, netIdOf(key))
+
+  return { instances, netCount: netWidths.length, netWidths, driven, pinNet }
 }

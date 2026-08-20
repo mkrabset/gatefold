@@ -18,7 +18,8 @@ have been implemented and the reasoning behind them.
 ├── apps/
 │   └── logica/             # @logica/app — Vite + React + TypeScript
 └── packages/
-    └── model/              # @logica/model — shared domain model (no UI deps)
+    ├── model/              # @logica/model — shared domain model (no UI deps)
+    └── sim/                # @logica/sim — pure event-driven simulator (no UI deps)
 ```
 
 - Package manager: **pnpm** (v11). Lockfile: `pnpm-lock.yaml`.
@@ -47,6 +48,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'input-port' | 'output-port'
+  | 'switch' | 'led' | 'seven-seg'
 
 interface ComponentDef {
   id: string
@@ -98,16 +100,18 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
 - **Primitive library** (`primitives/`): built-in components are polymorphic — one
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
-  `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, plus the internal
-  `input-port.ts`/`output-port.ts`). Each supplies its label/glyph, default ports, arity
+  `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`, the
+  internal `input-port.ts`/`output-port.ts`, and the probe primitives
+  `switch.ts`/`led.ts`/`seven-seg.ts`). Each supplies its label/glyph, default ports, arity
   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
-  input-name suggestion, intrinsic bus width, body size, and its own `draw(ctx, opts)` via a
-  DOM-free `VectorContext`. The registry (`index.ts`) maps a `PrimitiveKind` to its behaviour
-  object; `primitiveDef(kind)` produces the serializable `ComponentDef`. The port primitives
-  are not listed in the library (their pins are derived from the enclosing composite). The
-  `not` gate is a `buffer` whose output port is `inverted`.
+  input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
+  DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
+  function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The registry (`index.ts`) maps a
+  `PrimitiveKind` to its behaviour object; `primitiveDef(kind)` produces the serializable
+  `ComponentDef`. The port primitives are not listed in the library (their pins are derived
+  from the enclosing composite). The `not` gate is a `buffer` whose output port is `inverted`.
 - **Buses**: a terminal's *width* (wire count) is derived, never stored. `portWidth` reports
-  a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the editor's
+  a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
   composite-terminal mirrors, and the `×2` relations of `bus-split`/`bus-merge` via
   `Primitive.deriveWidth`). An undetermined pin is neutral; a conflict or non-integer result
@@ -168,6 +172,18 @@ undoable state).
 UI preferences persisted to `localStorage` (`logica-ui`):
 - `theme: 'light' | 'dark'`
 - `sidebarWidth`, `libraryWidth` (resizable panel widths)
+
+### `simStore` — zustand (simulation runtime, separate from `editorStore`)
+- `mode: 'design' | 'simulate'` — the global toggle; entering simulate mode resets `navStack`
+  to the root and builds a `Simulation` from the current `design`.
+- `engine: Simulation | null` — the `@logica/sim` engine (rebuilt on `toggleMode`/`reset`/
+  `setDefaultDelay`); it **never mutates the design**.
+- `running`, `path` (instance-id path parallel to `navStack`), `version` (redraw trigger),
+  `stepMode`, `defaultDelay`, `settingsOpen`.
+- Actions: `toggleMode`, `run`/`step`/`stop`/`reset`, `toggleSwitch`, `descend`/`ascend`,
+  `setStepMode`/`setDefaultDelay`, `openSettings`/`closeSettings`.
+- View helpers `simColorOf`/`simValueOf` (kept out of the store state) map a flattened pin's
+  signal to a theme-aware wire color (`1`→red, `0`→black, `x`→gray).
 
 ---
 
@@ -262,9 +278,9 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 > Note: the contents of the side panels are provisional and will likely change
 > significantly — treat the specifics below as placeholders, not a stable contract.
 
-- **Toolbar** — brand, group action, simulation controls (placeholders), breadcrumb
-  navigation, save/open JSON (placeholders), theme toggle. Icon buttons carry `title`
-  tooltips.
+- **Toolbar** — brand, group action, **simulate/exit toggle** + Run/Step/Stop/Reset +
+  settings (gear), breadcrumb navigation, save/open JSON, theme toggle. Icon buttons carry
+  `title` tooltips.
 - **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
   properties panel (name commits on Enter/blur; a selected primitive with `properties()`
   shows a generic editor — number/string/boolean, unit in the label — committing via
@@ -274,6 +290,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
   place a deep copy; `variant` defs are excluded).
 - **GroupDialog** — names the inferred ports before creating a composite.
+- **SimSettingsDialog** — modal for simulation settings: default gate delay (ps) and the
+  step mode (`quiescent` / `clock-edge`).
 - **Toast** — transient messages (e.g. "Input already has a driver").
 - **ResizeHandle** — draggable dividers; widths persist via `uiStore`.
 - **Theming** — CSS variables; `:root` dark, `:root[data-theme='light']` overrides, applied
@@ -328,14 +346,51 @@ Known limitation: applying orphans the variant's old nested closure defs (no def
 
 ---
 
+## 6c. Simulator (`@logica/sim`)
+
+A pure, framework-free package (`packages/sim`, depends only on `@logica/model`). It reads a
+`Design`, never mutates it, and exposes `Simulation`.
+
+- **`netlist.ts`** — flattens the hierarchy through `Port.terminal` into leaf primitive
+  instances + nets. A union-find unions connection endpoints and the composite-boundary ↔
+  port-group pins; port-group and composite-boundary pins are dissolved into the same net.
+  Produces `instances`, `netWidths`, `driven[]`, and a **`pinNet`** map (every flattened pin
+  key → net), so signals can be looked up for leaf, port-group, and composite pins alike.
+- **`engine.ts`** — event-driven evaluation with **inertial** gate delays:
+  - a min-heap of timed events; an input change schedules a gate's output at `now + delay`;
+    versioned events supersede pending outputs (inertial).
+  - `Simulation.step()` (`quiescent` = settle, `clock-edge` = advance one edge per
+    `SimConfig.stepMode`), `advanceTo(t)` (clock square wave from `Instance.props.period` ps),
+    `setSwitch(id, value)`, `signalOf(id, portId)` / `signal(id, portId)`.
+  - **Power-on resolution**: driven nets initialize to `0` (floating stay `x`), then a
+    zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
+    change counter detects true oscillators and freezes them at `x`. This breaks the `x`
+    deadlock in gated feedback (e.g. a JK whose set/reset is gated by its own outputs).
+- **`signals.ts`** — `invert`/`invertVector`/`equalVectors`/`clockValue`.
+- **`config.ts`** — `SimConfig { defaultDelay, perKindDelay, stepMode }` (delays in ps).
+
+`Primitive.transfer(inputs: Signal[][]): Signal[][]` is the per-kind combinational function
+(3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
+splits, split/merge reshape). `Port.inverted` is applied by the engine at pin boundaries, so
+NOT = buffer with an inverted output. Sources (CLOCK/SWITCH) and sinks (LED/7-SEG) are
+driven/read by the engine rather than via `transfer`.
+
+Sequential circuits are built from gates: level-sensitive latches settle via feedback, and
+edge-triggered master-slave flip-flops work via the inertial delay model (verified by the
+master-slave JK test).
+
+---
+
 ## 7. Current gaps (not yet implemented)
 
-- Simulation engine (combinational + sequential + hierarchy flattening).
-- Simulation UI (run/step behavior, live signal coloring).
 - Instance/definition name-uniqueness validation.
 - A global bus-width invariant scan (connections are validated at creation time; an
   inconsistent pre-existing design isn't proactively flagged).
 - Def reachability GC (applying a template orphans its variant's old nested defs).
+- Timing-accurate simulation (glitch/setup-hold history, per-instance delays, SCC-based
+  settling for large designs) — the engine is functional (unit/inertial delay), not
+  timing-accurate.
+- `run()` is not clock-period-aware (fixed `1000 ps`/tick).
 
 ---
 
@@ -366,6 +421,11 @@ Known limitation: applying orphans the variant's old nested closure defs (no def
 - `packages/model/test/serialize.test.ts` — design round-trip and validation.
 - `packages/model/test/library.test.ts` — library export closure/normalization and import
   merge/collision handling.
+- `packages/model/test/transfer.test.ts` — `Primitive.transfer` 3-state truth tables and bus
+  reshape.
+- `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
+  JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping, and
+  port-group/composite signal resolution.
 - `apps/logica/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - `apps/logica/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
 - `apps/logica/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Signal } from '@logica/model'
 import { Simulation } from '@logica/sim'
-import { DEFAULT_CONFIG } from '@logica/sim'
+import { DEFAULT_CONFIG, type SimConfig } from '@logica/sim'
 import { useEditorStore } from './editorStore'
 import { useUiStore } from './uiStore'
 
@@ -24,6 +24,11 @@ interface SimState {
   /** Bumped on every signal change so the canvas knows to redraw. */
   version: number
   engine: Simulation | null
+  /** How the Step button advances. */
+  stepMode: SimConfig['stepMode']
+  /** Default gate propagation delay, in picoseconds. */
+  defaultDelay: number
+  settingsOpen: boolean
   toggleMode: () => void
   run: () => void
   step: () => void
@@ -32,12 +37,21 @@ interface SimState {
   toggleSwitch: (instanceId: string) => void
   descend: (instanceId: string) => void
   ascend: () => void
+  setStepMode: (mode: SimConfig['stepMode']) => void
+  setDefaultDelay: (ps: number) => void
+  openSettings: () => void
+  closeSettings: () => void
 }
 
 let runTimer: ReturnType<typeof setInterval> | null = null
 
 export const useSimStore = create<SimState>()((set, get): SimState => {
-  const rebuild = (): Simulation => new Simulation(useEditorStore.getState().design, DEFAULT_CONFIG)
+  const config = (): SimConfig => ({
+    ...DEFAULT_CONFIG,
+    defaultDelay: get().defaultDelay,
+    stepMode: get().stepMode,
+  })
+  const rebuild = (): Simulation => new Simulation(useEditorStore.getState().design, config())
 
   return {
     mode: 'design',
@@ -45,6 +59,9 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     path: [],
     version: 0,
     engine: null,
+    stepMode: 'quiescent',
+    defaultDelay: DEFAULT_CONFIG.defaultDelay,
+    settingsOpen: false,
 
     toggleMode: () => {
       const { mode } = get()
@@ -109,6 +126,20 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
 
     descend: (instanceId) => set((s) => ({ path: [...s.path, instanceId] })),
     ascend: () => set((s) => ({ path: s.path.slice(0, -1) })),
+
+    setStepMode: (mode) => {
+      set({ stepMode: mode })
+      get().engine?.setStepMode(mode)
+    },
+
+    setDefaultDelay: (ps) => {
+      get().stop()
+      set({ defaultDelay: ps })
+      set({ engine: rebuild(), version: get().version + 1 })
+    },
+
+    openSettings: () => set({ settingsOpen: true }),
+    closeSettings: () => set({ settingsOpen: false }),
   }
 })
 

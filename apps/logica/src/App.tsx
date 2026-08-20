@@ -6,6 +6,7 @@ import { LibraryPanel } from './ui/LibraryPanel'
 import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
 import { DeleteDialog } from './ui/DeleteDialog'
+import { SimSettingsDialog } from './ui/SimSettingsDialog'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
@@ -81,6 +82,7 @@ export default function App() {
       </div>
       <GroupDialog />
       <DeleteDialog />
+      <SimSettingsDialog />
       <Toast />
     </div>
   )

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
 import { Simulation } from '../src/engine'
+import { DEFAULT_CONFIG } from '../src/config'
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const inst = (id: string, defId: string): Instance => ({ id, name: id, defId, pos: { x: 0, y: 0 } })
@@ -347,5 +348,23 @@ describe('Simulation engine', () => {
     expect(sim.signal('l', 'in:0')).toBe(0)
     sim.advanceTo(1000)
     expect(sim.signal('l', 'in:0')).toBe(1)
+  })
+
+  it('steps one clock edge at a time in clock-edge mode', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led')],
+        [conn('c1', iref('clk', 'out:0'), iref('l', 'in:0'))],
+      ),
+      { ...DEFAULT_CONFIG, stepMode: 'clock-edge' },
+    )
+    // Clock starts HIGH; each step advances to the next edge (period/2 = 500 ps).
+    expect(sim.signal('l', 'in:0')).toBe(1)
+    sim.step()
+    expect(sim.signal('l', 'in:0')).toBe(0)
+    sim.step()
+    expect(sim.signal('l', 'in:0')).toBe(1)
+    sim.step()
+    expect(sim.signal('l', 'in:0')).toBe(0)
   })
 })

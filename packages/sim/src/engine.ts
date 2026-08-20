@@ -81,12 +81,14 @@ export class Simulation {
   private switchState = new Map<string, Signal>()
   private events = new MinHeap()
   private timeValue = 0
+  private stepMode: SimConfig['stepMode']
 
   constructor(design: Design, config: SimConfig = DEFAULT_CONFIG) {
     const netlist = flatten(design)
     this.instances = netlist.instances
     this.netWidths = netlist.netWidths
     this.driven = netlist.driven
+    this.stepMode = config.stepMode
 
     const n = netlist.netCount
     // Power-on: driven nets start at 0; floating (undriven) nets stay unknown.
@@ -194,7 +196,31 @@ export class Simulation {
 
   /** Settle combinational logic to quiescence at the current time. False if oscillating. */
   step(): boolean {
+    if (this.stepMode === 'clock-edge') {
+      const delta = this.nextClockEdgeDelta()
+      if (delta !== null) return this.advanceTo(this.timeValue + delta)
+    }
     return this.settle()
+  }
+
+  /** Change how `step()` advances (no rebuild needed). */
+  setStepMode(mode: SimConfig['stepMode']): void {
+    this.stepMode = mode
+  }
+
+  /** Time until the next clock edge (min half-period across all clocks), or null. */
+  private nextClockEdgeDelta(): number | null {
+    let best: number | null = null
+    for (const inst of this.instances) {
+      if (inst.kind !== 'clock') continue
+      const period = typeof inst.props?.period === 'number' ? inst.props.period : 10_000
+      const half = period / 2
+      if (half <= 0) continue
+      const next = (Math.floor(this.timeValue / half) + 1) * half
+      const delta = next - this.timeValue
+      if (best === null || delta < best) best = delta
+    }
+    return best
   }
 
   /** Advance time to `t`, recompute clock sources, and settle. */

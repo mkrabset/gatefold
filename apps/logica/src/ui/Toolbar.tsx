@@ -88,6 +88,7 @@ export function Toolbar() {
   const stop = useSimStore((s) => s.stop)
   const reset = useSimStore((s) => s.reset)
   const ascend = useSimStore((s) => s.ascend)
+  const openSettings = useSimStore((s) => s.openSettings)
 
   const onOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -132,6 +133,12 @@ export function Toolbar() {
         </IconButton>
         <IconButton title="Reset" onClick={reset}>
           <ResetIcon />
+        </IconButton>
+        <IconButton title="Simulation settings" onClick={openSettings}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="8" cy="8" r="2.2" />
+            <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4" />
+          </svg>
         </IconButton>
       </div>
 

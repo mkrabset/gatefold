@@ -441,7 +441,7 @@ function drawProbeOverlay(
         const pattern = SEVEN_SEG[value]
         const segs = sevenSegGeometry({ x: cx, y: cy, w, h, palette: p })
         ctx.strokeStyle = '#fbbf24'
-        ctx.lineWidth = 4
+        ctx.lineWidth = 6
         for (let i = 0; i < 7; i++) {
             if (!pattern[i]) continue
             const [x1, y1, x2, y2] = segs[i]

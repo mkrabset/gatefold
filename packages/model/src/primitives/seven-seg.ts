@@ -65,7 +65,7 @@ export class SevenSeg extends Gate {
       ctx.beginPath()
       ctx.moveTo(x1, y1)
       ctx.lineTo(x2, y2)
-      ctx.stroke(opts.palette.gateStroke, 4)
+      ctx.stroke(opts.palette.compositeFill, 6)
     }
   }
 }

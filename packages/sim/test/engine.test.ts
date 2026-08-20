@@ -184,6 +184,121 @@ describe('Simulation engine', () => {
     expect(sim.signal('n2', 'out:0')).toBe(1)
   })
 
+  it('edge-triggers a master-slave JK flip-flop (8 NAND + NOT)', () => {
+    const nand2: ComponentDef = {
+      id: 'nand2',
+      name: 'NAND2',
+      kind: 'primitive',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output', inverted: true },
+      ],
+    }
+    const nand3: ComponentDef = {
+      id: 'nand3',
+      name: 'NAND3',
+      kind: 'primitive',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'in:2', name: 'C', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output', inverted: true },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('j', 'switch'),
+          inst('k', 'switch'),
+          inst('clk', 'switch'),
+          inst('notClk', 'not'),
+          inst('m1', 'nand3'),
+          inst('m2', 'nand3'),
+          inst('m3', 'nand2'),
+          inst('m4', 'nand2'),
+          inst('s1', 'nand2'),
+          inst('s2', 'nand2'),
+          inst('s3', 'nand2'),
+          inst('s4', 'nand2'),
+        ],
+        [
+          // master: gated JK
+          conn('c1', iref('j', 'out:0'), iref('m1', 'in:0')),
+          conn('c2', iref('s4', 'out:0'), iref('m1', 'in:1')),
+          conn('c3', iref('clk', 'out:0'), iref('m1', 'in:2')),
+          conn('c4', iref('k', 'out:0'), iref('m2', 'in:0')),
+          conn('c5', iref('s3', 'out:0'), iref('m2', 'in:1')),
+          conn('c6', iref('clk', 'out:0'), iref('m2', 'in:2')),
+          // master latch cross-coupling
+          conn('c7', iref('m1', 'out:0'), iref('m3', 'in:0')),
+          conn('c8', iref('m4', 'out:0'), iref('m3', 'in:1')),
+          conn('c9', iref('m2', 'out:0'), iref('m4', 'in:0')),
+          conn('c10', iref('m3', 'out:0'), iref('m4', 'in:1')),
+          // clock inversion
+          conn('c11', iref('clk', 'out:0'), iref('notClk', 'in:0')),
+          // slave: gated by ¬CLK
+          conn('c12', iref('m3', 'out:0'), iref('s1', 'in:0')),
+          conn('c13', iref('notClk', 'out:0'), iref('s1', 'in:1')),
+          conn('c14', iref('m4', 'out:0'), iref('s2', 'in:0')),
+          conn('c15', iref('notClk', 'out:0'), iref('s2', 'in:1')),
+          // slave latch cross-coupling
+          conn('c16', iref('s1', 'out:0'), iref('s3', 'in:0')),
+          conn('c17', iref('s4', 'out:0'), iref('s3', 'in:1')),
+          conn('c18', iref('s2', 'out:0'), iref('s4', 'in:0')),
+          conn('c19', iref('s3', 'out:0'), iref('s4', 'in:1')),
+        ],
+        { nand2, nand3 },
+      ),
+    )
+
+    // Power-on: the whole chain resolves to a definite state.
+    const q0 = sim.signal('s3', 'out:0')
+    expect(q0).not.toBe('x')
+    expect(sim.signal('s4', 'out:0')).not.toBe('x')
+    expect(sim.signal('s4', 'out:0')).not.toBe(q0)
+
+    // Set J=1 (no clock yet): no change.
+    sim.setSwitch('j', 1)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(q0)
+
+    // Rising edge: master latches, slave must NOT change.
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(q0)
+
+    // Falling edge: slave captures → Q = 1.
+    sim.setSwitch('clk', 0)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(1)
+
+    // Reset: J=0, K=1, pulse CLK → Q = 0.
+    sim.setSwitch('j', 0)
+    sim.setSwitch('k', 1)
+    sim.setSwitch('clk', 1)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(0)
+
+    // Toggle: J=K=1 → Q flips on each clock pulse.
+    sim.setSwitch('j', 1)
+    sim.setSwitch('clk', 1)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(1)
+
+    sim.setSwitch('clk', 1)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    expect(sim.signal('s3', 'out:0')).toBe(0)
+  })
+
   it('propagates buses through fan-in and bus-split', () => {
     const fanIn4: ComponentDef = {
       id: 'fi4',

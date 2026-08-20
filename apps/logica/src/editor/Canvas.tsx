@@ -130,6 +130,7 @@ export function Canvas() {
           state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
           canvas.style.cursor = 'crosshair'
           canvas.setPointerCapture(e.pointerId)
+          state.setHoverPort(port.ref)
           return
         }
       }

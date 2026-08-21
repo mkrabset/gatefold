@@ -156,10 +156,12 @@ interface Design { version: number; root: string; defs: Record<string, Component
 
 ### `editorStore` — zustand + immer + zundo
 The document and editing state:
-- `design: Design` — the current design (currently a hardcoded demo).
+- `design: Design` — the current design (starts empty: built-in primitives + an empty `main`).
 - `navStack: string[]` — navigation path into composites; the top is the currently
   displayed definition. `navigateTo`/`navigateUp` descend/ascend.
 - `viewport: { x, y, zoom }` — world point at canvas center + zoom factor.
+- `viewportStack: Viewport[]` — a saved viewport per `navStack` depth; `navigateTo` saves the
+  outgoing view and `navigateUp` restores it (so Escape returns to the exact view you left).
 - `selectedIds: string[]` — multi-selection (instance ids in the current def).
 - `marquee: Rect | null` — transient rubber-band rectangle.
 - `pendingWire: { from, x, y, originalId? } | null` — a wire being drawn / re-targeted.
@@ -216,6 +218,12 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   parent's ports.
 - `instanceBounds(design, parentDef, instance, def, pad)` / `hitTest(...)` — world-space
   bounds (using the effective size) and topmost hit detection.
+- `defContentsBounds(design, def)` — union of a composite's instance bounds (used to frame the
+  view when entering a component).
+- `sevenSegLaneCount` / `arrayLaneCount` / `arrayIndicatorLanes` / `hitArrayIndicator` — the
+  resolved digit/lane geometry for the 7-seg and array primitives, shared by the renderer and
+  hit-testing (each indicator/segment sits at its terminal/lane's exact y, and each lane is
+  clickable in simulate mode).
 - `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin, hit-tested
   against the whole terminal marker (a vertical segment of half-height `pinRadiusWorld(width)`),
   returning `{ ref, role }` where `role` is `source` (output pin) or `sink` (input pin).
@@ -235,8 +243,9 @@ UI preferences persisted to `localStorage` (`logica-ui`):
   hoverPort, palette)`: background → grid → wires → instances → hover highlight → marquee.
 - **Theming**: colors come from `darkPalette` / `lightPalette`.
 - **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
-  bubble), CLOCK (rounded rect + sine glyph), FAN-IN/FAN-OUT and BUS-SPLIT/BUS-MERGE
-  (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/`drawBusTrapezoid*` helpers).
+  bubble), CLOCK (rounded rect + zoom-scaled square-wave glyph), FAN-IN/FAN-OUT and
+  BUS-SPLIT/BUS-MERGE (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/
+  `drawBusTrapezoid*` helpers).
 - **Terminals**: each pin is a vertical **stroke** along the component edge (blue sink / green
   source), its length `2·pinRadiusWorld(width)`. Hovering a terminal turns its marker **red**
   (`pinHighlight`) instead of drawing a separate ring. A composite port wired to an internal
@@ -250,6 +259,11 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 - **Port groups**: a single rectangle per direction. The `input-port` group draws its
   green source pins on the right edge (labels inside), the `output-port` group draws sink
   pins on the left edge. The group is movable as one unit.
+- **Probes** (`switch-array`/`led-array`/`seven-seg`): arrays draw a row of indicator circles
+  (or a `?` box while a bus width is undetermined), one per lane, each aligned to its terminal/
+  bus lane; each circle fills red/amber when its lane is `1`. The 7-seg draws a green body and
+  renders one **hexagon-segment digit per 4-bit nibble** (lit amber, unlit faint green), MSD
+  leftmost, honoring its `order` property.
 - **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
   (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
   small bubble per lane (aligned with each individual wire). Inversion is instance-level
@@ -299,7 +313,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   reorder ports; add/remove is gated by the primitive's `fixedInputs`/`fixedOutputs`, rename
   by `allowRenameTerminals`; reorder is animated via @dnd-kit).
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
-  place a deep copy; `variant` defs are excluded).
+  place a deep copy; `variant` defs are excluded). The "My components" grid scrolls
+  independently when it overflows.
 - **GroupDialog** — names the inferred ports before creating a composite.
 - **SimSettingsDialog** — modal for simulation settings: default gate delay (ps) and the
   step mode (`quiescent` / `clock-edge`).

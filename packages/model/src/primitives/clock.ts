@@ -1,6 +1,6 @@
 import type { Port, Signal } from '../types'
 import { outputPortId } from '../types'
-import { Gate, fillAndStroke, gateBounds } from './gate'
+import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -35,16 +35,28 @@ export class Clock extends Gate {
   draw(ctx: VectorContext, opts: DrawOptions): void {
     const { l, r, t, cy } = gateBounds(opts)
     const { w, h } = opts
+    // Screen size / world size = zoom, so every glyph metric scales with zoom.
+    const scale = h / this.bodySize().h
     ctx.beginPath()
-    ctx.roundRect(l, t, w, h, 6)
-    fillAndStroke(ctx, opts.palette)
-    // Sine-wave glyph.
+    ctx.roundRect(l, t, w, h, 6 * scale)
+    ctx.fill(opts.palette.gateFill)
+    ctx.stroke(opts.palette.gateStroke, 1.5 * scale)
+    // Square-wave glyph (sine phase: starts at mid and rises), scaled with the body.
+    const amp = h * 0.22
+    const x0 = l + w * 0.18
+    const x1 = r - w * 0.18
+    const e = (x1 - x0) / 8
     ctx.beginPath()
-    for (let x = l + 8; x <= r - 8; x += 1) {
-      const y = cy + Math.sin(((x - (l + 8)) / (r - l - 16)) * Math.PI * 2) * 8
-      if (x === l + 8) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
-    }
-    ctx.stroke(opts.palette.pin, 1.5)
+    ctx.moveTo(x0, cy)
+    ctx.lineTo(x0 + e, cy)
+    ctx.lineTo(x0 + e, cy - amp)
+    ctx.lineTo(x0 + 3 * e, cy - amp)
+    ctx.lineTo(x0 + 3 * e, cy + amp)
+    ctx.lineTo(x0 + 5 * e, cy + amp)
+    ctx.lineTo(x0 + 5 * e, cy - amp)
+    ctx.lineTo(x0 + 7 * e, cy - amp)
+    ctx.lineTo(x0 + 7 * e, cy)
+    ctx.lineTo(x1, cy)
+    ctx.stroke(opts.palette.pin, 1.5 * scale)
   }
 }

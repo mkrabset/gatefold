@@ -15,6 +15,9 @@ authoritative — update this when a term's meaning changes.
   and the probe primitives 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
+- **Clock** — a source primitive (no inputs, one output) that produces a periodic square
+  wave; its `period` (ps) is a per-instance property. Drawn with a zoom-scaled square-wave
+  glyph (sine phase).
 - **7-seg** — a probe primitive (sink) with a single bus input that renders one digit per
   4-bit nibble (width divisible by 4, ≤ 64); its `order` property (`asc`/`desc`) picks which
   end of the bus is the least-significant bit.
@@ -90,6 +93,9 @@ authoritative — update this when a term's meaning changes.
   and the variant's inversion.
 - **Navigation (descend/ascend)** — the `navStack` of def ids; double-click a component to
   enter it, Escape / breadcrumb ↑ to exit.
+- **Fit-to-view** — when you enter a component, the canvas auto-zooms/pans so its internals
+  fill the view. A **viewport stack** (parallel to `navStack`) remembers the outgoing
+  transform, so exiting restores the exact view you left.
 - **Selection** — `selectedIds`; marquee (drag empty space), Shift+click to toggle, drag a
   selected component to move the whole selection.
 

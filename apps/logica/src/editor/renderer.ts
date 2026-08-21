@@ -415,6 +415,15 @@ function drawPortGroupBox(
     })
 }
 
+/** Fill a polygon given as a list of [x, y] points. */
+function fillPolygon(ctx: CanvasRenderingContext2D, poly: [number, number][]): void {
+    ctx.beginPath()
+    ctx.moveTo(poly[0][0], poly[0][1])
+    for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1])
+    ctx.closePath()
+    ctx.fill()
+}
+
 /** Draw a seven-seg body: one digit per 4-bit nibble of the bus, or "?" when undetermined. */
 function drawSevenSegBody(
     ctx: CanvasRenderingContext2D,
@@ -467,14 +476,8 @@ function drawSevenSegBody(
         const segs = sevenSegGeometry({ x: dx, y: cy, w: digitW, h: digitH, palette: p })
 
         // Dim skeleton.
-        ctx.strokeStyle = 'rgba(63, 185, 80, 0.25)'
-        ctx.lineWidth = 6 * zoom
-        for (const [x1, y1, x2, y2] of segs) {
-            ctx.beginPath()
-            ctx.moveTo(x1, y1)
-            ctx.lineTo(x2, y2)
-            ctx.stroke()
-        }
+        ctx.fillStyle = 'rgba(63, 185, 80, 0.1)'
+        for (const poly of segs) fillPolygon(ctx, poly)
 
         if (bits.length === 0) continue
         // d = 0 is the most-significant digit (leftmost); nibble 0 is least significant.
@@ -484,15 +487,10 @@ function drawSevenSegBody(
         if (n.some((b) => b !== 0 && b !== 1)) continue
         const value = (n[0] as number) + 2 * (n[1] as number) + 4 * (n[2] as number) + 8 * (n[3] as number)
         const pattern = SEVEN_SEG[value]
-        ctx.strokeStyle = '#fbbf24'
-        ctx.lineWidth = 6 * zoom
+        ctx.fillStyle = '#fcd34d'
         for (let i = 0; i < 7; i++) {
             if (!pattern[i]) continue
-            const [x1, y1, x2, y2] = segs[i]
-            ctx.beginPath()
-            ctx.moveTo(x1, y1)
-            ctx.lineTo(x2, y2)
-            ctx.stroke()
+            fillPolygon(ctx, segs[i])
         }
     }
 }

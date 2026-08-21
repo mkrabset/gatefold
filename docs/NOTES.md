@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (BUS + multi-digit 7-seg, array rendering/interaction, fit-to-view navigation).
+Last updated: 2026-08-21 (7-seg styling, CLOCK square wave, empty start, library scroll, docs).
 
 ## Where we are
 
@@ -90,6 +90,22 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   viewport to the fitted view. A `viewportStack` (parallel to `navStack`) saves the outer
   transform on `navigateTo` and restores it on `navigateUp` (Escape / ↑), so exiting returns
   you to the exact view you left. `loadProject` and entering simulate mode reset the stack.
+- **7-seg visual pass** — the display got a **green body with a border** (`#0d2818` fill,
+  `#3fb950` border), and the segments became **pointed hexagons** that "lock" together with a
+  thin gap (filled polygons from `sevenSegGeometry`, not stroked lines). Unlit segments are a
+  faint green (barely lighter than the body); lit segments are a bright amber (`#fcd34d`).
+- **CLOCK glyph** — now a **square wave** instead of a sine; the phase was shifted so it starts
+  at mid and rises (sine-like, not cosine-like). Every metric (corner radius, stroke, amplitude,
+  padding) scales with `screenH / worldH`, so the glyph is zoom-invariant.
+- **Empty starting design** — `createDemoDesign` no longer ships a half-adder or any demo
+  components: it builds only the built-in primitive defs and an empty `main` sheet. Removed the
+  now-unused `variantize`/`iref` helpers; the store tests got their own `makeTestDesign`
+  fixture.
+- **Library scroll** — the "My components" grid now scrolls independently (`.library` is a flex
+  column, `.lib-components` is the `overflow-y: auto` region) instead of the whole panel.
+- **Documentation** — README rewritten as an overview; new `docs/USER_GUIDE.md` (UI tour,
+  canvas + shortcuts, building, buses, a reference section per primitive, and a simulation
+  chapter).
 
 ## Latest (previous session)
 

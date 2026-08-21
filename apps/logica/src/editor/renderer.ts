@@ -9,6 +9,11 @@ import {
     pinRadiusWorld,
     pinWidth,
     portPosition,
+    SEVEN_SEG_DIGIT_H,
+    SEVEN_SEG_DIGIT_W,
+    SEVEN_SEG_GAP,
+    SEVEN_SEG_PAD,
+    sevenSegLaneCount,
     sidePinOffset,
     sizeForPorts,
     undeterminedHint,
@@ -291,6 +296,8 @@ function drawInstance(
                 pinRadiusWorld(pinWidth(design, parentDef, {instanceId: instance.id, portId})) * vp.zoom
             if (def.primitive === 'switch-array' || def.primitive === 'led-array') {
                 drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
+            } else if (def.primitive === 'seven-seg') {
+                drawSevenSegBody(ctx, design, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
             } else {
                 primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
                     x: s.x,
@@ -300,7 +307,6 @@ function drawInstance(
                     palette: p,
                     pinRadius: pinRadiusOf,
                 })
-                if (sim) drawProbeOverlay(ctx, sim, def.primitive, instance.id, s.x, s.y, w * vp.zoom, h * vp.zoom, p)
             }
         }
         // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
@@ -409,31 +415,67 @@ function drawPortGroupBox(
     })
 }
 
-/** Draw the live state of the seven-seg probe primitive during simulation. */
-function drawProbeOverlay(
+/** Draw a seven-seg body: one digit per 4-bit nibble of the bus, or "?" when undetermined. */
+function drawSevenSegBody(
     ctx: CanvasRenderingContext2D,
-    sim: SimView,
-    kind: string,
-    instanceId: string,
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    def: ComponentDef,
     cx: number,
     cy: number,
-    w: number,
     h: number,
+    vp: Viewport,
     p: Palette,
+    sim?: SimView,
 ) {
-    if (kind === 'seven-seg') {
-        const bits = [
-            sim.valueOf(instanceId, 'in:0'),
-            sim.valueOf(instanceId, 'in:1'),
-            sim.valueOf(instanceId, 'in:2'),
-            sim.valueOf(instanceId, 'in:3'),
-        ]
-        if (bits.some((b) => b !== 0 && b !== 1)) return
-        const value = (bits[0] as number) + 2 * (bits[1] as number) + 4 * (bits[2] as number) + 8 * (bits[3] as number)
+    const lanes = sevenSegLaneCount(design, parentDef, instance, def)
+    if (lanes === null) {
+        ctx.fillStyle = p.text
+        ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('?', cx, cy)
+        return
+    }
+
+    const digits = Math.max(1, Math.floor(lanes / 4))
+    const zoom = vp.zoom
+    const digitW = SEVEN_SEG_DIGIT_W * zoom
+    const digitH = SEVEN_SEG_DIGIT_H * zoom
+    const gap = SEVEN_SEG_GAP * zoom
+    const pad = SEVEN_SEG_PAD * zoom
+    const totalW = pad * 2 + digits * digitW + (digits - 1) * gap
+    const startX = cx - totalW / 2 + pad + digitW / 2
+
+    const order = instance.props?.order === 'desc'
+    const raw = sim ? sim.signalOf(instance.id, inputPorts(def)[0].id) : undefined
+    const bits = raw ? (order ? [...raw].reverse() : raw) : []
+
+    for (let d = 0; d < digits; d++) {
+        const dx = startX + d * (digitW + gap)
+        const segs = sevenSegGeometry({ x: dx, y: cy, w: digitW, h: digitH, palette: p })
+
+        // Dim skeleton.
+        ctx.strokeStyle = p.compositeFill
+        ctx.lineWidth = 6 * zoom
+        for (const [x1, y1, x2, y2] of segs) {
+            ctx.beginPath()
+            ctx.moveTo(x1, y1)
+            ctx.lineTo(x2, y2)
+            ctx.stroke()
+        }
+
+        if (bits.length === 0) continue
+        // d = 0 is the most-significant digit (leftmost); nibble 0 is least significant.
+        const nibble = digits - 1 - d
+        const base = nibble * 4
+        const n = [bits[base], bits[base + 1], bits[base + 2], bits[base + 3]]
+        if (n.some((b) => b !== 0 && b !== 1)) continue
+        const value = (n[0] as number) + 2 * (n[1] as number) + 4 * (n[2] as number) + 8 * (n[3] as number)
         const pattern = SEVEN_SEG[value]
-        const segs = sevenSegGeometry({ x: cx, y: cy, w, h, palette: p })
         ctx.strokeStyle = '#fbbf24'
-        ctx.lineWidth = 6
+        ctx.lineWidth = 6 * zoom
         for (let i = 0; i < 7; i++) {
             if (!pattern[i]) continue
             const [x1, y1, x2, y2] = segs[i]

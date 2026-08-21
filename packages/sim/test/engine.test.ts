@@ -518,4 +518,42 @@ describe('Simulation engine', () => {
     expect(sim.signalOf('b', 'out:0')).toEqual([0, 0, 0, 1])
     expect(sim.signal('fo', 'out:3')).toBe(1)
   })
+
+  it('resolves the seven-seg bus input to the fixed source width', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [{ id: 'out:0', name: 'BUS', direction: 'output' }],
+    }
+    const bus: ComponentDef = {
+      id: 'bus',
+      name: 'BUS',
+      kind: 'primitive',
+      primitive: 'bus',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('sa', 'sa'),
+          { id: 'b', name: 'b', defId: 'bus', pos: { x: 50, y: 0 }, props: { lanes: 8 } },
+          inst('seg', 'seven-seg'),
+        ],
+        [
+          conn('c1', iref('sa', 'out:0'), iref('b', 'in:0')),
+          conn('c2', iref('b', 'out:0'), iref('seg', 'in:0')),
+        ],
+        { sa, bus },
+      ),
+    )
+    expect(sim.signalOf('seg', 'in:0')).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
+    sim.toggleSwitch('sa', 5)
+    sim.step()
+    expect(sim.signalOf('seg', 'in:0')).toEqual([0, 0, 0, 0, 0, 1, 0, 0])
+  })
 })

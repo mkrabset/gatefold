@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-20 (simulator: engine + UI + switch/led arrays).
+Last updated: 2026-08-21 (BUS primitive, multi-digit 7-seg, switch/led replaced by arrays).
 
 ## Where we are
 
@@ -18,9 +18,9 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   state.
 - **`Primitive.transfer(inputs: Signal[][]): Signal[][]`** — pure 3-state (`0`/`1`/`x`)
   combinational logic per primitive (the previously-reserved slot). `x` propagates; `0`
-  dominates AND, `1` dominates OR. Sources (CLOCK/SWITCH) and sinks (LED/7-SEG) return `[]`;
-  the engine drives/reads them. `Port.inverted` is applied by the engine at pin boundaries
-  (NOT = buffer + inverted output).
+  dominates AND, `1` dominates OR. Sources (CLOCK/SWITCH-ARRAY) and sinks (LED-ARRAY/7-SEG)
+  return `[]`; the engine drives/reads them. `Port.inverted` is applied by the engine at pin
+  boundaries (NOT = buffer + inverted output).
 - **Flattening** (`netlist.ts`) — dissolves the hierarchy through `Port.terminal` into leaf
   primitive instances + nets (union-find); port groups and composite boundaries are unioned
   into the same net. Returns `instances`, `netWidths`, `driven`, and a **`pinNet`** map so
@@ -35,17 +35,20 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Clock & step** — CLOCK `period` (ps, now `10 000` default) drives a square wave via
   `advanceTo(t)`; `step()` is `'quiescent'` (settle) or `'clock-edge'` (advance one edge),
   per `SimConfig.stepMode`.
-- **Probe primitives** — `switch` (toggle source), `led` (lamp sink), `seven-seg` (4-bit
-  display sink) added to the model registry/library; the sim renderer lights them live.
+- **Probe primitives** — `switch-array` (multi-lane toggle source), `led-array` (multi-lane
+  lamp sink), `seven-seg` (multi-digit display sink) added to the model registry/library; the
+  sim renderer lights them live. The single-lane `switch` and `led` primitives were later
+  removed (the array versions supersede them).
 - **`switch-array` / `led-array`** — array versions of switch/led with a `terminalType`
-  property (`wire` | `bus`) and a `size` property (default 4, 1–32, WIRE only).
-  - WIRE: `size` single-wire ports (editable like fan-in/fan-out; `size` is the source of
-    truth — the store regenerates the instance's variant def ports and prunes connections).
-  - BUS: one port whose width is **neutral** (`deriveWidth` → `null`), adopting the connected
-    bus width; the body shows a **`?` box** while undetermined.
+  property (`wire` | `bus`).
+  - WIRE: one single-wire terminal per lane (default 1, addable/removable via the ports
+    editor; the port list is the source of truth — the store regenerates the instance's
+    variant-def ports and prunes orphaned connections).
+  - BUS: one port whose width is **neutral** (intrinsic `null`), adopting the connected bus
+    width; the body shows a **`?` box** while undetermined.
   - `PropertySpec` gained a `'select'` type (used by `terminalType`); the sim engine's source
-    state is now a per-instance **lane vector** (`toggleSwitch(id, lane)`), so individual
-    output terminals (WIRE) or bus lanes (BUS) toggle independently.
+    state is a per-instance **lane vector** (`toggleSwitch(id, lane)`), so individual output
+    terminals (WIRE) or bus lanes (BUS) toggle independently.
 - **Sim UI** (`apps/logica/src/state/simStore.ts` + `editor/renderer.ts` + `ui/SimSettingsDialog.tsx`)
   — design/simulate mode toggle; Run/Step/Stop/Reset; switch toggling; signal-colored wires
   (red=`1`, black=`0`, gray=`x`) and single-wire markers; a settings dialog (gate delay ps,
@@ -55,7 +58,27 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   gated JK, **master-slave JK edge-triggering**, oscillator → `x`, buses, clock, clock-edge
   stepping, and port-group/composite signal resolution.
 
-## Latest (end of this session)
+## Latest (this session)
+
+- **Removed `switch` and `led` primitives** — superseded by `switch-array`/`led-array`. Their
+  kinds were dropped from `PrimitiveKind`/`LIBRARY_KINDS` and the `switch.ts`/`led.ts` classes
+  deleted; the sim engine's per-lane `toggleSwitch(id, lane)` and the array body renderer are
+  the only remaining switch/led handling.
+- **Arrays default to one wire terminal** — `switch-array`/`led-array` now default to a single
+  WIRE terminal. The redundant `size` property was removed; the port list is the source of
+  truth, edited via the ports editor's +/−.
+- **`BUS` primitive** — a bus passthrough (single bus in + single bus out) whose `lanes`
+  property (default 8, 1–32) *fixes* the width of both terminals. Added `Primitive.widthError`
+  and made the width solver apply per-primitive width constraints after the fixpoint, surfacing
+  the message through `connectionError`. `Primitive.intrinsicWidth` now takes the instance
+  `props` (for property-driven widths).
+- **Multi-digit `seven-seg`** — the 4 single-wire inputs are now a single **neutral bus input**
+  (width divisible by 4, ≤ 64, enforced via `widthError`), rendering one digit per 4-bit
+  nibble, MSD leftmost. New `order` property (`asc`/`desc`, default `asc`) selects which end of
+  the bus is the LSB. Rendering lives in `renderer.ts` (`drawSevenSegBody`) and scales with
+  zoom (stroke width `6·zoom`; `sevenSegGeometry` insets scale with the box).
+
+## Latest (previous session)
 
 - **Lineage `uuid`** — `ComponentDef.uuid?: string` tracks a component's *origin*. A template
   and every variant copied from it share the same `uuid`; def identity stays `id`.

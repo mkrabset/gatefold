@@ -83,6 +83,8 @@ export interface Primitive {
    *  this pin's width or null (undetermined). May return a non-integer to flag an
    *  invalid configuration (the solver reports it). Only consulted for unconnected pins. */
   deriveWidth?(port: Port, siblings: ReadonlyMap<string, number>): number | null
+  /** Validation error for a resolved pin width, or null when valid. */
+  widthError?(port: Port, width: number): string | null
   /** Hover hint shown when this pin's width is undetermined, or null. */
   undeterminedHint?(port: Port): string | null
 

@@ -24,6 +24,12 @@ const TERMINAL_GAP = 4
 /** Fixed extra space at the top and bottom of a terminal-bearing side. */
 const SIDE_PADDING = 6
 
+/** Seven-segment digit metrics (world units), shared with the renderer. */
+export const SEVEN_SEG_DIGIT_W = 32
+export const SEVEN_SEG_DIGIT_H = 56
+export const SEVEN_SEG_GAP = 8
+export const SEVEN_SEG_PAD = 8
+
 /** Pin marker half-height in world units (pre-zoom) for a terminal of the given width.
  *  Scales linearly so each bus lane keeps a constant pitch. */
 export function pinRadiusWorld(width: number): number {
@@ -74,6 +80,19 @@ export function sizeForPorts(widths: number[]): { w: number; h: number } {
   return { w: PORT_GROUP_W, h: Math.max(28, sideHeight(widths)) }
 }
 
+/** Resolved bus width of a seven-seg input, or null when undetermined. */
+export function sevenSegLaneCount(
+  design: Design,
+  parentDef: ComponentDef,
+  instance: Instance,
+  def: ComponentDef,
+): number | null {
+  const input = inputPorts(def)[0]
+  if (!input) return null
+  const ref = { instanceId: instance.id, portId: input.id }
+  return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
+}
+
 /** Effective body size of an instance (port group or normal), accounting for pin radii. */
 export function instanceBodySize(
   design: Design,
@@ -85,6 +104,13 @@ export function instanceBodySize(
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     return sizeForPorts(widthsOf(design, parentDef, instance.id, ports))
+  }
+  if (def.kind === 'primitive' && def.primitive === 'seven-seg') {
+    const lanes = sevenSegLaneCount(design, parentDef, instance, def)
+    const digits = lanes === null ? 1 : Math.max(1, Math.floor(lanes / 4))
+    const w = 2 * SEVEN_SEG_PAD + digits * SEVEN_SEG_DIGIT_W + (digits - 1) * SEVEN_SEG_GAP
+    const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
+    return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }
   const base = defBodySize(def)
   const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))

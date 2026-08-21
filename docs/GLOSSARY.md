@@ -11,21 +11,22 @@ authoritative — update this when a term's meaning changes.
 - **Instance** — a concrete placement of a definition at a position, with its own unique
   `id` and `name`. References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
-  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT),
-  and the probe primitives SWITCH, LED, 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
+  and the probe primitives 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
-- **Switch** — a probe primitive (no inputs, one output) that acts as a user-toggled source
-  during simulation.
-- **LED / 7-seg** — probe primitives (sinks) that light/display their input during simulation.
-- **Switch-array / LED-array** — array versions of switch/LED. A `terminalType` property picks
-  `wire` (a fixed `size` of single-wire terminals, editable like fan-in/fan-out) or `bus` (one
-  terminal whose width is adopted from the connection, rendering a `?` while undetermined).
-  Each lane toggles/reads independently.
+- **7-seg** — a probe primitive (sink) with a single bus input that renders one digit per
+  4-bit nibble (width divisible by 4, ≤ 64); its `order` property (`asc`/`desc`) picks which
+  end of the bus is the least-significant bit.
+- **Switch-array / LED-array** — multi-lane source/sink probes. A `terminalType` property
+  picks `wire` (one single-wire terminal per lane, default 1, added/removed via the ports
+  editor) or `bus` (one terminal whose width is adopted from the connection, rendering a `?`
+  while undetermined). Each lane toggles/reads independently. They supersede the removed
+  single-lane SWITCH and LED primitives.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a
-  CLOCK's `period`. For arrays, `terminalType`/`size` are *property-driven*: changing them
-  regenerates the instance's variant-def ports.
+  CLOCK's `period`, a BUS's `lanes`, a 7-SEG's `order`. For arrays, `terminalType` is
+  *property-driven*: changing it regenerates the instance's variant-def ports.
 - **Composite / custom component** — a user-defined component whose behavior is its
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
 - **Template** — a definition in the library (`variant` not set). Placed via drag; edited
@@ -68,11 +69,15 @@ authoritative — update this when a term's meaning changes.
 - **Fan-out** — primitive with `1` bus input (width `n`) → `n` single-wire outputs.
 - **Bus-split** — primitive with `1` bus input (width `n`) → `2` bus outputs (width `n/2`).
 - **Bus-merge** — primitive with `2` bus inputs (width `m`) → `1` bus output (width `2m`).
+- **Bus (primitive)** — a passthrough (single bus in → single bus out) whose `lanes` property
+  fixes the width of both terminals, used to pin a bus to a specific width.
 - **Neutral port** — a terminal whose width is undetermined (no constant reaches it); it
   *adopts* the width of whatever bus it is connected to. Rendered as a thin dashed wire.
 - **Width solver** — the fixpoint that derives every terminal's width from fan-in/fan-out
-  arity constants, connection equalities, composite-terminal mirrors, and the split/merge
-  relations. A conflict or non-integer result (odd bus into a splitter) is invalid.
+  arity constants, connection equalities, composite-terminal mirrors, split/merge relations,
+  and property-driven intrinsic widths (the `bus` primitive's `lanes`). A conflict, a
+  non-integer result (odd bus into a splitter), or a failed `widthError` constraint (7-seg
+  multiple-of-4 / ≤64) is invalid.
 
 ## Editing operations
 

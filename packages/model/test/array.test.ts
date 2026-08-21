@@ -72,4 +72,44 @@ describe('array primitives', () => {
     // b.out:0 is fixed width 8; and.in:0 is width 1 → mismatch.
     expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
   })
+
+  it('rejects a bus width that is not a multiple of 4 for seven-seg', () => {
+    const main: ComponentDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 6 } },
+        { id: 'seg', name: 'seg', defId: 'seven-seg', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
+    }
+    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
+  })
+
+  it('rejects a bus wider than 64 lanes for seven-seg', () => {
+    const main: ComponentDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 68 } },
+        { id: 'seg', name: 'seg', defId: 'seven-seg', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
+    }
+    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')
+  })
 })

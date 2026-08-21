@@ -118,6 +118,26 @@ describe('model primitives', () => {
     expect(primitiveOf('bus').transfer([[1, 0, 1, 0]])).toEqual([[1, 0, 1, 0]])
   })
 
+  it('declares the seven-seg order property and a single neutral bus input', () => {
+    const seg = primitiveDef('seven-seg')
+    expect(inputPorts(seg).map((p) => p.id)).toEqual(['in:0'])
+    expect(inputPorts(seg)[0].name).toBe('BUS')
+    expect(outputPorts(seg)).toHaveLength(0)
+
+    expect(primitiveOf('seven-seg').properties()).toEqual([
+      { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
+    ])
+    expect(defaultPropsOf('seven-seg')).toEqual({ order: 'asc' })
+
+    const prim = primitiveOf('seven-seg')
+    const input = inputPorts(seg)[0]
+    expect(prim.intrinsicWidth(seg.ports, input)).toBeNull()
+    expect(prim.widthError!(input, 4)).toBeNull()
+    expect(prim.widthError!(input, 8)).toBeNull()
+    expect(prim.widthError!(input, 6)).toBe('7-seg width must be a multiple of 4')
+    expect(prim.widthError!(input, 68)).toBe('7-seg width must be at most 64 lanes')
+  })
+
   it('folds an empty property list into an empty defaults record', () => {
     expect(primitiveOf('and').properties()).toEqual([])
     expect(defaultPropsOf('and')).toEqual({})

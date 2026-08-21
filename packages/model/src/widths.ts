@@ -13,7 +13,8 @@ import { primitiveOf } from './primitives'
 export interface SheetWidths {
   widths: Map<string, number>
   invalid: boolean
-  reason?: 'conflict' | 'non-integer'
+  reason?: 'conflict' | 'non-integer' | 'constraint'
+  message?: string
 }
 
 const cache = new WeakMap<Design, Map<string, SheetWidths>>()
@@ -39,7 +40,8 @@ function computeSheet(design: Design, defId: string): SheetWidths {
   const def = design.defs[defId]
   const widths = new Map<string, number>()
   let invalid = false
-  let reason: 'conflict' | 'non-integer' | undefined
+  let reason: 'conflict' | 'non-integer' | 'constraint' | undefined
+  let message: string | undefined
 
   const set = (ref: PinRef, value: number) => {
     const key = pinKey(ref)
@@ -122,7 +124,25 @@ function computeSheet(design: Design, defId: string): SheetWidths {
     }
   }
 
-  return { widths, invalid, reason }
+  // Apply per-primitive width constraints (e.g. 7-seg must be a multiple of 4).
+  for (const inst of def.instances ?? []) {
+    const idef = design.defs[inst.defId]
+    if (!idef || idef.kind !== 'primitive' || !idef.primitive) continue
+    const prim = primitiveOf(idef.primitive)
+    if (!prim.widthError) continue
+    for (const port of idef.ports) {
+      const w = widths.get(pinKey({ instanceId: inst.id, portId: port.id }))
+      if (w === undefined) continue
+      const err = prim.widthError(port, w)
+      if (err) {
+        invalid = true
+        reason = reason ?? 'constraint'
+        message = message ?? err
+      }
+    }
+  }
+
+  return { widths, invalid, reason, message }
 }
 
 /** The width of the pin referenced by `ref`, or 1 when undetermined. */
@@ -157,5 +177,6 @@ export function connectionError(design: Design, def: ComponentDef, from: PinRef,
   const testDesign: Design = { ...design, defs: { ...design.defs, [def.id]: testDef } }
   const result = solveWidths(testDesign, def.id)
   if (!result.invalid) return null
+  if (result.message) return result.message
   return result.reason === 'non-integer' ? 'Bus width must be even' : 'Bus width mismatch'
 }

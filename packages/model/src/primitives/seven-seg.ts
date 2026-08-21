@@ -1,7 +1,7 @@
 import type { Port, Signal } from '../types'
 import { inputPortId } from '../types'
 import { Gate, gateBounds } from './gate'
-import type { DrawOptions } from './primitive'
+import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
 /**
@@ -10,26 +10,31 @@ import type { VectorContext } from './vector'
  */
 export function sevenSegGeometry(opts: DrawOptions): [number, number, number, number][] {
   const { l, r, t, b } = gateBounds(opts)
-  const inset = 8
+  const h = b - t
+  // Inset and corner gap scale with the box so the glyph scales with zoom.
+  const inset = h * 0.125
+  const corner = inset * 0.375
   const left = l + inset
   const right = r - inset
   const top = t + inset
   const bottom = b - inset
   const mid = (top + bottom) / 2
   return [
-    [left + 3, top, right - 3, top],
-    [right, top + 3, right, mid - 3],
-    [right, mid + 3, right, bottom - 3],
-    [left + 3, bottom, right - 3, bottom],
-    [left, mid + 3, left, bottom - 3],
-    [left, top + 3, left, mid - 3],
-    [left + 3, mid, right - 3, mid],
+    [left + corner, top, right - corner, top],
+    [right, top + corner, right, mid - corner],
+    [right, mid + corner, right, bottom - corner],
+    [left + corner, bottom, right - corner, bottom],
+    [left, mid + corner, left, bottom - corner],
+    [left, top + corner, left, mid - corner],
+    [left + corner, mid, right - corner, mid],
   ]
 }
 
 /**
- * A 7-segment numeric display: four binary inputs (A..D, A = least significant) and no
- * outputs. The designer draws a dim "8." skeleton; the simulator lights the segments.
+ * A multi-digit 7-segment display: a single neutral bus input (width divisible by 4,
+ * ≤ 64) renders one digit per 4-bit nibble. `order` controls which end of the bus is
+ * the least-significant bit. The renderer draws the digits; this class only declares
+ * the terminal, the width constraint, and the skeleton geometry.
  */
 export class SevenSeg extends Gate {
   readonly kind = 'seven-seg' as const
@@ -39,15 +44,27 @@ export class SevenSeg extends Gate {
   readonly fixedOutputs = true
 
   defaultPorts(): Port[] {
-    return [
-      { id: inputPortId(0), name: 'A', direction: 'input' },
-      { id: inputPortId(1), name: 'B', direction: 'input' },
-      { id: inputPortId(2), name: 'C', direction: 'input' },
-      { id: inputPortId(3), name: 'D', direction: 'input' },
-    ]
+    return [{ id: inputPortId(0), name: 'BUS', direction: 'input' }]
   }
 
   nextInputName(): string | null {
+    return null
+  }
+
+  properties(): PropertySpec[] {
+    return [
+      { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
+    ]
+  }
+
+  intrinsicWidth(): null {
+    // Neutral: adopts the width of the connected bus source.
+    return null
+  }
+
+  widthError(_port: Port, width: number): string | null {
+    if (width % 4 !== 0) return '7-seg width must be a multiple of 4'
+    if (width > 64) return '7-seg width must be at most 64 lanes'
     return null
   }
 

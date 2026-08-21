@@ -47,8 +47,8 @@ interface Port {
 
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
-  | 'bus-split' | 'bus-merge' | 'input-port' | 'output-port'
-  | 'switch' | 'led' | 'seven-seg' | 'switch-array' | 'led-array'
+  | 'bus-split' | 'bus-merge' | 'bus' | 'input-port' | 'output-port'
+  | 'seven-seg' | 'switch-array' | 'led-array'
 
 interface ComponentDef {
   id: string
@@ -67,6 +67,7 @@ interface Instance {
   name: string                              // display label; unique within parent's scope
   defId: string                             // -> Design.defs
   pos: { x: number; y: number }             // canvas position
+  props?: Record<string, unknown>           // per-instance property values (e.g. `lanes`, `order`)
 }
 
 // A connection endpoint is always an instance pin.
@@ -100,9 +101,9 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (`findConnectionTo`). Fan-out from a driver (`from`) is unrestricted.
 - **Primitive library** (`primitives/`): built-in components are polymorphic — one
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
-  `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`, the
-  internal `input-port.ts`/`output-port.ts`, and the probe primitives
-  `switch.ts`/`led.ts`/`seven-seg.ts`/`switch-array.ts`/`led-array.ts`). Each supplies its
+  `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
+  `bus.ts`, the internal `input-port.ts`/`output-port.ts`, and the probe primitives
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`). Each supplies its
   label/glyph, default ports, arity
   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
   input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
@@ -115,8 +116,11 @@ interface Design { version: number; root: string; defs: Record<string, Component
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
   composite-terminal mirrors, and the `×2` relations of `bus-split`/`bus-merge` via
-  `Primitive.deriveWidth`). An undetermined pin is neutral; a conflict or non-integer result
-  (odd bus into a splitter) marks the sheet invalid.
+  `Primitive.deriveWidth`). `Primitive.intrinsicWidth(ports, port, props?)` takes the instance
+  props so a primitive can fix its width from a property (the `bus` primitive returns `lanes`).
+  An undetermined pin is neutral; a conflict, a non-integer result (odd bus into a splitter),
+  or a failed `Primitive.widthError` constraint marks the sheet invalid — `widthError` carries
+  a per-primitive validation message (e.g. the 7-seg requires a width divisible by 4 and ≤ 64).
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
   template (and its whole internal hierarchy) into `variant: true` defs, so every instance
   owns its own content and edits never affect the template or sibling instances. A `uuid`
@@ -136,11 +140,12 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (schema + default + unit/min/max/step; plus a `'select'` type with `options`). Per-instance
   values live in `Instance.props`, seeded at instantiation from the primitive's defaults and
   editable in the sidebar's properties panel.
-- **Property-driven arity** (`switch-array`/`led-array`): a property (`terminalType`
-  `wire`/`bus`, `size`) *changes the port count*. Since copy-on-place gives every placed
-  primitive its own `variant` def, `setArrayConfig` regenerates that variant's ports
-  (`arrayPorts`) and prunes orphaned connections. In `bus` mode the single port is **neutral**
-  (`deriveWidth` → `null`), adopting the connected width and rendering a `?` while undetermined.
+- **Property-driven arity** (`switch-array`/`led-array`): the `terminalType` property
+  (`wire`/`bus`) *changes the port count*. Since copy-on-place gives every placed
+  primitive its own `variant` def, the store regenerates that variant's ports
+  (`arrayPorts`) and prunes orphaned connections when the type changes (or a wire terminal is
+  added/removed via the ports editor). In `bus` mode the single port is **neutral**
+  (intrinsic `null`), adopting the connected width and rendering a `?` while undetermined.
 - **Clipboard** (`clipboard.ts`): pure `copyDefSubgraph` / `captureClipboard` /
   `instantiateClipboard` for in-app copy/paste with deep, id-rewritten copies.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
@@ -368,7 +373,7 @@ A pure, framework-free package (`packages/sim`, depends only on `@logica/model`)
   - `Simulation.step()` (`quiescent` = settle, `clock-edge` = advance one edge per
     `SimConfig.stepMode`), `advanceTo(t)` (clock square wave from `Instance.props.period` ps),
     `setSwitch(id, value)` / `toggleSwitch(id, lane)` (per-lane switch state for
-    `switch`/`switch-array`), `signalOf(id, portId)` / `signal(id, portId)`.
+    `switch-array`), `signalOf(id, portId)` / `signal(id, portId)`.
   - **Power-on resolution**: driven nets initialize to `0` (floating stay `x`), then a
     zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
     change counter detects true oscillators and freezes them at `x`. This breaks the `x`
@@ -379,8 +384,8 @@ A pure, framework-free package (`packages/sim`, depends only on `@logica/model`)
 `Primitive.transfer(inputs: Signal[][]): Signal[][]` is the per-kind combinational function
 (3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
 splits, split/merge reshape). `Port.inverted` is applied by the engine at pin boundaries, so
-NOT = buffer with an inverted output. Sources (CLOCK/SWITCH) and sinks (LED/7-SEG) are
-driven/read by the engine rather than via `transfer`.
+NOT = buffer with an inverted output. Sources (CLOCK/SWITCH-ARRAY) and sinks
+(LED-ARRAY/7-SEG) are driven/read by the engine rather than via `transfer`.
 
 Sequential circuits are built from gates: level-sensitive latches settle via feedback, and
 edge-triggered master-slave flip-flops work via the inertial delay model (verified by the
@@ -419,7 +424,10 @@ master-slave JK test).
 
 ## 9. Testing
 
-- `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs.
+- `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
+  property defaults (clock `period`, bus `lanes`, 7-seg `order`), and `widthError` cases.
+- `packages/model/test/array.test.ts` — `arrayPorts`, array WIRE/BUS defaults, and width
+  constraints via `connectionError` (BUS fixes width; 7-seg multiple-of-4 / ≤64).
 - `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo`.
 - `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
   rewiring, exposed ports).

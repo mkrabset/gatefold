@@ -84,6 +84,8 @@ export interface PendingWire {
 
 interface EditorState {
   viewport: Viewport
+  /** Saved viewport per nav-stack depth (parallel to `navStack`), for restore on escape. */
+  viewportStack: Viewport[]
   selectedIds: string[]
   marquee: Rect | null
   pendingWire: PendingWire | null
@@ -321,6 +323,7 @@ export const useEditorStore = create<EditorState>()(
   temporal(
     immer((set, get) => ({
       viewport: { x: 400, y: 250, zoom: 1 },
+      viewportStack: [{ x: 400, y: 250, zoom: 1 }],
       selectedIds: [],
       marquee: null,
     pendingWire: null,
@@ -355,7 +358,10 @@ export const useEditorStore = create<EditorState>()(
     clearNotice: () => set((s) => void (s.notice = null)),
     navigateTo: (defId) =>
       set((s) => {
+        // Remember the view we're leaving so Escape can restore it later.
+        s.viewportStack[s.viewportStack.length - 1] = s.viewport
         s.navStack.push(defId)
+        s.viewportStack.push(s.viewport)
         s.selectedIds = []
         s.marquee = null
         s.pendingWire = null
@@ -365,6 +371,8 @@ export const useEditorStore = create<EditorState>()(
       set((s) => {
         if (s.navStack.length > 1) {
           s.navStack.pop()
+          s.viewportStack.pop()
+          s.viewport = s.viewportStack[s.viewportStack.length - 1]
           s.selectedIds = []
           s.marquee = null
           s.pendingWire = null
@@ -787,6 +795,7 @@ export const useEditorStore = create<EditorState>()(
         set((s) => {
           s.design = design
           s.navStack = [design.root]
+          s.viewportStack = [s.viewport]
           s.selectedIds = []
           s.marquee = null
           s.pendingWire = null

@@ -305,3 +305,23 @@ export function hitArrayIndicator(
   }
   return null
 }
+
+/** World-space bounding box of everything inside a composite def, or null when empty. */
+export function defContentsBounds(design: Design, def: ComponentDef): Bounds | null {
+  const insts = def.instances ?? []
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const inst of insts) {
+    const idef = design.defs[inst.defId]
+    if (!idef) continue
+    const b = instanceBounds(design, def, inst, idef)
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + b.w)
+    maxY = Math.max(maxY, b.y + b.h)
+  }
+  if (!Number.isFinite(minX)) return null
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}

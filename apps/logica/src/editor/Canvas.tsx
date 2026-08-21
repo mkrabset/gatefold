@@ -3,7 +3,7 @@ import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator } from './geometry'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
@@ -32,6 +32,14 @@ type Drag =
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
 const DRAG_THRESHOLD = 4
+
+/** Viewport that frames the given world-space bounds in a canvas of size (cw × ch). */
+function fitViewport(bounds: { x: number; y: number; w: number; h: number }, cw: number, ch: number): Viewport {
+  const cx = bounds.x + bounds.w / 2
+  const cy = bounds.y + bounds.h / 2
+  const zoom = Math.min(cw / bounds.w, ch / bounds.h) * 0.9
+  return { x: cx, y: cy, zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)) }
+}
 
 export function Canvas() {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -360,6 +368,10 @@ export function Canvas() {
           useSimStore.getState().descend(hit.id)
         }
         state.navigateTo(hit.defId)
+        const bounds = defContentsBounds(state.design, hitDef)
+        if (bounds) {
+          state.setViewport(fitViewport(bounds, wrap.clientWidth, wrap.clientHeight))
+        }
       }
     }
 

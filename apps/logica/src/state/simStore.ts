@@ -67,9 +67,11 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       const { mode } = get()
       if (mode === 'design') {
         const design = useEditorStore.getState().design
+        const viewport = useEditorStore.getState().viewport
         // Simulate from the top; navigation within the simulation is tracked by `path`.
         useEditorStore.setState({
           navStack: [design.root],
+          viewportStack: [viewport],
           selectedIds: [],
           marquee: null,
           pendingWire: null,

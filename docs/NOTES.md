@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (BUS primitive, multi-digit 7-seg, switch/led replaced by arrays).
+Last updated: 2026-08-21 (BUS + multi-digit 7-seg, array rendering/interaction, fit-to-view navigation).
 
 ## Where we are
 
@@ -77,6 +77,19 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   nibble, MSD leftmost. New `order` property (`asc`/`desc`, default `asc`) selects which end of
   the bus is the LSB. Rendering lives in `renderer.ts` (`drawSevenSegBody`) and scales with
   zoom (stroke width `6·zoom`; `sevenSegGeometry` insets scale with the box).
+- **Array rendering & interaction** (`switch-array`/`led-array`):
+  - Indicators scale with zoom (removed the fixed `18px` cell cap; cell height = body/`n`).
+  - Padding — half an indicator's slot added at the top and bottom (clamped so neighbours
+    never collapse at size 1–2).
+  - Each indicator is positioned at the exact screen y of its terminal (WIRE) or bus lane
+    (BUS) via `arrayIndicatorLanes` (shared world-space geometry in `geometry.ts`).
+  - Sim mode toggles a lane by clicking its indicator circle (`hitArrayIndicator`), not the
+    terminal marker; double-clicking a circle toggles twice and does **not** enter the array.
+- **Fit-to-view on enter + restore on escape** — double-clicking into a component now frames
+  its internals: `defContentsBounds` (union of instance bounds) + `fitViewport` set the
+  viewport to the fitted view. A `viewportStack` (parallel to `navStack`) saves the outer
+  transform on `navigateTo` and restores it on `navigateUp` (Escape / ↑), so exiting returns
+  you to the exact view you left. `loadProject` and entering simulate mode reset the stack.
 
 ## Latest (previous session)
 

@@ -149,11 +149,16 @@ function flatId(instanceId: string): string {
   return path.length === 0 ? instanceId : `${path.join('.')}.${instanceId}`
 }
 
-/** Resolve a wire/marker color for a pin (optionally a specific bus lane). */
-export function simColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
+/** The full bit-vector signal for a flattened pin, or undefined when not simulating. */
+function rawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   const { engine, mode } = useSimStore.getState()
   if (mode !== 'simulate' || !engine) return undefined
-  const sig = engine.signalOf(flatId(instanceId), portId)
+  return engine.signalOf(flatId(instanceId), portId)
+}
+
+/** Resolve a wire/marker color for a pin (optionally a specific bus lane). */
+export function simColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
+  const sig = rawSignalOf(instanceId, portId)
   if (!sig) return undefined
   const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
   if (bit === undefined) return undefined
@@ -163,15 +168,11 @@ export function simColorOf(instanceId: string, portId: string, lane?: number): s
 
 /** Resolve a single-bit signal for a pin (probe state), or undefined. */
 export function simValueOf(instanceId: string, portId: string): Signal | undefined {
-  const { engine, mode } = useSimStore.getState()
-  if (mode !== 'simulate' || !engine) return undefined
-  const sig = engine.signalOf(flatId(instanceId), portId)
+  const sig = rawSignalOf(instanceId, portId)
   return sig && sig.length === 1 ? sig[0] : undefined
 }
 
 /** Resolve the full bit-vector signal for a pin, or undefined. */
 export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
-  const { engine, mode } = useSimStore.getState()
-  if (mode !== 'simulate' || !engine) return undefined
-  return engine.signalOf(flatId(instanceId), portId)
+  return rawSignalOf(instanceId, portId)
 }

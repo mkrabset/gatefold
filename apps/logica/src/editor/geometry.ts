@@ -1,5 +1,5 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
-import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, undeterminedHint } from '@logica/model'
+import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, undeterminedHint } from '@logica/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 
@@ -89,8 +89,7 @@ export function sevenSegLaneCount(
 ): number | null {
   const input = inputPorts(def)[0]
   if (!input) return null
-  const ref = { instanceId: instance.id, portId: input.id }
-  return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
+  return resolvedPinWidth(design, parentDef, { instanceId: instance.id, portId: input.id })
 }
 
 /** Effective body size of an instance (port group or normal), accounting for pin radii. */
@@ -254,8 +253,7 @@ export function arrayLaneCount(
   def: ComponentDef,
 ): number | null {
   if (def.ports.length > 1) return def.ports.length
-  const ref = { instanceId: instance.id, portId: def.ports[0].id }
-  return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
+  return resolvedPinWidth(design, parentDef, { instanceId: instance.id, portId: def.ports[0].id })
 }
 
 /** World-space indicator circles (center y + radius) for a switch/led array, or null

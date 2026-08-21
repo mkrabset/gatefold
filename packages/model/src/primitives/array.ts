@@ -1,5 +1,8 @@
-import type { Port, PortDirection } from '../types'
+import type { Port, PortDirection, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
+import { Gate, gateBounds } from './gate'
+import type { DrawOptions, PropertySpec } from './primitive'
+import type { VectorContext } from './vector'
 
 /** Port list for a switch-array/led-array: `size` single-wire ports, or one bus port. */
 export function arrayPorts(direction: PortDirection, terminalType: 'wire' | 'bus', size: number): Port[] {
@@ -14,4 +17,43 @@ export function arrayPorts(direction: PortDirection, terminalType: 'wire' | 'bus
     ports.push({ id, name: direction === 'input' ? `A${i}` : `Y${i}`, direction })
   }
   return ports
+}
+
+/**
+ * Base for the switch-array / led-array primitives. They share their property schema,
+ * body size, neutral-BUS / width-1-WIRE terminals, sink/source `transfer`, and the
+ * empty-box fallback `draw` (the app renderer draws the actual indicator body).
+ */
+export abstract class ArrayPrimitive extends Gate {
+  nextInputName(): string | null {
+    return null
+  }
+
+  properties(): PropertySpec[] {
+    return [
+      { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
+    ]
+  }
+
+  bodySize(): { w: number; h: number } {
+    return { w: 56, h: 40 }
+  }
+
+  transfer(): Signal[][] {
+    // Source/sink: driven/read per-lane by the simulator and renderer.
+    return []
+  }
+
+  intrinsicWidth(_ports: Port[], port: Port): number | null {
+    // The BUS terminal adopts the connected width (neutral); WIRE terminals are width 1.
+    return port.name === 'BUS' ? null : 1
+  }
+
+  draw(ctx: VectorContext, opts: DrawOptions): void {
+    // Empty-box fallback; the app renderer draws the actual array body.
+    const { l, t } = gateBounds(opts)
+    ctx.beginPath()
+    ctx.roundRect(l, t, opts.w, opts.h, 6)
+    ctx.stroke(opts.palette.gateStroke, 1.5)
+  }
 }

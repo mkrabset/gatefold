@@ -38,6 +38,7 @@ import {
 import type { Clipboard } from '@logica/model'
 import { instanceBounds } from '../editor/geometry'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
+import { downloadText } from '../util/download'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -181,19 +182,6 @@ function applyArrayPortCount(parentDef: ComponentDef, inst: Instance, instDef: C
       (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
     )
   }
-}
-
-// Trigger a browser download of `text` as a file named `filename`.
-function downloadText(filename: string, text: string): void {
-  const blob = new Blob([text], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
 }
 
 // In-memory clipboard (not part of the undoable design state).

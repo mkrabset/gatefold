@@ -1,5 +1,5 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, Signal} from '@logica/model'
-import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegGeometry} from '@logica/model'
+import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigit, sevenSegGeometry} from '@logica/model'
 import {
     arrayIndicatorLanes,
     busWireOffsets,
@@ -20,6 +20,7 @@ import {
 } from './geometry'
 import {wirePath} from './routing'
 import {canvasVectorContext} from './canvasVector'
+import {w2s} from './viewport'
 import type {PendingWire, Rect, Viewport} from '../state/editorStore'
 
 /**
@@ -39,26 +40,6 @@ export interface SimView {
 const GRID = 24
 const WIRE_WIDTH = 1.5
 const HALO_WIDTH = 2.5
-
-/** 7-segment patterns for digits 0–15, ordered a b c d e f g. */
-const SEVEN_SEG: number[][] = [
-  [1, 1, 1, 1, 1, 1, 0], // 0
-  [0, 1, 1, 0, 0, 0, 0], // 1
-  [1, 1, 0, 1, 1, 0, 1], // 2
-  [1, 1, 1, 1, 0, 0, 1], // 3
-  [0, 1, 1, 0, 0, 1, 1], // 4
-  [1, 0, 1, 1, 0, 1, 1], // 5
-  [1, 0, 1, 1, 1, 1, 1], // 6
-  [1, 1, 1, 0, 0, 0, 0], // 7
-  [1, 1, 1, 1, 1, 1, 1], // 8
-  [1, 1, 1, 1, 0, 1, 1], // 9
-  [1, 1, 1, 0, 1, 1, 1], // A
-  [0, 0, 1, 1, 1, 1, 1], // b
-  [1, 0, 0, 1, 1, 1, 0], // C
-  [0, 1, 1, 1, 1, 0, 1], // d
-  [1, 0, 0, 1, 1, 1, 1], // E
-  [1, 0, 0, 0, 1, 1, 1], // F
-]
 
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
 function pinRadius(width: number, zoom: number): number {
@@ -191,11 +172,50 @@ function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vp: Viewp
     }
 }
 
-function w2s(wx: number, wy: number, w: number, h: number, vp: Viewport) {
-    return {
-        x: w / 2 + (wx - vp.x) * vp.zoom,
-        y: h / 2 + (wy - vp.y) * vp.zoom,
-    }
+/** Draw a filled rounded rectangle with a stroke. */
+function drawRoundedBox(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+    fill: string,
+    stroke: string,
+    lineWidth = 1.5,
+) {
+    ctx.beginPath()
+    ctx.roundRect(x, y, w, h, r)
+    ctx.fillStyle = fill
+    ctx.fill()
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lineWidth
+    ctx.stroke()
+}
+
+/** Draw the undetermined-width "?" placeholder centered at (cx, cy). */
+function drawUndetermined(ctx: CanvasRenderingContext2D, cx: number, cy: number, h: number, p: Palette) {
+    ctx.fillStyle = p.text
+    ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('?', cx, cy)
+}
+
+/** Stroke a dashed rectangle (selection / marquee outline). */
+function strokeDashedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    color: string,
+) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 3])
+    ctx.strokeRect(x, y, w, h)
+    ctx.setLineDash([])
 }
 
 function drawPorts(
@@ -246,23 +266,13 @@ function drawInstance(
     if (selected) {
         const b = instanceBounds(design, parentDef, instance, def, 6)
         const tl = w2s(b.x, b.y, cw, ch, vp)
-        ctx.strokeStyle = p.selection
-        ctx.lineWidth = 1
-        ctx.setLineDash([4, 3])
-        ctx.strokeRect(tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom)
-        ctx.setLineDash([])
+        strokeDashedRect(ctx, tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, p.selection)
     }
 
     if (def.kind === 'composite') {
         const l = s.x - (w / 2) * vp.zoom
         const t = s.y - (h / 2) * vp.zoom
-        ctx.beginPath()
-        ctx.roundRect(l, t, w * vp.zoom, h * vp.zoom, 6 * vp.zoom)
-        ctx.fillStyle = p.compositeFill
-        ctx.fill()
-        ctx.strokeStyle = p.gateStroke
-        ctx.lineWidth = 1.5
-        ctx.stroke()
+        drawRoundedBox(ctx, l, t, w * vp.zoom, h * vp.zoom, 6 * vp.zoom, p.compositeFill, p.gateStroke)
         ctx.fillStyle = p.text
         ctx.font = `${12 * vp.zoom}px system-ui, sans-serif`
         ctx.textAlign = 'center'
@@ -378,21 +388,11 @@ function drawPortGroupBox(
 
     if (selected) {
         const tl = w2s(b.x - 6, b.y - 6, cw, ch, vp)
-        ctx.strokeStyle = p.selection
-        ctx.lineWidth = 1
-        ctx.setLineDash([4, 3])
-        ctx.strokeRect(tl.x, tl.y, (b.w + 12) * vp.zoom, (b.h + 12) * vp.zoom)
-        ctx.setLineDash([])
+        strokeDashedRect(ctx, tl.x, tl.y, (b.w + 12) * vp.zoom, (b.h + 12) * vp.zoom, p.selection)
     }
 
     const tl = w2s(b.x, b.y, cw, ch, vp)
-    ctx.beginPath()
-    ctx.roundRect(tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, 4 * vp.zoom)
-    ctx.fillStyle = p.compositeFill
-    ctx.fill()
-    ctx.strokeStyle = p.gateStroke
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    drawRoundedBox(ctx, tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, 4 * vp.zoom, p.compositeFill, p.gateStroke)
 
     ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
     ctx.textBaseline = 'middle'
@@ -448,20 +448,10 @@ function drawSevenSegBody(
     const totalW = pad * 2 + digits * digitW + (digits - 1) * gap
 
     // Green body with a border.
-    ctx.beginPath()
-    ctx.roundRect(cx - totalW / 2, cy - h / 2, totalW, h, 6)
-    ctx.fillStyle = '#0d2818'
-    ctx.fill()
-    ctx.strokeStyle = '#3fb950'
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    drawRoundedBox(ctx, cx - totalW / 2, cy - h / 2, totalW, h, 6, '#0d2818', '#3fb950')
 
     if (lanes === null) {
-        ctx.fillStyle = p.text
-        ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('?', cx, cy)
+        drawUndetermined(ctx, cx, cy, h, p)
         return
     }
 
@@ -481,12 +471,9 @@ function drawSevenSegBody(
 
         if (bits.length === 0) continue
         // d = 0 is the most-significant digit (leftmost); nibble 0 is least significant.
-        const nibble = digits - 1 - d
-        const base = nibble * 4
-        const n = [bits[base], bits[base + 1], bits[base + 2], bits[base + 3]]
-        if (n.some((b) => b !== 0 && b !== 1)) continue
-        const value = (n[0] as number) + 2 * (n[1] as number) + 4 * (n[2] as number) + 8 * (n[3] as number)
-        const pattern = SEVEN_SEG[value]
+        const base = (digits - 1 - d) * 4
+        const pattern = sevenSegDigit([bits[base], bits[base + 1], bits[base + 2], bits[base + 3]])
+        if (!pattern) continue
         ctx.fillStyle = '#fcd34d'
         for (let i = 0; i < 7; i++) {
             if (!pattern[i]) continue
@@ -514,21 +501,11 @@ function drawArrayBody(
 ) {
     const isSwitch = def.primitive === 'switch-array'
 
-    ctx.beginPath()
-    ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 6)
-    ctx.fillStyle = p.gateFill
-    ctx.fill()
-    ctx.strokeStyle = p.gateStroke
-    ctx.lineWidth = 1.5
-    ctx.stroke()
+    drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
 
     const lanes = arrayIndicatorLanes(design, parentDef, instance, def, vp.zoom)
     if (!lanes) {
-        ctx.fillStyle = p.text
-        ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText('?', cx, cy)
+        drawUndetermined(ctx, cx, cy, h, p)
         return
     }
 
@@ -590,13 +567,7 @@ export function drawScene(
         const W = 220
         const H = 100
         const s = w2s(vp.x, vp.y, cw, ch, vp)
-        ctx.beginPath()
-        ctx.roundRect(s.x - (W / 2) * vp.zoom, s.y - (H / 2) * vp.zoom, W * vp.zoom, H * vp.zoom, 8 * vp.zoom)
-        ctx.fillStyle = p.compositeFill
-        ctx.fill()
-        ctx.strokeStyle = p.gateStroke
-        ctx.lineWidth = 1.5
-        ctx.stroke()
+        drawRoundedBox(ctx, s.x - (W / 2) * vp.zoom, s.y - (H / 2) * vp.zoom, W * vp.zoom, H * vp.zoom, 8 * vp.zoom, p.compositeFill, p.gateStroke)
         ctx.fillStyle = p.text
         ctx.font = `${14 * vp.zoom}px system-ui, sans-serif`
         ctx.textAlign = 'center'

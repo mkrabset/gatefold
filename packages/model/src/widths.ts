@@ -155,6 +155,11 @@ export function isNeutralPin(design: Design, parentDef: ComponentDef, ref: PinRe
   return !solveWidths(design, parentDef.id).widths.has(pinKey(ref))
 }
 
+/** The width of the pin referenced by `ref`, or null when it is undetermined. */
+export function resolvedPinWidth(design: Design, parentDef: ComponentDef, ref: PinRef): number | null {
+  return solveWidths(design, parentDef.id).widths.get(pinKey(ref)) ?? null
+}
+
 /** Hover hint for a relation pin whose width is undetermined, or null. */
 export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: PinRef): string | null {
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)

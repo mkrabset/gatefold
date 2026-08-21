@@ -52,6 +52,33 @@ export function sevenSegGeometry(opts: DrawOptions): [number, number][][] {
   ]
 }
 
+/** 7-segment patterns for nibble values 0–15, ordered a b c d e f g. */
+const SEGMENT_PATTERNS: number[][] = [
+  [1, 1, 1, 1, 1, 1, 0], // 0
+  [0, 1, 1, 0, 0, 0, 0], // 1
+  [1, 1, 0, 1, 1, 0, 1], // 2
+  [1, 1, 1, 1, 0, 0, 1], // 3
+  [0, 1, 1, 0, 0, 1, 1], // 4
+  [1, 0, 1, 1, 0, 1, 1], // 5
+  [1, 0, 1, 1, 1, 1, 1], // 6
+  [1, 1, 1, 0, 0, 0, 0], // 7
+  [1, 1, 1, 1, 1, 1, 1], // 8
+  [1, 1, 1, 1, 0, 1, 1], // 9
+  [1, 1, 1, 0, 1, 1, 1], // A
+  [0, 0, 1, 1, 1, 1, 1], // b
+  [1, 0, 0, 1, 1, 1, 0], // C
+  [0, 1, 1, 1, 1, 0, 1], // d
+  [1, 0, 0, 1, 1, 1, 1], // E
+  [1, 0, 0, 0, 1, 1, 1], // F
+]
+
+/** The segment mask (a..g) for a 4-bit nibble, or undefined when any bit is unknown. */
+export function sevenSegDigit(bits: Signal[]): number[] | undefined {
+  if (bits.length !== 4 || bits.some((b) => b !== 0 && b !== 1)) return undefined
+  const value = (bits[0] as number) + 2 * (bits[1] as number) + 4 * (bits[2] as number) + 8 * (bits[3] as number)
+  return SEGMENT_PATTERNS[value]
+}
+
 /**
  * A multi-digit 7-segment display: a single neutral bus input (width divisible by 4,
  * ≤ 64) renders one digit per 4-bit nibble. `order` controls which end of the bus is

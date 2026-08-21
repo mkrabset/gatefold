@@ -5,6 +5,7 @@ import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds } from './geometry'
 import { drawScene } from './renderer'
+import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
 import { findConnectionTo, isNavigableDef, pinRefEquals } from '@logica/model'
@@ -93,10 +94,7 @@ export function Canvas() {
     const toWorld = (sx: number, sy: number) => {
       const { viewport } = useEditorStore.getState()
       const rect = wrap.getBoundingClientRect()
-      return {
-        x: viewport.x + (sx - rect.width / 2) / viewport.zoom,
-        y: viewport.y + (sy - rect.height / 2) / viewport.zoom,
-      }
+      return s2w(sx, sy, rect.width, rect.height, viewport)
     }
 
     const currentInstances = () => {

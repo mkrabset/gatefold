@@ -17,8 +17,6 @@ export interface LibraryFile {
   components: ComponentDef[]
 }
 
-const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base, '~')
-
 const isPrimitiveDef = (def: ComponentDef | undefined): boolean => !!def && def.kind === 'primitive'
 
 /**
@@ -85,7 +83,7 @@ export function importLibrary(design: Design, lib: LibraryFile): Design {
   const usedIds = new Set(Object.keys(result.defs))
   const idMap = new Map<string, string>()
   for (const c of lib.components) {
-    const newId = nextId(usedIds, c.id)
+    const newId = uniqueId(usedIds, c.id, '~')
     usedIds.add(newId)
     idMap.set(c.id, newId)
   }
@@ -96,7 +94,7 @@ export function importLibrary(design: Design, lib: LibraryFile): Design {
     def.id = idMap.get(c.id) ?? c.id
     delete def.variant
     def.uuid = newUuid()
-    def.name = nextId(usedNames, def.name || 'component')
+    def.name = uniqueId(usedNames, def.name || 'component', '~')
     usedNames.add(def.name)
     remapInstanceDefs(def, idMap)
     result.defs[def.id] = def

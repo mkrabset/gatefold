@@ -1,5 +1,5 @@
 import type { ComponentDef, Design, Port } from '@logica/model'
-import { cloneDesign, copyDefSubgraph, inputPorts, isNeutralPin, outputPorts, pinWidth } from '@logica/model'
+import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth } from '@logica/model'
 
 /**
  * Propagate a composite template's changes to every matching variant in a given
@@ -31,9 +31,7 @@ export function scopeDefIds(design: Design, startId: string): Set<string> {
 function portArity(design: Design, def: ComponentDef, port: Port): number | null {
   const t = port.terminal
   if (!t) return null
-  const ref = { instanceId: t.instanceId, portId: t.pinId }
-  if (isNeutralPin(design, def, ref)) return null
-  return pinWidth(design, def, ref)
+  return resolvedPinWidth(design, def, { instanceId: t.instanceId, portId: t.pinId })
 }
 
 /** Whether `variant`'s terminals are an unaltered copy of `template`'s (ignoring inversion). */

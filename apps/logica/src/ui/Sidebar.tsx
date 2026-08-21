@@ -213,32 +213,29 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   )
 }
 
-/** Instance name input that commits on Enter or blur. */
-function NameField({ id, initial }: { id: string; initial: string }) {
-  const renameInstance = useEditorStore((s) => s.renameInstance)
+/** A name input that trims and commits on Enter/blur (ignoring blank values). */
+function CommitName({ initial, onCommit }: { initial: string; onCommit: (name: string) => void }) {
   return (
     <CommitInput
       defaultValue={initial}
       onCommit={(value) => {
         const v = value.trim()
-        if (v) renameInstance(id, v)
+        if (v) onCommit(v)
       }}
     />
   )
 }
 
+/** Instance name input that commits on Enter or blur. */
+function NameField({ id, initial }: { id: string; initial: string }) {
+  const renameInstance = useEditorStore((s) => s.renameInstance)
+  return <CommitName initial={initial} onCommit={(name) => renameInstance(id, name)} />
+}
+
 /** Composite-template name input that commits on Enter or blur. */
 function DefNameField({ defId, initial }: { defId: string; initial: string }) {
   const renameDef = useEditorStore((s) => s.renameDef)
-  return (
-    <CommitInput
-      defaultValue={initial}
-      onCommit={(value) => {
-        const v = value.trim()
-        if (v) renameDef(defId, v)
-      }}
-    />
-  )
+  return <CommitName initial={initial} onCommit={(name) => renameDef(defId, name)} />
 }
 
 /** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */

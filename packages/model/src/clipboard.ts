@@ -18,8 +18,6 @@ export interface Clipboard {
   connections: Connection[]
 }
 
-const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base, '~')
-
 /**
  * Deep-copy a set of root defs and their transitive closure into fresh, unique defs.
  * The special port-group primitives are *not* copied (they stay shared). Returns the
@@ -34,7 +32,7 @@ export function copyDefSubgraph(
 
   const idMap = new Map<string, string>()
   for (const oldId of closure) {
-    const newId = nextId(usedIds, oldId)
+    const newId = uniqueId(usedIds, oldId, '~')
     usedIds.add(newId)
     idMap.set(oldId, newId)
   }
@@ -108,9 +106,9 @@ export function instantiateClipboard(
   const instIdMap = new Map<string, string>()
   const newIds: string[] = []
   for (const inst of clipboard.instances) {
-    const id = nextId(usedInstanceIds, inst.id)
+    const id = uniqueId(usedInstanceIds, inst.id, '~')
     usedInstanceIds.add(id)
-    const name = nextId(usedNames, inst.name)
+    const name = uniqueId(usedNames, inst.name, '~')
     usedNames.add(name)
     instIdMap.set(inst.id, id)
     def.instances.push({

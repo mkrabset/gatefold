@@ -51,7 +51,6 @@ export interface InferredGroup {
 
 // Produce a name/id that is unique against a set of existing ones, e.g. "component",
 // "component-2", "component-3"…
-const nextId = (existing: Set<string>, base: string): string => uniqueId(existing, base)
 
 // The transformation below clones the design so `applyGroup` stays a pure function
 // (no mutation of its input). These helpers do a manual deep clone of the model.
@@ -246,8 +245,8 @@ export function applyGroup(
   const movable = new Set(instanceIds.filter((id) => !isPortGroupInst(id)))
 
   const existingNames = new Set(Object.values(result.defs).map((d) => d.name))
-  const finalName = nextId(existingNames, defName.trim() || 'component')
-  const newDefId = nextId(new Set(Object.keys(result.defs)), finalName)
+  const finalName = uniqueId(existingNames, defName.trim() || 'component')
+  const newDefId = uniqueId(new Set(Object.keys(result.defs)), finalName)
 
   // Centroid of the selection — used to place the new instance in the parent and as
   // the anchor for auto-placing the port instances.
@@ -325,8 +324,8 @@ export function applyGroup(
   }
 
   const remaining = def.instances?.filter((i) => !movable.has(i.id)) ?? []
-  const instName = nextId(new Set(remaining.map((i) => i.name)), finalName)
-  const instId = nextId(new Set(remaining.map((i) => i.id)), `${finalName}-i`)
+  const instName = uniqueId(new Set(remaining.map((i) => i.name)), finalName)
+  const instId = uniqueId(new Set(remaining.map((i) => i.id)), `${finalName}-i`)
 
   // Re-wire the parent: each external input net now drives the new instance's input
   // port, and each external target is now driven by the new instance's output port.

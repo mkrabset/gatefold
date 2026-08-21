@@ -2,11 +2,11 @@ import { useEffect, useRef } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { useSimStore, simColorOf, simValueOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds } from './geometry'
+import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
+import { hitTest, hitTestPort, instanceBounds, portPosition, pinWidth, busWireOffsets } from './geometry'
 import { drawScene } from './renderer'
 import { darkPalette, lightPalette } from './palette'
-import type { PinRef } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
 import { findConnectionTo, isNavigableDef, pinRefEquals } from '@logica/model'
 import type { Viewport } from '../state/editorStore'
 
@@ -33,6 +33,34 @@ const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
 const DRAG_THRESHOLD = 4
 
+/** Which lane of a switch-array a world point hits (WIRE: from the port id; BUS: from y). */
+function switchArrayLane(
+  design: Design,
+  parentDef: ComponentDef,
+  inst: Instance,
+  instDef: ComponentDef,
+  portId: string,
+  worldY: number,
+): number {
+  if (instDef.ports.length > 1) {
+    const m = /^out:(\d+)$/.exec(portId)
+    return m ? Number(m[1]) : 0
+  }
+  const pos = portPosition(design, parentDef, inst, instDef, portId)
+  const width = pinWidth(design, parentDef, { instanceId: inst.id, portId })
+  const offsets = busWireOffsets(width)
+  let best = 0
+  let bestD = Infinity
+  for (let i = 0; i < offsets.length; i++) {
+    const d = Math.abs(worldY - (pos.y + offsets[i]))
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  return best
+}
+
 export function Canvas() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -55,7 +83,7 @@ export function Canvas() {
       })
       const simState = useSimStore.getState()
       const sim = simState.mode === 'simulate' && simState.engine
-        ? { colorOf: simColorOf, valueOf: simValueOf }
+        ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf }
         : undefined
       drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette, sim)
     }
@@ -113,10 +141,17 @@ export function Canvas() {
           canvas.setPointerCapture(e.pointerId)
           return
         }
-        if (hit) {
-          const hitDef = state.design.defs[hit.defId]
-          if (hitDef && hitDef.primitive === 'switch') {
-            useSimStore.getState().toggleSwitch(hit.id)
+        const port = hitTestPort(w.x, w.y, instances, state.design, def)
+        if (port && port.role === 'source') {
+          const inst = instances.find((i) => i.id === port.ref.instanceId)
+          const instDef = inst && state.design.defs[inst.defId]
+          if (inst && instDef) {
+            if (instDef.primitive === 'switch') {
+              useSimStore.getState().toggleSwitch(inst.id)
+            } else if (instDef.primitive === 'switch-array') {
+              const lane = switchArrayLane(state.design, def, inst, instDef, port.ref.portId, w.y)
+              useSimStore.getState().toggleSwitch(inst.id, lane)
+            }
           }
         }
         return

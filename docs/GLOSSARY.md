@@ -12,14 +12,20 @@ authoritative — update this when a term's meaning changes.
   `id` and `name`. References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE (plus the internal INPUT-PORT / OUTPUT-PORT),
-  and the probe primitives SWITCH, LED, 7-SEG. Not editable as a circuit.
+  and the probe primitives SWITCH, LED, 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
 - **Switch** — a probe primitive (no inputs, one output) that acts as a user-toggled source
   during simulation.
 - **LED / 7-seg** — probe primitives (sinks) that light/display their input during simulation.
+- **Switch-array / LED-array** — array versions of switch/LED. A `terminalType` property picks
+  `wire` (a fixed `size` of single-wire terminals, editable like fan-in/fan-out) or `bus` (one
+  terminal whose width is adopted from the connection, rendering a `?` while undetermined).
+  Each lane toggles/reads independently.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
-  default + unit/min/max); stored per-instance in `Instance.props`. E.g. a CLOCK's `period`.
+  default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a
+  CLOCK's `period`. For arrays, `terminalType`/`size` are *property-driven*: changing them
+  regenerates the instance's variant-def ports.
 - **Composite / custom component** — a user-defined component whose behavior is its
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
 - **Template** — a definition in the library (`variant` not set). Placed via drag; edited

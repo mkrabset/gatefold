@@ -34,7 +34,7 @@ interface SimState {
   step: () => void
   stop: () => void
   reset: () => void
-  toggleSwitch: (instanceId: string) => void
+  toggleSwitch: (instanceId: string, lane?: number) => void
   descend: (instanceId: string) => void
   ascend: () => void
   setStepMode: (mode: SimConfig['stepMode']) => void
@@ -114,12 +114,11 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       set({ engine: rebuild(), version: get().version + 1 })
     },
 
-    toggleSwitch: (instanceId) => {
+    toggleSwitch: (instanceId, lane = 0) => {
       const { engine } = get()
       if (!engine) return
       const id = flatId(instanceId)
-      const cur = engine.signal(id, 'out:0')
-      engine.setSwitch(id, cur === 1 ? 0 : 1)
+      engine.toggleSwitch(id, lane)
       engine.step()
       set((s) => ({ version: s.version + 1 }))
     },
@@ -166,4 +165,11 @@ export function simValueOf(instanceId: string, portId: string): Signal | undefin
   if (mode !== 'simulate' || !engine) return undefined
   const sig = engine.signalOf(flatId(instanceId), portId)
   return sig && sig.length === 1 ? sig[0] : undefined
+}
+
+/** Resolve the full bit-vector signal for a pin, or undefined. */
+export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
+  const { engine, mode } = useSimStore.getState()
+  if (mode !== 'simulate' || !engine) return undefined
+  return engine.signalOf(flatId(instanceId), portId)
 }

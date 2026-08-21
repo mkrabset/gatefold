@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-20 (simulator: engine + UI).
+Last updated: 2026-08-20 (simulator: engine + UI + switch/led arrays).
 
 ## Where we are
 
@@ -37,6 +37,15 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   per `SimConfig.stepMode`.
 - **Probe primitives** — `switch` (toggle source), `led` (lamp sink), `seven-seg` (4-bit
   display sink) added to the model registry/library; the sim renderer lights them live.
+- **`switch-array` / `led-array`** — array versions of switch/led with a `terminalType`
+  property (`wire` | `bus`) and a `size` property (default 4, 1–32, WIRE only).
+  - WIRE: `size` single-wire ports (editable like fan-in/fan-out; `size` is the source of
+    truth — the store regenerates the instance's variant def ports and prunes connections).
+  - BUS: one port whose width is **neutral** (`deriveWidth` → `null`), adopting the connected
+    bus width; the body shows a **`?` box** while undetermined.
+  - `PropertySpec` gained a `'select'` type (used by `terminalType`); the sim engine's source
+    state is now a per-instance **lane vector** (`toggleSwitch(id, lane)`), so individual
+    output terminals (WIRE) or bus lanes (BUS) toggle independently.
 - **Sim UI** (`apps/logica/src/state/simStore.ts` + `editor/renderer.ts` + `ui/SimSettingsDialog.tsx`)
   — design/simulate mode toggle; Run/Step/Stop/Reset; switch toggling; signal-colored wires
   (red=`1`, black=`0`, gray=`x`) and single-wire markers; a settings dialog (gate delay ps,

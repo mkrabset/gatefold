@@ -15,10 +15,13 @@ import { OutputPort } from './output-port'
 import { Switch } from './switch'
 import { Led } from './led'
 import { SevenSeg } from './seven-seg'
+import { SwitchArray } from './switch-array'
+import { LedArray } from './led-array'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
 export { sevenSegGeometry } from './seven-seg'
+export { arrayPorts } from './array'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   and: new AndGate(),
@@ -36,10 +39,12 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   switch: new Switch(),
   led: new Led(),
   'seven-seg': new SevenSeg(),
+  'switch-array': new SwitchArray(),
+  'led-array': new LedArray(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg', 'switch-array', 'led-array']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

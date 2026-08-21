@@ -48,7 +48,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'input-port' | 'output-port'
-  | 'switch' | 'led' | 'seven-seg'
+  | 'switch' | 'led' | 'seven-seg' | 'switch-array' | 'led-array'
 
 interface ComponentDef {
   id: string
@@ -102,7 +102,8 @@ interface Design { version: number; root: string; defs: Record<string, Component
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`, the
   internal `input-port.ts`/`output-port.ts`, and the probe primitives
-  `switch.ts`/`led.ts`/`seven-seg.ts`). Each supplies its label/glyph, default ports, arity
+  `switch.ts`/`led.ts`/`seven-seg.ts`/`switch-array.ts`/`led-array.ts`). Each supplies its
+  label/glyph, default ports, arity
   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
   input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
@@ -132,9 +133,14 @@ interface Design { version: number; root: string; defs: Record<string, Component
   template); the ports editor / `i` shortcut are disabled while editing a template. Built-in
   primitives (NOT, BUFFER) keep their intrinsic inverted outputs.
 - **Custom properties**: a primitive declares its properties via `properties(): PropertySpec[]`
-  (schema + default + unit/min/max/step). Per-instance values live in `Instance.props`,
-  seeded at instantiation from the primitive's defaults and editable in the sidebar's
-  properties panel.
+  (schema + default + unit/min/max/step; plus a `'select'` type with `options`). Per-instance
+  values live in `Instance.props`, seeded at instantiation from the primitive's defaults and
+  editable in the sidebar's properties panel.
+- **Property-driven arity** (`switch-array`/`led-array`): a property (`terminalType`
+  `wire`/`bus`, `size`) *changes the port count*. Since copy-on-place gives every placed
+  primitive its own `variant` def, `setArrayConfig` regenerates that variant's ports
+  (`arrayPorts`) and prunes orphaned connections. In `bus` mode the single port is **neutral**
+  (`deriveWidth` → `null`), adopting the connected width and rendering a `?` while undetermined.
 - **Clipboard** (`clipboard.ts`): pure `copyDefSubgraph` / `captureClipboard` /
   `instantiateClipboard` for in-app copy/paste with deep, id-rewritten copies.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
@@ -361,7 +367,8 @@ A pure, framework-free package (`packages/sim`, depends only on `@logica/model`)
     versioned events supersede pending outputs (inertial).
   - `Simulation.step()` (`quiescent` = settle, `clock-edge` = advance one edge per
     `SimConfig.stepMode`), `advanceTo(t)` (clock square wave from `Instance.props.period` ps),
-    `setSwitch(id, value)`, `signalOf(id, portId)` / `signal(id, portId)`.
+    `setSwitch(id, value)` / `toggleSwitch(id, lane)` (per-lane switch state for
+    `switch`/`switch-array`), `signalOf(id, portId)` / `signal(id, portId)`.
   - **Power-on resolution**: driven nets initialize to `0` (floating stay `x`), then a
     zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
     change counter detects true oscillators and freezes them at `x`. This breaks the `x`

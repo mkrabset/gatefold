@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ComponentDef, Design, PinRef, Port, PortDirection } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef, Port, PortDirection } from '@logica/model'
 import {
   allowRenameTerminals,
   applyGroup,
+  arrayPorts,
   captureClipboard,
   cloneDef,
   connectionError,
@@ -118,6 +119,7 @@ interface EditorState {
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
   setInstanceProp: (id: string, name: string, value: unknown) => void
+  setArrayConfig: (id: string, patch: Record<string, unknown>) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
   setPortOrder: (direction: PortDirection, ids: string[]) => void
@@ -140,6 +142,40 @@ const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, port
 /** True for a reusable composite template (non-root, non-variant). */
 const isTemplateDef = (design: Design, def: ComponentDef): boolean =>
   def.kind === 'composite' && def.variant !== true && def.id !== design.root
+
+/** True for the switch-array/led-array primitives. */
+const isArrayPrimitive = (def?: ComponentDef): boolean =>
+  !!def && def.kind === 'primitive' && (def.primitive === 'switch-array' || def.primitive === 'led-array')
+
+/** Terminal direction of an array primitive. */
+const arrayDirection = (def: ComponentDef): PortDirection =>
+  def.primitive === 'switch-array' ? 'output' : 'input'
+
+/** Find the single instance referencing an array's (variant) def, and its parent. */
+function findArrayRef(design: Design, defId: string): { parent: ComponentDef; inst: Instance } | null {
+  for (const d of Object.values(design.defs)) {
+    for (const i of d.instances ?? []) {
+      if (i.defId === defId) return { parent: d, inst: i }
+    }
+  }
+  return null
+}
+
+/** Regenerate an array's ports from its `terminalType`/`size` props, pruning orphaned connections. */
+function applyArrayConfig(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, patch: Record<string, unknown>): void {
+  if (!inst.props) inst.props = {}
+  Object.assign(inst.props, patch)
+  const terminalType = (inst.props.terminalType ?? 'wire') as 'wire' | 'bus'
+  const size = typeof inst.props.size === 'number' ? inst.props.size : 4
+  const newPorts = arrayPorts(arrayDirection(instDef), terminalType, size)
+  const removed = new Set(instDef.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
+  instDef.ports = newPorts
+  if (removed.size > 0) {
+    parentDef.connections = (parentDef.connections ?? []).filter(
+      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
+    )
+  }
+}
 
 // Trigger a browser download of `text` as a file named `filename`.
 function downloadText(filename: string, text: string): void {
@@ -522,12 +558,34 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         const inst = def.instances?.find((x) => x.id === id)
         if (!inst) return
+        const instDef = s.design.defs[inst.defId]
+        if (isArrayPrimitive(instDef) && (name === 'terminalType' || name === 'size')) {
+          applyArrayConfig(def, inst, instDef, { [name]: value })
+          return
+        }
         if (!inst.props) inst.props = {}
         inst.props[name] = value
+      }),
+    setArrayConfig: (id, patch) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const inst = def.instances?.find((x) => x.id === id)
+        if (!inst) return
+        const instDef = s.design.defs[inst.defId]
+        if (!isArrayPrimitive(instDef)) return
+        applyArrayConfig(def, inst, instDef, patch)
       }),
     addPort: (direction) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (isArrayPrimitive(def)) {
+          const ref = findArrayRef(s.design, def.id)
+          if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
+            const size = Math.min(32, (typeof ref.inst.props?.size === 'number' ? ref.inst.props.size : 4) + 1)
+            applyArrayConfig(ref.parent, ref.inst, def, { size })
+          }
+          return
+        }
         if (isArityFixed(def, direction)) return
         const count = direction === 'input' ? inputPorts(def).length : outputPorts(def).length
         const portId = nextPortId(def, direction)
@@ -565,6 +623,14 @@ export const useEditorStore = create<EditorState>()(
     removePort: (portId) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (isArrayPrimitive(def)) {
+          const ref = findArrayRef(s.design, def.id)
+          if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
+            const size = Math.max(1, (typeof ref.inst.props?.size === 'number' ? ref.inst.props.size : 4) - 1)
+            applyArrayConfig(ref.parent, ref.inst, def, { size })
+          }
+          return
+        }
         const port = def.ports.find((p) => p.id === portId)
         if (port && isArityFixed(def, port.direction)) return
         def.ports = def.ports.filter((p) => p.id !== portId)
@@ -587,6 +653,8 @@ export const useEditorStore = create<EditorState>()(
     setPortOrder: (direction, ids) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        // Array terminals are index-ordered; reordering is meaningless.
+        if (isArrayPrimitive(def)) return
         const byId = new Map(def.ports.map((p) => [p.id, p]))
         const ordered = ids.map((id) => byId.get(id)).filter((p): p is Port => !!p)
         const inputs = inputPorts(def)

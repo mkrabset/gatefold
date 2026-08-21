@@ -27,6 +27,7 @@ import type {PendingWire, Rect, Viewport} from '../state/editorStore'
 export interface SimView {
     colorOf: (instanceId: string, portId: string, lane?: number) => string | undefined
     valueOf: (instanceId: string, portId: string) => Signal | undefined
+    signalOf: (instanceId: string, portId: string) => Signal[] | undefined
 }
 
 const GRID = 24
@@ -287,15 +288,19 @@ function drawInstance(
         if (def.primitive) {
             const pinRadiusOf = (portId: string) =>
                 pinRadiusWorld(pinWidth(design, parentDef, {instanceId: instance.id, portId})) * vp.zoom
-            primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
-                x: s.x,
-                y: s.y,
-                w: w * vp.zoom,
-                h: h * vp.zoom,
-                palette: p,
-                pinRadius: pinRadiusOf,
-            })
-            if (sim) drawProbeOverlay(ctx, sim, def.primitive, instance.id, s.x, s.y, w * vp.zoom, h * vp.zoom, p)
+            if (def.primitive === 'switch-array' || def.primitive === 'led-array') {
+                drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, p, sim)
+            } else {
+                primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
+                    x: s.x,
+                    y: s.y,
+                    w: w * vp.zoom,
+                    h: h * vp.zoom,
+                    palette: p,
+                    pinRadius: pinRadiusOf,
+                })
+                if (sim) drawProbeOverlay(ctx, sim, def.primitive, instance.id, s.x, s.y, w * vp.zoom, h * vp.zoom, p)
+            }
         }
         // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
         if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
@@ -451,6 +456,83 @@ function drawProbeOverlay(
             ctx.stroke()
         }
     }
+}
+
+/** The number of lanes an array currently has (WIRE = port count, BUS = resolved width). */
+function arrayLaneCount(
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    def: ComponentDef,
+): number | null {
+    if (def.ports.length > 1) return def.ports.length
+    const ref = { instanceId: instance.id, portId: def.ports[0].id }
+    return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
+}
+
+/** Draw an array body (row of LEDs or switches), or a "?" box when its bus width is undetermined. */
+function drawArrayBody(
+    ctx: CanvasRenderingContext2D,
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    def: ComponentDef,
+    cx: number,
+    cy: number,
+    w: number,
+    h: number,
+    p: Palette,
+    sim?: SimView,
+) {
+    const isSwitch = def.primitive === 'switch-array'
+
+    ctx.beginPath()
+    ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 6)
+    ctx.fillStyle = p.gateFill
+    ctx.fill()
+    ctx.strokeStyle = p.gateStroke
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    const laneCount = arrayLaneCount(design, parentDef, instance, def)
+    if (laneCount === null) {
+        ctx.fillStyle = p.text
+        ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('?', cx, cy)
+        return
+    }
+
+    const n = laneCount
+    const cellH = Math.min(h / Math.max(n, 1), 18)
+    const top = cy - ((n - 1) * cellH) / 2
+    for (let i = 0; i < n; i++) {
+        const y = top + i * cellH
+        let sig: Signal | undefined
+        if (sim) {
+            if (def.ports.length > 1) {
+                const portId = def.ports[i]?.id
+                if (portId) sig = sim.valueOf(instance.id, portId)
+            } else {
+                sig = sim.signalOf(instance.id, def.ports[0].id)?.[i]
+            }
+        }
+        drawArrayCell(ctx, cx, y, cellH, isSwitch, sig, p)
+    }
+}
+
+/** Draw one array cell (a toggle switch or LED), lit when its signal is HI. */
+function drawArrayCell(ctx: CanvasRenderingContext2D, cx: number, y: number, cellH: number, isSwitch: boolean, sig: Signal | undefined, p: Palette) {
+    const r = Math.max(3, cellH * 0.3)
+    const on = sig === 1
+    ctx.beginPath()
+    ctx.arc(cx, y, r, 0, Math.PI * 2)
+    ctx.fillStyle = on ? (isSwitch ? '#fbbf24' : '#ef4444') : p.gateFill
+    ctx.fill()
+    ctx.strokeStyle = p.gateStroke
+    ctx.lineWidth = 1.5
+    ctx.stroke()
 }
 
 export function drawScene(

@@ -188,6 +188,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
         def.primitive &&
         primitiveOf(def.primitive)
           .properties()
+          .filter((spec) => spec.name !== 'size' || inst.props?.terminalType !== 'bus')
           .map((spec) => (
             <label className="field" key={spec.name}>
               <span>{spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
@@ -252,6 +253,17 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
         defaultChecked={value === true}
         onChange={(e) => setInstanceProp(instanceId, spec.name, e.target.checked)}
       />
+    )
+  }
+  if (spec.type === 'select') {
+    return (
+      <select value={String(value)} onChange={(e) => setInstanceProp(instanceId, spec.name, e.target.value)}>
+        {spec.options?.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
     )
   }
   if (spec.type === 'number') {

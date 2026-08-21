@@ -79,7 +79,7 @@ export class Simulation {
   private values: (Signal[] | undefined)[]
   private fanout: Gate[][]
   private version: number[]
-  private switchState = new Map<string, Signal>()
+  private switchState = new Map<string, Signal[]>()
   private events = new MinHeap()
   private timeValue = 0
   private stepMode: SimConfig['stepMode']
@@ -109,8 +109,10 @@ export class Simulation {
         this.gates.push(gate)
         for (const ip of inst.inputs) this.fanout[ip.net].push(gate)
       } else if (isSource) {
-        const out = inst.outputs[0]
-        if (out) this.values[out.net] = this.sourceValue(inst, 0)
+        const values = this.sourceValues(inst, 0)
+        for (let j = 0; j < inst.outputs.length; j++) {
+          this.values[inst.outputs[j].net] = values[j] ?? ['x']
+        }
       }
     }
 
@@ -125,20 +127,34 @@ export class Simulation {
     return this.values[net] ?? ['x']
   }
 
-  private sourceValue(inst: FlatInstance, now: number): Signal[] {
+  private sourceValues(inst: FlatInstance, now: number): Signal[][] {
     if (inst.kind === 'clock') {
       const period = typeof inst.props?.period === 'number' ? inst.props.period : 10_000
-      return [clockValue(period, now)]
+      return [[clockValue(period, now)]]
     }
-    return [this.switchState.get(inst.id) ?? 0]
+    const lanes = this.laneCount(inst)
+    const state = this.switchState.get(inst.id) ?? Array.from({ length: lanes }, () => 0 as Signal)
+    if (inst.outputs.length === 1) {
+      return [state.slice(0, lanes)]
+    }
+    return inst.outputs.map((_, i) => [state[i] ?? 0])
+  }
+
+  private laneCount(inst: FlatInstance): number {
+    if (inst.outputs.length === 1) {
+      return this.netWidths[inst.outputs[0].net]
+    }
+    return inst.outputs.length
   }
 
   private driveSource(inst: FlatInstance, now: number): void {
-    const out = inst.outputs[0]
-    if (!out) return
-    this.version[out.net]++
-    this.values[out.net] = this.sourceValue(inst, now)
-    for (const g of this.fanout[out.net]) this.evaluateGate(g, now)
+    const values = this.sourceValues(inst, now)
+    for (let j = 0; j < inst.outputs.length; j++) {
+      const out = inst.outputs[j]
+      this.version[out.net]++
+      this.values[out.net] = values[j] ?? ['x']
+      for (const g of this.fanout[out.net]) this.evaluateGate(g, now)
+    }
   }
 
   /**
@@ -235,9 +251,28 @@ export class Simulation {
   }
 
   setSwitch(id: string, value: Signal): void {
-    this.switchState.set(id, value)
+    this.setLane(id, 0, value)
+  }
+
+  /** Toggle a single lane of a switch source (single switch = lane 0). */
+  toggleSwitch(id: string, lane = 0): void {
+    this.setLane(id, lane, this.laneValue(id, lane) === 1 ? 0 : 1)
+  }
+
+  private laneValue(id: string, lane: number): Signal {
     const inst = this.instances.find((i) => i.id === id)
-    if (inst) this.driveSource(inst, this.timeValue)
+    if (!inst) return 0
+    return this.switchState.get(id)?.[lane] ?? 0
+  }
+
+  private setLane(id: string, lane: number, value: Signal): void {
+    const inst = this.instances.find((i) => i.id === id)
+    if (!inst) return
+    const lanes = this.laneCount(inst)
+    const state = [...(this.switchState.get(id) ?? Array.from({ length: lanes }, () => 0 as Signal))]
+    state[lane] = value
+    this.switchState.set(id, state)
+    this.driveSource(inst, this.timeValue)
   }
 
   /** Full bit-vector signal on a flattened pin (leaf, port group, or composite), or undefined. */

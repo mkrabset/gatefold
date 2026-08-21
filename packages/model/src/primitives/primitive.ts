@@ -41,13 +41,15 @@ export interface PropertySpec {
   name: string
   /** Display label (e.g. `Period`). */
   label: string
-  type: 'number' | 'string' | 'boolean'
+  type: 'number' | 'string' | 'boolean' | 'select'
   default: number | string | boolean
   /** Display unit, e.g. `ms`. */
   unit?: string
   min?: number
   max?: number
   step?: number
+  /** Choices for type `'select'`. */
+  options?: string[]
 }
 
 /**

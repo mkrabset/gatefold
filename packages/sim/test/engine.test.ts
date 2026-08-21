@@ -411,4 +411,58 @@ describe('Simulation engine', () => {
     expect(sim.signal('comp.co', 'out:0')).toBe(1)
     expect(sim.signal('comp', 'out:0')).toBe(1)
   })
+
+  it('toggles individual lanes of a switch-array in WIRE mode', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [
+        { id: 'out:0', name: 'Y0', direction: 'output' },
+        { id: 'out:1', name: 'Y1', direction: 'output' },
+        { id: 'out:2', name: 'Y2', direction: 'output' },
+        { id: 'out:3', name: 'Y3', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(mkDesign([inst('sa', 'sa')], [], { sa }))
+    expect(sim.signal('sa', 'out:0')).toBe(0)
+    sim.toggleSwitch('sa', 2)
+    sim.step()
+    expect(sim.signal('sa', 'out:2')).toBe(1)
+    expect(sim.signal('sa', 'out:0')).toBe(0)
+    expect(sim.signal('sa', 'out:1')).toBe(0)
+  })
+
+  it('adopts the connected bus width and toggles lanes of a switch-array in BUS mode', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [{ id: 'out:0', name: 'BUS', direction: 'output' }],
+    }
+    const fo4: ComponentDef = {
+      id: 'fo4',
+      name: 'FO',
+      kind: 'primitive',
+      primitive: 'fan-out',
+      ports: [
+        { id: 'in:0', name: 'BUS', direction: 'input' },
+        { id: 'out:0', name: 'Y1', direction: 'output' },
+        { id: 'out:1', name: 'Y2', direction: 'output' },
+        { id: 'out:2', name: 'Y3', direction: 'output' },
+        { id: 'out:3', name: 'Y4', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign([inst('sa', 'sa'), inst('fo', 'fo4')], [conn('c1', iref('sa', 'out:0'), iref('fo', 'in:0'))], { sa, fo4 }),
+    )
+    // The switch-array's single output adopts width 4 from the fan-out.
+    expect(sim.signalOf('sa', 'out:0')).toEqual([0, 0, 0, 0])
+    sim.toggleSwitch('sa', 3)
+    sim.step()
+    expect(sim.signalOf('sa', 'out:0')).toEqual([0, 0, 0, 1])
+    expect(sim.signal('fo', 'out:3')).toBe(1)
+  })
 })

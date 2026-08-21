@@ -7,7 +7,6 @@ import {
   applyGroup,
   arrayPorts,
   captureClipboard,
-  cloneDef,
   connectionError,
   copyDefSubgraph,
   defaultPropsOf,
@@ -16,7 +15,6 @@ import {
   importLibrary as mergeLibrary,
   inferGroup,
   inputPortDef,
-  inputPortId,
   inputPorts,
   instantiateClipboard,
   isArityFixed,
@@ -27,7 +25,6 @@ import {
   nextPrimitiveInputName,
   newUuid,
   outputPortDef,
-  outputPortId,
   outputPorts,
   parseDesign,
   parseLibrary,
@@ -137,8 +134,6 @@ interface EditorState {
   exportLibrary: () => void
   importLibrary: (json: string) => void
 }
-
-const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 
 /** True for a reusable composite template (non-root, non-variant). */
 const isTemplateDef = (design: Design, def: ComponentDef): boolean =>
@@ -250,17 +245,7 @@ function portPlacement(def: ComponentDef, design: Design, direction: PortDirecti
   return { x: direction === 'input' ? minX - 80 : maxX + 80, y: cy }
 }
 
-/** Copy a template def into a variant (instance-local) def, returning the new id. */
-function variantize(defs: Record<string, ComponentDef>, templateId: string, suffix: string): string {
-  const copyId = `${templateId}~${suffix}`
-  const copy = cloneDef(defs[templateId])
-  copy.id = copyId
-  copy.variant = true
-  defs[copyId] = copy
-  return copyId
-}
-
-/** A small demo design so the app has content to render before save/load exists. */
+/** An empty starting design: all built-in primitives and an empty root sheet. */
 export function createDemoDesign(): Design {
   const defs: Record<string, ComponentDef> = {}
   for (const spec of libraryPrimitives()) {
@@ -269,51 +254,14 @@ export function createDemoDesign(): Design {
   defs['input-port'] = inputPortDef()
   defs['output-port'] = outputPortDef()
 
-  defs['half-adder'] = {
-    id: 'half-adder',
-    name: 'half-adder',
-    kind: 'composite',
-    uuid: newUuid(),
-    ports: [
-      { id: inputPortId(0), name: 'A', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:0' } },
-      { id: inputPortId(1), name: 'B', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:1' } },
-      { id: outputPortId(0), name: 'S', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:0' } },
-      { id: outputPortId(1), name: 'C', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:1' } },
-    ],
-    instances: [
-      { id: 'ha-in', name: '', defId: 'input-port', pos: { x: 60, y: 250 } },
-      { id: 'ha-xor', name: 'xor1', defId: 'xor', pos: { x: 140, y: 180 } },
-      { id: 'ha-and', name: 'and1', defId: 'and', pos: { x: 140, y: 320 } },
-      { id: 'ha-out', name: '', defId: 'output-port', pos: { x: 220, y: 250 } },
-    ],
-    connections: [],
-  }
-
   defs['main'] = {
     id: 'main',
     name: 'main',
     kind: 'composite',
     uuid: newUuid(),
     ports: [],
-    instances: [
-      { id: 'clk', name: 'clk', defId: variantize(defs, 'clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 10_000 } },
-      { id: 'inv1', name: 'inv1', defId: variantize(defs, 'not', 'inv1'), pos: { x: 300, y: 100 } },
-      { id: 'and1', name: 'and1', defId: variantize(defs, 'and', 'and1'), pos: { x: 300, y: 330 } },
-      { id: 'xor1', name: 'xor1', defId: variantize(defs, 'xor', 'xor1'), pos: { x: 500, y: 150 } },
-      { id: 'ha1', name: 'ha1', defId: variantize(defs, 'half-adder', 'ha1'), pos: { x: 500, y: 360 } },
-      { id: 'or1', name: 'or1', defId: variantize(defs, 'or', 'or1'), pos: { x: 730, y: 250 } },
-    ],
-    connections: [
-      { id: 'c1', from: iref('clk', 'out:0'), to: iref('inv1', 'in:0') },
-      { id: 'c2', from: iref('clk', 'out:0'), to: iref('and1', 'in:0') },
-      { id: 'c3', from: iref('inv1', 'out:0'), to: iref('and1', 'in:1') },
-      { id: 'c4', from: iref('clk', 'out:0'), to: iref('xor1', 'in:0') },
-      { id: 'c5', from: iref('inv1', 'out:0'), to: iref('xor1', 'in:1') },
-      { id: 'c6', from: iref('and1', 'out:0'), to: iref('or1', 'in:0') },
-      { id: 'c7', from: iref('xor1', 'out:0'), to: iref('or1', 'in:1') },
-      { id: 'c8', from: iref('clk', 'out:0'), to: iref('ha1', 'in:0') },
-      { id: 'c9', from: iref('inv1', 'out:0'), to: iref('ha1', 'in:1') },
-    ],
+    instances: [],
+    connections: [],
   }
 
   return { version: 1, root: 'main', defs }

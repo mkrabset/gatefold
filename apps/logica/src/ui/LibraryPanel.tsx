@@ -65,35 +65,37 @@ export function LibraryPanel({ width }: { width: number }) {
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportFile} />
       </div>
       {composites.length > 0 && (
-        <div className="lib-grid">
-          {composites.map((d) => {
-            const editing = navStack.includes(d.id)
-            return (
-              <button
-                key={d.id}
-                className={`lib-card${active === d.id ? ' active' : ''}${editing ? ' editing' : ''}`}
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
-                onClick={() => setActive(d.id)}
-                onDoubleClick={() => navigateTo(d.id)}
-                title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}
-              >
-                <span
-                  className={`lib-remove${editing ? ' disabled' : ''}`}
-                  title={editing ? "You're editing this component" : `Delete ${d.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (!editing) requestDeleteTemplate(d.id)
-                  }}
+        <div className="lib-components">
+          <div className="lib-grid">
+            {composites.map((d) => {
+              const editing = navStack.includes(d.id)
+              return (
+                <button
+                  key={d.id}
+                  className={`lib-card${active === d.id ? ' active' : ''}${editing ? ' editing' : ''}`}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
+                  onClick={() => setActive(d.id)}
+                  onDoubleClick={() => navigateTo(d.id)}
+                  title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}
                 >
-                  ×
-                </span>
-                <span className="lib-glyph">▣</span>
-                <span className="lib-label">{d.name}</span>
-                {editing && <span className="lib-editing">editing</span>}
-              </button>
-            )
-          })}
+                  <span
+                    className={`lib-remove${editing ? ' disabled' : ''}`}
+                    title={editing ? "You're editing this component" : `Delete ${d.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!editing) requestDeleteTemplate(d.id)
+                    }}
+                  >
+                    ×
+                  </span>
+                  <span className="lib-glyph">▣</span>
+                  <span className="lib-label">{d.name}</span>
+                  {editing && <span className="lib-editing">editing</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
     </aside>

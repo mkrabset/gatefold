@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { primitiveDef } from '@logica/model'
+import { cloneDef, inputPortDef, inputPortId, libraryPrimitives, newUuid, outputPortDef, outputPortId, primitiveDef } from '@logica/model'
 import type { ComponentDef, Design } from '@logica/model'
 import {
   beginMoveTransaction,
-  createDemoDesign,
   endMoveTransaction,
   useEditorStore,
 } from './editorStore'
@@ -13,7 +12,7 @@ const clkPos = () => mainInstances().find((i) => i.id === 'clk')!.pos
 
 function reset() {
   useEditorStore.setState({
-    design: createDemoDesign(),
+    design: makeTestDesign(),
     selectedIds: [],
     marquee: null,
     pendingWire: null,
@@ -22,6 +21,7 @@ function reset() {
     navStack: ['main'],
     pendingGroup: null,
     viewport: { x: 400, y: 250, zoom: 1 },
+    viewportStack: [{ x: 400, y: 250, zoom: 1 }],
   })
   useEditorStore.temporal.getState().clear()
 }
@@ -235,4 +235,72 @@ function makeSplitterDesign(): Design {
     connections: [],
   }
   return { version: 1, root: 'main', defs: { 'fan-in-5': fanIn, 'bus-split': split, main } }
+}
+
+// A sample design with the built-in primitives, a half-adder, and a small demo circuit.
+function makeTestDesign(): Design {
+  const defs: Record<string, ComponentDef> = {}
+  for (const spec of libraryPrimitives()) {
+    defs[spec.kind] = primitiveDef(spec.kind)
+  }
+  defs['input-port'] = inputPortDef()
+  defs['output-port'] = outputPortDef()
+
+  defs['half-adder'] = {
+    id: 'half-adder',
+    name: 'half-adder',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [
+      { id: inputPortId(0), name: 'A', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:0' } },
+      { id: inputPortId(1), name: 'B', direction: 'input', terminal: { instanceId: 'ha-in', pinId: 'in:1' } },
+      { id: outputPortId(0), name: 'S', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:0' } },
+      { id: outputPortId(1), name: 'C', direction: 'output', terminal: { instanceId: 'ha-out', pinId: 'out:1' } },
+    ],
+    instances: [
+      { id: 'ha-in', name: '', defId: 'input-port', pos: { x: 60, y: 250 } },
+      { id: 'ha-xor', name: 'xor1', defId: 'xor', pos: { x: 140, y: 180 } },
+      { id: 'ha-and', name: 'and1', defId: 'and', pos: { x: 140, y: 320 } },
+      { id: 'ha-out', name: '', defId: 'output-port', pos: { x: 220, y: 250 } },
+    ],
+    connections: [],
+  }
+
+  const variantize = (templateId: string, suffix: string): string => {
+    const copyId = `${templateId}~${suffix}`
+    const copy = cloneDef(defs[templateId])
+    copy.id = copyId
+    copy.variant = true
+    defs[copyId] = copy
+    return copyId
+  }
+
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [],
+    instances: [
+      { id: 'clk', name: 'clk', defId: variantize('clock', 'clk'), pos: { x: 100, y: 200 }, props: { period: 10_000 } },
+      { id: 'inv1', name: 'inv1', defId: variantize('not', 'inv1'), pos: { x: 300, y: 100 } },
+      { id: 'and1', name: 'and1', defId: variantize('and', 'and1'), pos: { x: 300, y: 330 } },
+      { id: 'xor1', name: 'xor1', defId: variantize('xor', 'xor1'), pos: { x: 500, y: 150 } },
+      { id: 'ha1', name: 'ha1', defId: variantize('half-adder', 'ha1'), pos: { x: 500, y: 360 } },
+      { id: 'or1', name: 'or1', defId: variantize('or', 'or1'), pos: { x: 730, y: 250 } },
+    ],
+    connections: [
+      { id: 'c1', from: { instanceId: 'clk', portId: 'out:0' }, to: { instanceId: 'inv1', portId: 'in:0' } },
+      { id: 'c2', from: { instanceId: 'clk', portId: 'out:0' }, to: { instanceId: 'and1', portId: 'in:0' } },
+      { id: 'c3', from: { instanceId: 'inv1', portId: 'out:0' }, to: { instanceId: 'and1', portId: 'in:1' } },
+      { id: 'c4', from: { instanceId: 'clk', portId: 'out:0' }, to: { instanceId: 'xor1', portId: 'in:0' } },
+      { id: 'c5', from: { instanceId: 'inv1', portId: 'out:0' }, to: { instanceId: 'xor1', portId: 'in:1' } },
+      { id: 'c6', from: { instanceId: 'and1', portId: 'out:0' }, to: { instanceId: 'or1', portId: 'in:0' } },
+      { id: 'c7', from: { instanceId: 'xor1', portId: 'out:0' }, to: { instanceId: 'or1', portId: 'in:1' } },
+      { id: 'c8', from: { instanceId: 'clk', portId: 'out:0' }, to: { instanceId: 'ha1', portId: 'in:0' } },
+      { id: 'c9', from: { instanceId: 'inv1', portId: 'out:0' }, to: { instanceId: 'ha1', portId: 'in:1' } },
+    ],
+  }
+
+  return { version: 1, root: 'main', defs }
 }

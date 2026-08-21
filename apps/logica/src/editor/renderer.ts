@@ -430,6 +430,23 @@ function drawSevenSegBody(
     sim?: SimView,
 ) {
     const lanes = sevenSegLaneCount(design, parentDef, instance, def)
+    const digits = lanes === null ? 1 : Math.max(1, Math.floor(lanes / 4))
+    const zoom = vp.zoom
+    const digitW = SEVEN_SEG_DIGIT_W * zoom
+    const digitH = SEVEN_SEG_DIGIT_H * zoom
+    const gap = SEVEN_SEG_GAP * zoom
+    const pad = SEVEN_SEG_PAD * zoom
+    const totalW = pad * 2 + digits * digitW + (digits - 1) * gap
+
+    // Green body with a border.
+    ctx.beginPath()
+    ctx.roundRect(cx - totalW / 2, cy - h / 2, totalW, h, 6)
+    ctx.fillStyle = '#0d2818'
+    ctx.fill()
+    ctx.strokeStyle = '#3fb950'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
     if (lanes === null) {
         ctx.fillStyle = p.text
         ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
@@ -439,13 +456,6 @@ function drawSevenSegBody(
         return
     }
 
-    const digits = Math.max(1, Math.floor(lanes / 4))
-    const zoom = vp.zoom
-    const digitW = SEVEN_SEG_DIGIT_W * zoom
-    const digitH = SEVEN_SEG_DIGIT_H * zoom
-    const gap = SEVEN_SEG_GAP * zoom
-    const pad = SEVEN_SEG_PAD * zoom
-    const totalW = pad * 2 + digits * digitW + (digits - 1) * gap
     const startX = cx - totalW / 2 + pad + digitW / 2
 
     const order = instance.props?.order === 'desc'
@@ -457,7 +467,7 @@ function drawSevenSegBody(
         const segs = sevenSegGeometry({ x: dx, y: cy, w: digitW, h: digitH, palette: p })
 
         // Dim skeleton.
-        ctx.strokeStyle = p.compositeFill
+        ctx.strokeStyle = 'rgba(63, 185, 80, 0.25)'
         ctx.lineWidth = 6 * zoom
         for (const [x1, y1, x2, y2] of segs) {
             ctx.beginPath()

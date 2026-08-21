@@ -600,11 +600,13 @@ body {
 
 /* ---------- Library ---------- */
 .library {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   background: var(--panel);
   border-left: 1px solid var(--border);
-  overflow-y: auto;
-  padding-bottom: 12px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .lib-section-label {
@@ -616,9 +618,16 @@ body {
   color: var(--text-faint);
 }
 
+.lib-components {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
 .lib-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px;
   padding: 0 12px;
 }

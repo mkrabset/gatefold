@@ -165,7 +165,7 @@ function applyArrayTerminalType(parentDef: ComponentDef, inst: Instance, instDef
   if (!inst.props) inst.props = {}
   const prevType = (inst.props.terminalType ?? 'wire') as 'wire' | 'bus'
   inst.props.terminalType = terminalType
-  instDef.ports = arrayPorts(arrayDirection(instDef), terminalType, 4)
+  instDef.ports = arrayPorts(arrayDirection(instDef), terminalType, 1)
   if (terminalType !== prevType) {
     // Switching WIRE ↔ BUS invalidates every connection to this instance.
     parentDef.connections = (parentDef.connections ?? []).filter(

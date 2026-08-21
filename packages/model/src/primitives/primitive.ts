@@ -75,8 +75,9 @@ export interface Primitive {
   isNavigable(): boolean
   /** Which port group this is (only meaningful when `isPortGroup()`). */
   portGroupDirection(): 'input' | 'output' | null
-  /** Intrinsic bus width of `port` given the full port list (`null` = neutral/adopt). */
-  intrinsicWidth(ports: Port[], port: Port): number | null
+  /** Intrinsic bus width of `port` given the full port list (`null` = neutral/adopt).
+   *  `props` is the instance's property record, for width driven by a property. */
+  intrinsicWidth(ports: Port[], port: Port, props?: Record<string, unknown>): number | null
 
   /** Relation-based width: given determined sibling widths (portId → width), return
    *  this pin's width or null (undetermined). May return a non-integer to flag an

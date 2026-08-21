@@ -123,15 +123,6 @@ export function Canvas() {
             return
           }
         }
-        // A single switch still toggles from its terminal marker.
-        const port = hitTestPort(w.x, w.y, instances, state.design, def)
-        if (port && port.role === 'source') {
-          const inst = instances.find((i) => i.id === port.ref.instanceId)
-          const instDef = inst && state.design.defs[inst.defId]
-          if (inst && instDef && instDef.primitive === 'switch') {
-            useSimStore.getState().toggleSwitch(inst.id)
-          }
-        }
         return
       }
 

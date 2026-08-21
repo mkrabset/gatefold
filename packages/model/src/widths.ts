@@ -65,7 +65,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
       const prim = primitiveOf(idef.primitive)
       if (prim.deriveWidth) continue // relation primitive: resolved during propagation
       for (const port of idef.ports) {
-        const w = prim.intrinsicWidth(idef.ports, port)
+        const w = prim.intrinsicWidth(idef.ports, port, inst.props)
         if (w === null) continue // neutral (adopts the connected width)
         set({ instanceId: inst.id, portId: port.id }, w === 0 ? 1 : w)
       }

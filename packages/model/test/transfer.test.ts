@@ -56,8 +56,8 @@ describe('primitive transfer (combinational 3-state logic)', () => {
 
   it('sources and sinks have no combinational transfer', () => {
     expect(primitiveOf('clock').transfer([])).toEqual([])
-    expect(primitiveOf('switch').transfer([])).toEqual([])
-    expect(primitiveOf('led').transfer([s('x')])).toEqual([])
+    expect(primitiveOf('switch-array').transfer([])).toEqual([])
+    expect(primitiveOf('led-array').transfer([s('x')])).toEqual([])
     expect(primitiveOf('seven-seg').transfer([s('x'), s('x'), s('x'), s('x')])).toEqual([])
     expect(primitiveOf('input-port').transfer([])).toEqual([])
     expect(primitiveOf('output-port').transfer([])).toEqual([])

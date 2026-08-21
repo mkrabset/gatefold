@@ -8,7 +8,7 @@ const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, port
 const inst = (id: string, defId: string): Instance => ({ id, name: id, defId, pos: { x: 0, y: 0 } })
 const conn = (id: string, from: PinRef, to: PinRef) => ({ id, from, to })
 
-const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg'] as const
+const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg'] as const
 
 function mkDesign(
   instances: ComponentDef['instances'],
@@ -28,7 +28,7 @@ describe('Simulation engine', () => {
   it('propagates combinational logic from switches', () => {
     const sim = new Simulation(
       mkDesign(
-        [inst('a', 'switch'), inst('b', 'switch'), inst('g', 'and')],
+        [inst('a', 'switch-array'), inst('b', 'switch-array'), inst('g', 'and')],
         [conn('c1', iref('a', 'out:0'), iref('g', 'in:0')), conn('c2', iref('b', 'out:0'), iref('g', 'in:1'))],
       ),
     )
@@ -40,7 +40,7 @@ describe('Simulation engine', () => {
 
   it('propagates unknown through an unconnected input', () => {
     const sim = new Simulation(
-      mkDesign([inst('a', 'switch'), inst('g', 'and')], [conn('c1', iref('a', 'out:0'), iref('g', 'in:0'))]),
+      mkDesign([inst('a', 'switch-array'), inst('g', 'and')], [conn('c1', iref('a', 'out:0'), iref('g', 'in:0'))]),
     )
     sim.setSwitch('a', 1)
     sim.step()
@@ -51,7 +51,7 @@ describe('Simulation engine', () => {
     // Q = NOR(R, Qbar); Qbar = NOR(S, Q). S=1 sets, R=1 resets, S=R=0 holds.
     const sim = new Simulation(
       mkDesign(
-        [inst('s', 'switch'), inst('r', 'switch'), inst('o1', 'or'), inst('n1', 'not'), inst('o2', 'or'), inst('n2', 'not')],
+        [inst('s', 'switch-array'), inst('r', 'switch-array'), inst('o1', 'or'), inst('n1', 'not'), inst('o2', 'or'), inst('n2', 'not')],
         [
           conn('c1', iref('r', 'out:0'), iref('o1', 'in:0')),
           conn('c2', iref('n2', 'out:0'), iref('o1', 'in:1')),
@@ -95,7 +95,7 @@ describe('Simulation engine', () => {
     // NAND(enable, feedback): enable=1 makes output = NOT(feedback) → oscillates.
     const sim = new Simulation(
       mkDesign(
-        [inst('en', 'switch'), inst('a', 'and'), inst('n', 'not')],
+        [inst('en', 'switch-array'), inst('a', 'and'), inst('n', 'not')],
         [
           conn('c1', iref('en', 'out:0'), iref('a', 'in:0')),
           conn('c2', iref('n', 'out:0'), iref('a', 'in:1')),
@@ -141,9 +141,9 @@ describe('Simulation engine', () => {
     const sim = new Simulation(
       mkDesign(
         [
-          inst('j', 'switch'),
-          inst('k', 'switch'),
-          inst('clk', 'switch'),
+          inst('j', 'switch-array'),
+          inst('k', 'switch-array'),
+          inst('clk', 'switch-array'),
           inst('a1', 'and3'),
           inst('a2', 'and3'),
           inst('n1', 'nor'),
@@ -212,9 +212,9 @@ describe('Simulation engine', () => {
     const sim = new Simulation(
       mkDesign(
         [
-          inst('j', 'switch'),
-          inst('k', 'switch'),
-          inst('clk', 'switch'),
+          inst('j', 'switch-array'),
+          inst('k', 'switch-array'),
+          inst('clk', 'switch-array'),
           inst('notClk', 'not'),
           inst('m1', 'nand3'),
           inst('m2', 'nand3'),
@@ -316,7 +316,7 @@ describe('Simulation engine', () => {
     }
     const sim = new Simulation(
       mkDesign(
-        [inst('s0', 'switch'), inst('s1', 'switch'), inst('s2', 'switch'), inst('s3', 'switch'), inst('fi', 'fi4'), inst('bs', 'bus-split')],
+        [inst('s0', 'switch-array'), inst('s1', 'switch-array'), inst('s2', 'switch-array'), inst('s3', 'switch-array'), inst('fi', 'fi4'), inst('bs', 'bus-split')],
         [
           conn('c0', iref('s0', 'out:0'), iref('fi', 'in:0')),
           conn('c1', iref('s1', 'out:0'), iref('fi', 'in:1')),
@@ -339,7 +339,7 @@ describe('Simulation engine', () => {
   it('produces a clock square wave over time', () => {
     const sim = new Simulation(
       mkDesign(
-        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led')],
+        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led-array')],
         [conn('c1', iref('clk', 'out:0'), iref('l', 'in:0'))],
       ),
     )
@@ -353,7 +353,7 @@ describe('Simulation engine', () => {
   it('steps one clock edge at a time in clock-edge mode', () => {
     const sim = new Simulation(
       mkDesign(
-        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led')],
+        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led-array')],
         [conn('c1', iref('clk', 'out:0'), iref('l', 'in:0'))],
       ),
       { ...DEFAULT_CONFIG, stepMode: 'clock-edge' },
@@ -389,7 +389,7 @@ describe('Simulation engine', () => {
     }
     const sim = new Simulation(
       mkDesign(
-        [inst('sw', 'switch'), inst('comp', 'comp')],
+        [inst('sw', 'switch-array'), inst('comp', 'comp')],
         [conn('w', iref('sw', 'out:0'), iref('comp', 'in:0'))],
         { comp },
       ),
@@ -463,6 +463,59 @@ describe('Simulation engine', () => {
     sim.toggleSwitch('sa', 3)
     sim.step()
     expect(sim.signalOf('sa', 'out:0')).toEqual([0, 0, 0, 1])
+    expect(sim.signal('fo', 'out:3')).toBe(1)
+  })
+
+  it('passes a fixed-width bus through the BUS primitive', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [{ id: 'out:0', name: 'BUS', direction: 'output' }],
+    }
+    const bus: ComponentDef = {
+      id: 'bus',
+      name: 'BUS',
+      kind: 'primitive',
+      primitive: 'bus',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const fo4: ComponentDef = {
+      id: 'fo4',
+      name: 'FO',
+      kind: 'primitive',
+      primitive: 'fan-out',
+      ports: [
+        { id: 'in:0', name: 'BUS', direction: 'input' },
+        { id: 'out:0', name: 'Y1', direction: 'output' },
+        { id: 'out:1', name: 'Y2', direction: 'output' },
+        { id: 'out:2', name: 'Y3', direction: 'output' },
+        { id: 'out:3', name: 'Y4', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('sa', 'sa'),
+          { id: 'b', name: 'b', defId: 'bus', pos: { x: 50, y: 0 }, props: { lanes: 4 } },
+          inst('fo', 'fo4'),
+        ],
+        [
+          conn('c1', iref('sa', 'out:0'), iref('b', 'in:0')),
+          conn('c2', iref('b', 'out:0'), iref('fo', 'in:0')),
+        ],
+        { sa, bus, fo4 },
+      ),
+    )
+    expect(sim.signalOf('b', 'in:0')).toEqual([0, 0, 0, 0])
+    sim.toggleSwitch('sa', 3)
+    sim.step()
+    expect(sim.signalOf('b', 'in:0')).toEqual([0, 0, 0, 1])
+    expect(sim.signalOf('b', 'out:0')).toEqual([0, 0, 0, 1])
     expect(sim.signal('fo', 'out:3')).toBe(1)
   })
 })

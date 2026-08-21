@@ -13,7 +13,7 @@ export class LedArray extends Gate {
   readonly fixedOutputs = true
 
   defaultPorts(): Port[] {
-    return arrayPorts('input', 'wire', 4)
+    return arrayPorts('input', 'wire', 1)
   }
 
   nextInputName(): string | null {

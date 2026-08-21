@@ -13,7 +13,7 @@ export class SwitchArray extends Gate {
   readonly fixedOutputs = false
 
   defaultPorts(): Port[] {
-    return arrayPorts('output', 'wire', 4)
+    return arrayPorts('output', 'wire', 1)
   }
 
   nextInputName(): string | null {

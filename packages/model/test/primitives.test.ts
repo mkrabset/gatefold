@@ -14,8 +14,8 @@ import {
 } from '../src/primitives'
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, SWITCH, LED, 7-SEG, SWITCH-ARRAY, LED-ARRAY', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch', 'led', 'seven-seg', 'switch-array', 'led-array'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCH-ARRAY, LED-ARRAY', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array'])
   })
 
   it('inverts the NOT output and leaves the buffer un-inverted', () => {
@@ -94,6 +94,28 @@ describe('model primitives', () => {
       { name: 'period', label: 'Period', type: 'number', default: 10_000, unit: 'ps', min: 1 },
     ])
     expect(defaultPropsOf('clock')).toEqual({ period: 10_000 })
+  })
+
+  it('declares the bus lanes property and fixes the terminal width to it', () => {
+    const bus = primitiveDef('bus')
+    expect(inputPorts(bus)).toHaveLength(1)
+    expect(outputPorts(bus)).toHaveLength(1)
+    expect(primitiveOf('bus').properties()).toEqual([
+      { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 32 },
+    ])
+    expect(defaultPropsOf('bus')).toEqual({ lanes: 8 })
+
+    const prim = primitiveOf('bus')
+    const input = inputPorts(bus)[0]
+    const output = outputPorts(bus)[0]
+    expect(prim.intrinsicWidth(bus.ports, input, { lanes: 8 })).toBe(8)
+    expect(prim.intrinsicWidth(bus.ports, output, { lanes: 8 })).toBe(8)
+    expect(prim.intrinsicWidth(bus.ports, input)).toBe(8)
+    expect(prim.intrinsicWidth(bus.ports, input, { lanes: 3.5 })).toBe(3)
+  })
+
+  it('passes a bus through unchanged', () => {
+    expect(primitiveOf('bus').transfer([[1, 0, 1, 0]])).toEqual([[1, 0, 1, 0]])
   })
 
   it('folds an empty property list into an empty defaults record', () => {

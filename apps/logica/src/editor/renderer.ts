@@ -409,7 +409,7 @@ function drawPortGroupBox(
     })
 }
 
-/** Draw the live state of a probe primitive (led / switch / seven-seg) during simulation. */
+/** Draw the live state of the seven-seg probe primitive during simulation. */
 function drawProbeOverlay(
     ctx: CanvasRenderingContext2D,
     sim: SimView,
@@ -421,21 +421,7 @@ function drawProbeOverlay(
     h: number,
     p: Palette,
 ) {
-    if (kind === 'led') {
-        if (sim.valueOf(instanceId, 'in:0') === 1) {
-            ctx.beginPath()
-            ctx.arc(cx + 3, cy, 8, 0, Math.PI * 2)
-            ctx.fillStyle = sim.colorOf(instanceId, 'in:0') ?? '#ef4444'
-            ctx.fill()
-        }
-    } else if (kind === 'switch') {
-        if (sim.valueOf(instanceId, 'out:0') === 1) {
-            ctx.beginPath()
-            ctx.arc(cx, cy, 8, 0, Math.PI * 2)
-            ctx.fillStyle = sim.colorOf(instanceId, 'out:0') ?? '#ef4444'
-            ctx.fill()
-        }
-    } else if (kind === 'seven-seg') {
+    if (kind === 'seven-seg') {
         const bits = [
             sim.valueOf(instanceId, 'in:0'),
             sim.valueOf(instanceId, 'in:1'),

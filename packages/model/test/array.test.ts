@@ -6,11 +6,11 @@ import { connectionError } from '../src/widths'
 describe('array primitives', () => {
   it('builds switch-array/led-array with wire defaults', () => {
     const sa = primitiveDef('switch-array')
-    expect(sa.ports.map((p) => p.id)).toEqual(['out:0', 'out:1', 'out:2', 'out:3'])
+    expect(sa.ports.map((p) => p.id)).toEqual(['out:0'])
     expect(sa.ports[0].direction).toBe('output')
 
     const la = primitiveDef('led-array')
-    expect(la.ports.map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'in:3'])
+    expect(la.ports.map((p) => p.id)).toEqual(['in:0'])
     expect(la.ports[0].direction).toBe('input')
 
     expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'wire' })
@@ -50,5 +50,26 @@ describe('array primitives', () => {
     }
     // sa.out:0 is width 1; fo.in:0 is a bus (width = 2 outputs).
     expect(connectionError(design, main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
+  })
+
+  it('BUS fixes the width of its terminals to the lanes property', () => {
+    const main: ComponentDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 8 } },
+        { id: 'and', name: 'and', defId: 'and', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: { bus: primitiveDef('bus'), and: primitiveDef('and'), main },
+    }
+    // b.out:0 is fixed width 8; and.in:0 is width 1 → mismatch.
+    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 })

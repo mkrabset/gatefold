@@ -1,0 +1,270 @@
+= Logica — User Guide
+:toc:
+:toclevels: 3
+
+A walkthrough of the interface and a reference for every primitive component and the
+simulator. Logica is a browser-based graphical designer and simulator for logic circuits:
+you place components, wire them together, group them into reusable parts, and simulate the
+result.
+
+== 1. The interface
+
+The screen is split into four areas:
+
+[cols="1,1,3"]
+|===
+| Area | Location | Purpose
+| *Toolbar* | Top | Actions, simulation controls, navigation, save/load, theme
+| *Sidebar* | Left | Component tree, selected component's properties, port editor
+| *Canvas* | Center | The schematic — place, select, wire, pan, zoom
+| *Library* | Right | The primitive palette and your custom components
+|===
+
+=== Toolbar
+
+Left to right:
+
+* *Group* — turn the current selection into a named composite component (enabled only with
+  a selection).
+* *Simulate / Exit* — switch between _design_ and _simulate_ mode.
+* *Run / Step / Stop / Reset* — simulation controls (see §7).
+* *Settings (gear)* — open the simulation settings dialog.
+* *Breadcrumb* — the path of components you've navigated into (`main / adder / …`); the
+  *↑* button (or *Escape*) goes up one level. A `template` badge marks a library template.
+* *Open / Save JSON* — load or save the whole design as a `.json` file.
+* *Theme toggle* — switch between dark and light.
+
+=== Sidebar (left)
+
+* *Components* — a tree of the current sheet's instances. Double-click a composite to enter
+  it; single-click to select it on the canvas.
+* *Properties* — for the selected component: its *name*, its *type*, its input/output
+  counts, its primitive *properties* (e.g. a CLOCK's _Period_, a BUS's _Lanes_), and its
+  *X/Y* position. Values commit on *Enter* or blur.
+* *Ports* — the current definition's terminals. Add (`+`) / remove (`−`) terminals (when the
+  primitive allows it), rename them, reorder by dragging the ⣿ handle, and toggle the
+  *inversion* checkbox (the negation bubble).
+
+=== Library (right)
+
+* *Primitives* — the built-in components (§6). Drag one onto the canvas to place it.
+* *My components* — your composite components. Drag to place; double-click to edit its
+  template; *×* deletes it. *Export* / *Import* exchange your component library as JSON,
+  and *Apply to instances* (shown when a template is selected) propagates that template's
+  edits to every matching placed instance. The list scrolls if it grows tall.
+
+=== Dialogs
+
+* *Group dialog* — name the new component and its inferred inputs/outputs.
+* *Simulation settings* — default gate delay (ps) and the step mode.
+* *Delete dialog* — confirm deleting a library template.
+* *Toast* — transient messages (e.g. "Input already has a driver").
+
+== 2. Canvas controls
+
+[cols="1,2"]
+|===
+| Action | How
+| Select | Click a component
+| Multi-select | Marquee (drag empty space), or Shift + click to toggle
+| Move | Drag a component (moves the whole selection)
+| Pan | Shift + drag (or Shift + drag anywhere in simulate mode)
+| Zoom | Mouse wheel, anchored at the cursor
+| Enter a component | Double-click it
+| Exit up one level | Escape (while over the canvas) or the ↑ button
+|===
+
+When you *enter* a component, the canvas automatically zooms and pans to frame its
+internals; *Escape* restores the exact view you left.
+
+=== Wiring
+
+* *Draw a wire* — press an *output* pin, drag, and release on an *input* pin.
+* *Re-target / delete a wire* — press an *input* pin that already has a wire, drag, and
+  release on a new input (re-target) or on empty space (delete).
+* An input can have *at most one* driver; dropping a second wire onto a driven input is
+  rejected with a message.
+
+=== Keyboard shortcuts
+
+[cols="1,2"]
+|===
+| Shortcut | Action
+| Ctrl/Cmd + C | Copy selection
+| Ctrl/Cmd + V | Paste
+| Delete / Backspace | Delete selection
+| Ctrl/Cmd + Z | Undo
+| Ctrl/Cmd + Shift + Z / Ctrl/Cmd + Y | Redo
+| Escape | Go up one level
+| `i` | Toggle inversion on the hovered terminal
+|===
+
+== 3. Building circuits
+
+. *Place* — drag a primitive from the library onto the canvas.
+. *Wire* — connect outputs to inputs.
+. *Configure* — select a component and set its properties in the sidebar.
+. *Group* — select a sub-circuit and press *Group* to turn it into a named composite.
+  Inputs/outputs are inferred from the wires crossing the selection; floating pins become
+  extra terminals. Components are _copied_ when placed, so editing one instance never
+  affects the template or other instances.
+. *Edit internals* — double-click any component (composite or gate) to descend into it.
+
+=== Terminal inversion
+
+Any terminal can be logically inverted (a negation bubble). Toggle it by pressing *`i`*
+while hovering the terminal, or with the checkbox in the ports editor. Inversion is
+instance-level: a library template's terminals stay clean, and inversion lives on the placed
+instance.
+
+=== Copy-on-place and templates
+
+When you place or group a component, Logica deep-copies its definition (a *variant*), so
+every instance is independent. *My components* lists your templates; editing a template (via
+its library card) and pressing *Apply to instances* updates every matching instance that
+still has an unaltered interface.
+
+== 4. Buses
+
+A *bus* is a terminal carrying multiple wires (its *width*). Widths are _derived_, not
+stored — Logica solves them from the wiring. Hover a bus pin to see its `×n` arity; an
+*undetermined* pin adopts the width of whatever it connects to and renders as a thin dashed
+wire (or a `?` box on a display).
+
+* *FAN-IN* bundles `n` single wires into one `n`-wide bus.
+* *FAN-OUT* splits one `n`-wide bus into `n` single wires.
+* *BUS-SPLIT* splits one bus into two halves; *BUS-MERGE* joins two buses into one (twice
+  the width).
+* *BUS* (the primitive) _fixes_ a bus to a specific width (`Lanes`), and is a passthrough.
+* Connecting mismatched widths is rejected at wiring time ("Bus width mismatch"), and a bus
+  splitter requires an even width ("Bus width must be even").
+
+== 5. Signals
+
+Logic values are 3-state:
+
+[cols="1,2,2"]
+|===
+| Value | Meaning | Wire color
+| `1` | high | red
+| `0` | low | black
+| `x` | unknown / floating | gray
+|===
+
+`x` arises from unconnected inputs; it propagates through gates unless a dominant value
+determines the output (0 dominates AND, 1 dominates OR).
+
+== 6. Primitive reference
+
+Each entry lists the component's terminals, its arity (which terminals can be added/removed),
+its properties, and what it does.
+
+=== AND
+* *Inputs:* 2+ (`A`, `B`, … up to `H`) · *Outputs:* 1 (`Y`) · _inputs variable_
+* Output is `1` only when *all* inputs are `1`; `0` dominates; `x` propagates otherwise.
+
+=== OR
+* *Inputs:* 2+ (`A`, `B`, …) · *Outputs:* 1 (`Y`) · _inputs variable_
+* Output is `1` when *any* input is `1`; `1` dominates.
+
+=== XOR
+* *Inputs:* 2+ (`A`, `B`, …) · *Outputs:* 1 (`Y`) · _inputs variable_
+* Output is `1` on odd parity (an odd number of inputs are `1`).
+
+=== NOT
+* *Inputs:* 1 (`A`) · *Outputs:* 1 (`Y`, inverted)
+* Negates its input. Drawn as a triangle with a bubble (the bubble is the inverted output).
+
+=== BUFFER
+* *Inputs:* 1 (`A`) · *Outputs:* 1 (`Y`)
+* Passes its input through unchanged. Useful for fan-out / signal cleanup.
+
+=== CLOCK
+* *Inputs:* none · *Outputs:* 1 (`CLK`)
+* A source producing a periodic *square wave*. Property *Period* (picoseconds, default
+  10 000) sets the period.
+
+=== FAN-IN
+* *Inputs:* 2+ (single-wire) · *Outputs:* 1 (`BUS`) · _inputs variable_
+* Bundles its `n` single-wire inputs into one `n`-wide bus output.
+
+=== FAN-OUT
+* *Inputs:* 1 (`BUS`) · *Outputs:* 2+ (single-wire) · _outputs variable_
+* Splits one `n`-wide bus input into `n` single-wire outputs.
+
+=== BUS-SPLIT
+* *Inputs:* 1 (`BUS`, width `n`, even) · *Outputs:* 2 (`Y1`, `Y2`, width `n/2` each)
+* Splits a bus into two equal halves. The input width must be even.
+
+=== BUS-MERGE
+* *Inputs:* 2 (`A`, `B`, width `m` each) · *Outputs:* 1 (`BUS`, width `2m`)
+* Concatenates two buses into one twice as wide.
+
+=== BUS
+* *Inputs:* 1 (`A`) · *Outputs:* 1 (`Y`)
+* A passthrough that *fixes* the bus width. Property *Lanes* (default 8, 1–32) sets the
+  width of both terminals; use it to pin a bus to a specific width regardless of its source.
+
+=== 7-SEG
+* *Inputs:* 1 (`BUS`) · *Outputs:* none
+* A multi-digit hexadecimal display. Its bus width must be a *multiple of 4* and *≤ 64*
+  (one digit per 4-bit nibble, most-significant digit leftmost). Property *Order*
+  (`asc` / `desc`) selects which end of the bus is the least-significant bit.
+
+=== SWITCH-ARRAY
+* *Inputs:* none · *Outputs:* 1+ · Property *Terminal type* (`wire` / `bus`)
+* A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
+  mode a single bus output carries one lane per wire. In simulate mode, click an indicator
+  circle to toggle its lane.
+
+=== LED-ARRAY
+* *Inputs:* 1+ · *Outputs:* none · Property *Terminal type* (`wire` / `bus`)
+* A multi-lane lamp. In `wire` mode each input terminal is one LED; in `bus` mode a single bus
+  input lights one LED per lane. Each lane lights when its signal is `1`.
+
+[NOTE]
+====
+*Internal primitives* (`INPUT-PORT` / `OUTPUT-PORT`) are not in the palette: they model a
+composite's own input/output terminals internally and are created automatically when you
+group components or edit a composite's ports.
+====
+
+== 7. Simulation
+
+Press *Simulate* to enter simulation mode (it resets to the top-level sheet and builds a
+simulation of your design). In this mode editing is disabled, but you can still pan, zoom, and
+navigate into components.
+
+=== Controls
+
+* *Run* — advance the simulation continuously.
+* *Step* — advance one step (see _Step mode_).
+* *Stop* — pause a running simulation.
+* *Reset* — rebuild the simulation from scratch.
+* *Settings* — set the default gate delay (ps) and the step mode.
+
+=== How it works
+
+The engine is event-driven with *inertial gate delays*: a gate's output changes a configured
+number of picoseconds after its inputs change. On start (or reset), driven nets begin at `0`
+(floating stay `x`), then a zero-delay settle pass resolves feedback loops (latches, flip-flops)
+to a stable state; a true oscillator is detected and shown as `x`.
+
+=== Signals and probes
+
+* Wires and terminal markers are colored by their value: *red = 1, black = 0, gray = x*.
+* *CLOCK* toggles its output on a square wave with its `Period`.
+* *SWITCH-ARRAY* lanes toggle by clicking their indicator circles (a double-click just
+  toggles twice — it does _not_ enter the component).
+* *LED-ARRAY* lanes light when their signal is `1`.
+* *7-SEG* displays the value of each 4-bit nibble of its bus.
+
+=== Step mode
+
+* *Quiescent* — each Step advances until the circuit settles (no pending events).
+* *Clock-edge* — each Step advances to the next clock edge.
+
+=== Navigating in simulate mode
+
+Double-click a component to descend into it and inspect its internals live; *Escape* ascends
+back up.

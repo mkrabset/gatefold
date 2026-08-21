@@ -119,7 +119,6 @@ interface EditorState {
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
   setInstanceProp: (id: string, name: string, value: unknown) => void
-  setArrayConfig: (id: string, patch: Record<string, unknown>) => void
   addPort: (direction: PortDirection) => void
   removePort: (portId: string) => void
   setPortOrder: (direction: PortDirection, ids: string[]) => void
@@ -161,13 +160,23 @@ function findArrayRef(design: Design, defId: string): { parent: ComponentDef; in
   return null
 }
 
-/** Regenerate an array's ports from its `terminalType`/`size` props, pruning orphaned connections. */
-function applyArrayConfig(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, patch: Record<string, unknown>): void {
+/** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
+function applyArrayTerminalType(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, terminalType: 'wire' | 'bus'): void {
   if (!inst.props) inst.props = {}
-  Object.assign(inst.props, patch)
-  const terminalType = (inst.props.terminalType ?? 'wire') as 'wire' | 'bus'
-  const size = typeof inst.props.size === 'number' ? inst.props.size : 4
-  const newPorts = arrayPorts(arrayDirection(instDef), terminalType, size)
+  const prevType = (inst.props.terminalType ?? 'wire') as 'wire' | 'bus'
+  inst.props.terminalType = terminalType
+  instDef.ports = arrayPorts(arrayDirection(instDef), terminalType, 4)
+  if (terminalType !== prevType) {
+    // Switching WIRE ↔ BUS invalidates every connection to this instance.
+    parentDef.connections = (parentDef.connections ?? []).filter(
+      (c) => c.from.instanceId !== inst.id && c.to.instanceId !== inst.id,
+    )
+  }
+}
+
+/** Replace an array's WIRE ports with `count` lanes, pruning connections to removed ports. */
+function applyArrayPortCount(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, count: number): void {
+  const newPorts = arrayPorts(arrayDirection(instDef), 'wire', count)
   const removed = new Set(instDef.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
   instDef.ports = newPorts
   if (removed.size > 0) {
@@ -559,21 +568,12 @@ export const useEditorStore = create<EditorState>()(
         const inst = def.instances?.find((x) => x.id === id)
         if (!inst) return
         const instDef = s.design.defs[inst.defId]
-        if (isArrayPrimitive(instDef) && (name === 'terminalType' || name === 'size')) {
-          applyArrayConfig(def, inst, instDef, { [name]: value })
+        if (isArrayPrimitive(instDef) && name === 'terminalType') {
+          applyArrayTerminalType(def, inst, instDef, value as 'wire' | 'bus')
           return
         }
         if (!inst.props) inst.props = {}
         inst.props[name] = value
-      }),
-    setArrayConfig: (id, patch) =>
-      set((s) => {
-        const def = s.design.defs[currentDefId(s)]
-        const inst = def.instances?.find((x) => x.id === id)
-        if (!inst) return
-        const instDef = s.design.defs[inst.defId]
-        if (!isArrayPrimitive(instDef)) return
-        applyArrayConfig(def, inst, instDef, patch)
       }),
     addPort: (direction) =>
       set((s) => {
@@ -581,8 +581,8 @@ export const useEditorStore = create<EditorState>()(
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
-            const size = Math.min(32, (typeof ref.inst.props?.size === 'number' ? ref.inst.props.size : 4) + 1)
-            applyArrayConfig(ref.parent, ref.inst, def, { size })
+            const count = def.ports.length + 1
+            if (count <= 32) applyArrayPortCount(ref.parent, ref.inst, def, count)
           }
           return
         }
@@ -626,8 +626,8 @@ export const useEditorStore = create<EditorState>()(
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
-            const size = Math.max(1, (typeof ref.inst.props?.size === 'number' ? ref.inst.props.size : 4) - 1)
-            applyArrayConfig(ref.parent, ref.inst, def, { size })
+            const count = def.ports.length - 1
+            if (count >= 1) applyArrayPortCount(ref.parent, ref.inst, def, count)
           }
           return
         }

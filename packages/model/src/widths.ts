@@ -66,6 +66,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
       if (prim.deriveWidth) continue // relation primitive: resolved during propagation
       for (const port of idef.ports) {
         const w = prim.intrinsicWidth(idef.ports, port)
+        if (w === null) continue // neutral (adopts the connected width)
         set({ instanceId: inst.id, portId: port.id }, w === 0 ? 1 : w)
       }
     } else if (idef.kind === 'composite') {

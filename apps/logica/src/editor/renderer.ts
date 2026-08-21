@@ -505,10 +505,17 @@ function drawArrayBody(
     }
 
     const n = laneCount
-    const cellH = Math.min(h / Math.max(n, 1), 18)
-    const top = cy - ((n - 1) * cellH) / 2
+    const cellH = h / Math.max(n, 1)
+    // Half an indicator's slot of extra padding on the top and bottom (on top of the
+    // half-slot already there), clamped so adjacent indicators never collapse.
+    const extra = cellH / 2
+    const maxExtra = n > 1 ? ((n - 1) * cellH) / 4 : 0
+    const pad = Math.min(extra, maxExtra)
+    const span = (n - 1) * cellH - 2 * pad
+    const spacing = n > 1 ? span / (n - 1) : 0
+    const top = cy - span / 2
     for (let i = 0; i < n; i++) {
-        const y = top + i * cellH
+        const y = n > 1 ? top + i * spacing : cy
         let sig: Signal | undefined
         if (sim) {
             if (def.ports.length > 1) {

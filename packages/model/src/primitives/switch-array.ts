@@ -23,7 +23,6 @@ export class SwitchArray extends Gate {
   properties(): PropertySpec[] {
     return [
       { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
-      { name: 'size', label: 'Size', type: 'number', default: 4, min: 1, max: 32 },
     ]
   }
 
@@ -36,8 +35,8 @@ export class SwitchArray extends Gate {
     return []
   }
 
-  deriveWidth(port: Port, _siblings: ReadonlyMap<string, number>): number | null {
-    // The BUS output adopts the connected width (neutral); WIRE outputs are width 1.
+  intrinsicWidth(_ports: Port[], port: Port): number | null {
+    // The BUS output adopts the connected width (neutral); WIRE outputs are fixed width 1.
     return port.name === 'BUS' ? null : 1
   }
 

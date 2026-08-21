@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { ComponentDef, Design } from '../src/types'
 import { arrayPorts, defaultPropsOf, primitiveDef, primitiveOf } from '../src/primitives'
+import { connectionError } from '../src/widths'
 
 describe('array primitives', () => {
   it('builds switch-array/led-array with wire defaults', () => {
@@ -11,8 +13,8 @@ describe('array primitives', () => {
     expect(la.ports.map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'in:3'])
     expect(la.ports[0].direction).toBe('input')
 
-    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'wire', size: 4 })
-    expect(primitiveOf('switch-array').properties().map((p) => p.name)).toEqual(['terminalType', 'size'])
+    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'wire' })
+    expect(primitiveOf('switch-array').properties().map((p) => p.name)).toEqual(['terminalType'])
   })
 
   it('arrayPorts produces wire lanes or a single bus', () => {
@@ -25,7 +27,28 @@ describe('array primitives', () => {
     const prim = primitiveOf('switch-array')
     const bus = { id: 'out:0', name: 'BUS', direction: 'output' as const }
     const wire = { id: 'out:0', name: 'Y0', direction: 'output' as const }
-    expect(prim.deriveWidth!(bus, new Map())).toBeNull()
-    expect(prim.deriveWidth!(wire, new Map())).toBe(1)
+    expect(prim.intrinsicWidth([bus], bus)).toBeNull()
+    expect(prim.intrinsicWidth([wire], wire)).toBe(1)
+  })
+
+  it('rejects connecting a WIRE terminal to a bus of a different width', () => {
+    const main: ComponentDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'sa', name: 'sa', defId: 'switch-array', pos: { x: 0, y: 0 } },
+        { id: 'fo', name: 'fo', defId: 'fan-out', pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: { 'switch-array': primitiveDef('switch-array'), 'fan-out': primitiveDef('fan-out'), main },
+    }
+    // sa.out:0 is width 1; fo.in:0 is a bus (width = 2 outputs).
+    expect(connectionError(design, main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 })

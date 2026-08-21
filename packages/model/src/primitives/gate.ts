@@ -119,7 +119,7 @@ export abstract class Gate implements Primitive {
     return null
   }
 
-  intrinsicWidth(_ports: Port[], _port: Port): number {
+  intrinsicWidth(_ports: Port[], _port: Port): number | null {
     return 1
   }
 

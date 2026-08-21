@@ -188,7 +188,6 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
         def.primitive &&
         primitiveOf(def.primitive)
           .properties()
-          .filter((spec) => spec.name !== 'size' || inst.props?.terminalType !== 'bus')
           .map((spec) => (
             <label className="field" key={spec.name}>
               <span>{spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>

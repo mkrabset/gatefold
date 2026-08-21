@@ -129,7 +129,7 @@ export function nextPrimitiveInputName(def: ComponentDef): string | null {
 /** The intrinsic width (number of wires) of a terminal (fan-in/fan-out bus = arity). */
 export function portWidth(def: ComponentDef, port: Port): number {
   if (def.kind !== 'primitive' || !def.primitive) return 1
-  return PRIMITIVES[def.primitive].intrinsicWidth(def.ports, port)
+  return PRIMITIVES[def.primitive].intrinsicWidth(def.ports, port) ?? 1
 }
 
 /** Whether a definition can be "entered" for editing. */

@@ -289,7 +289,7 @@ function drawInstance(
             const pinRadiusOf = (portId: string) =>
                 pinRadiusWorld(pinWidth(design, parentDef, {instanceId: instance.id, portId})) * vp.zoom
             if (def.primitive === 'switch-array' || def.primitive === 'led-array') {
-                drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, p, sim)
+                drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
             } else {
                 primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
                     x: s.x,
@@ -481,6 +481,9 @@ function drawArrayBody(
     cy: number,
     w: number,
     h: number,
+    cw: number,
+    ch: number,
+    vp: Viewport,
     p: Palette,
     sim?: SimView,
 ) {
@@ -506,16 +509,27 @@ function drawArrayBody(
 
     const n = laneCount
     const cellH = h / Math.max(n, 1)
-    // Half an indicator's slot of extra padding on the top and bottom (on top of the
-    // half-slot already there), clamped so adjacent indicators never collapse.
-    const extra = cellH / 2
-    const maxExtra = n > 1 ? ((n - 1) * cellH) / 4 : 0
-    const pad = Math.min(extra, maxExtra)
-    const span = (n - 1) * cellH - 2 * pad
-    const spacing = n > 1 ? span / (n - 1) : 0
-    const top = cy - span / 2
+
+    // Screen y of each lane, aligned to the matching terminal (WIRE) or bus lane (BUS).
+    const ys: number[] = []
+    if (def.ports.length > 1) {
+        for (let i = 0; i < n; i++) {
+            const port = def.ports[i]
+            const pos = portPosition(design, parentDef, instance, def, port.id)
+            ys.push(w2s(pos.x, pos.y, cw, ch, vp).y)
+        }
+    } else {
+        const port = def.ports[0]
+        const pos = portPosition(design, parentDef, instance, def, port.id)
+        const sy = w2s(pos.x, pos.y, cw, ch, vp).y
+        const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
+        for (const dy of busWireOffsets(width)) {
+            ys.push(sy + dy * vp.zoom)
+        }
+    }
+
     for (let i = 0; i < n; i++) {
-        const y = n > 1 ? top + i * spacing : cy
+        const y = ys[i]
         let sig: Signal | undefined
         if (sim) {
             if (def.ports.length > 1) {

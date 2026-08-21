@@ -193,6 +193,8 @@ export function Toolbar() {
       <IconButton title="Toggle theme" onClick={toggleTheme}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
       </IconButton>
+
+      <span className="tb-copyright">(C) Marius Krabset 2026</span>
     </header>
   )
 }

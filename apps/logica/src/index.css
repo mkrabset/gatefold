@@ -92,6 +92,13 @@ body {
   letter-spacing: 0.2px;
 }
 
+.tb-copyright {
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  margin-left: 2px;
+}
+
 .tb-group {
   display: flex;
   align-items: center;

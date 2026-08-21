@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (7-seg styling, CLOCK square wave, empty start, library scroll, docs).
+Last updated: 2026-08-21 (dedupe refactor + attribution, docs + user guide).
 
 ## Where we are
 
@@ -106,6 +106,17 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Documentation** — README rewritten as an overview; new `docs/USER_GUIDE.md` (UI tour,
   canvas + shortcuts, building, buses, a reference section per primitive, and a simulation
   chapter).
+- **Deduplication / relocation pass** — a sweep for duplicate code and misplaced logic:
+  - Model: `ArrayPrimitive` base extracted (dedupes `switch-array`/`led-array`); the 7-seg
+    pattern table moved out of the renderer into `sevenSegDigit(bits)`; `resolvedPinWidth`
+    added to `widths.ts` (the `isNeutralPin ? null : pinWidth` pattern); dropped the three
+    `nextId` wrappers (call `uniqueId` with the right separator directly).
+  - App: `arrayLaneCount`/`sevenSegLaneCount`/`portArity` now share `resolvedPinWidth`;
+    renderer gained `drawRoundedBox`/`drawUndetermined`/`strokeDashedRect`; `simStore`
+    gained `rawSignalOf`; a new `editor/viewport.ts` (`w2s`/`s2w`) replaces the renderer's
+    `w2s` + Canvas's inline `toWorld`; `Sidebar` merged `NameField`/`DefNameField` into
+    `CommitName`; `downloadText` moved to `util/download.ts`.
+- **Attribution** — a small "(C) Marius Krabset 2026" now sits in the toolbar's top-right.
 
 ## Latest (previous session)
 

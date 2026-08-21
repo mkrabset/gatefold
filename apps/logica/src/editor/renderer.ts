@@ -1,6 +1,7 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, Signal} from '@logica/model'
 import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegGeometry} from '@logica/model'
 import {
+    arrayIndicatorLanes,
     busWireOffsets,
     instanceBodySize,
     instanceBounds,
@@ -458,18 +459,6 @@ function drawProbeOverlay(
     }
 }
 
-/** The number of lanes an array currently has (WIRE = port count, BUS = resolved width). */
-function arrayLaneCount(
-    design: Design,
-    parentDef: ComponentDef,
-    instance: Instance,
-    def: ComponentDef,
-): number | null {
-    if (def.ports.length > 1) return def.ports.length
-    const ref = { instanceId: instance.id, portId: def.ports[0].id }
-    return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
-}
-
 /** Draw an array body (row of LEDs or switches), or a "?" box when its bus width is undetermined. */
 function drawArrayBody(
     ctx: CanvasRenderingContext2D,
@@ -497,8 +486,8 @@ function drawArrayBody(
     ctx.lineWidth = 1.5
     ctx.stroke()
 
-    const laneCount = arrayLaneCount(design, parentDef, instance, def)
-    if (laneCount === null) {
+    const lanes = arrayIndicatorLanes(design, parentDef, instance, def, vp.zoom)
+    if (!lanes) {
         ctx.fillStyle = p.text
         ctx.font = `${Math.max(16, h * 0.4)}px system-ui, sans-serif`
         ctx.textAlign = 'center'
@@ -507,29 +496,9 @@ function drawArrayBody(
         return
     }
 
-    const n = laneCount
-    const cellH = h / Math.max(n, 1)
-
-    // Screen y of each lane, aligned to the matching terminal (WIRE) or bus lane (BUS).
-    const ys: number[] = []
-    if (def.ports.length > 1) {
-        for (let i = 0; i < n; i++) {
-            const port = def.ports[i]
-            const pos = portPosition(design, parentDef, instance, def, port.id)
-            ys.push(w2s(pos.x, pos.y, cw, ch, vp).y)
-        }
-    } else {
-        const port = def.ports[0]
-        const pos = portPosition(design, parentDef, instance, def, port.id)
-        const sy = w2s(pos.x, pos.y, cw, ch, vp).y
-        const width = pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-        for (const dy of busWireOffsets(width)) {
-            ys.push(sy + dy * vp.zoom)
-        }
-    }
-
-    for (let i = 0; i < n; i++) {
-        const y = ys[i]
+    for (let i = 0; i < lanes.length; i++) {
+        const y = w2s(instance.pos.x, lanes[i].y, cw, ch, vp).y
+        const r = lanes[i].r * vp.zoom
         let sig: Signal | undefined
         if (sim) {
             if (def.ports.length > 1) {
@@ -539,13 +508,12 @@ function drawArrayBody(
                 sig = sim.signalOf(instance.id, def.ports[0].id)?.[i]
             }
         }
-        drawArrayCell(ctx, cx, y, cellH, isSwitch, sig, p)
+        drawArrayCell(ctx, cx, y, r, isSwitch, sig, p)
     }
 }
 
 /** Draw one array cell (a toggle switch or LED), lit when its signal is HI. */
-function drawArrayCell(ctx: CanvasRenderingContext2D, cx: number, y: number, cellH: number, isSwitch: boolean, sig: Signal | undefined, p: Palette) {
-    const r = Math.max(3, cellH * 0.3)
+function drawArrayCell(ctx: CanvasRenderingContext2D, cx: number, y: number, r: number, isSwitch: boolean, sig: Signal | undefined, p: Palette) {
     const on = sig === 1
     ctx.beginPath()
     ctx.arc(cx, y, r, 0, Math.PI * 2)

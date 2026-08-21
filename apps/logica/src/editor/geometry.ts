@@ -219,3 +219,63 @@ export function hitTestPort(
 
   return best
 }
+
+/** The number of lanes an array currently has (WIRE = port count, BUS = resolved width). */
+export function arrayLaneCount(
+  design: Design,
+  parentDef: ComponentDef,
+  instance: Instance,
+  def: ComponentDef,
+): number | null {
+  if (def.ports.length > 1) return def.ports.length
+  const ref = { instanceId: instance.id, portId: def.ports[0].id }
+  return isNeutralPin(design, parentDef, ref) ? null : pinWidth(design, parentDef, ref)
+}
+
+/** World-space indicator circles (center y + radius) for a switch/led array, or null
+ *  when its bus width is undetermined. The radius is zoom-aware so it matches the
+ *  screen-space circle drawn by the renderer. */
+export function arrayIndicatorLanes(
+  design: Design,
+  parentDef: ComponentDef,
+  instance: Instance,
+  def: ComponentDef,
+  zoom: number,
+): { y: number; r: number }[] | null {
+  const n = arrayLaneCount(design, parentDef, instance, def)
+  if (n === null) return null
+  const h = instanceBodySize(design, parentDef, instance, def).h
+  const r = Math.max(3 / zoom, (h / Math.max(n, 1)) * 0.3)
+  const lanes: { y: number; r: number }[] = []
+  if (def.ports.length > 1) {
+    for (let i = 0; i < n; i++) {
+      lanes.push({ y: portPosition(design, parentDef, instance, def, def.ports[i].id).y, r })
+    }
+  } else {
+    const port = def.ports[0]
+    const y = portPosition(design, parentDef, instance, def, port.id).y
+    const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
+    for (const dy of busWireOffsets(width)) lanes.push({ y: y + dy, r })
+  }
+  return lanes
+}
+
+/** Lane index of the array indicator under a world point, or null when outside. */
+export function hitArrayIndicator(
+  wx: number,
+  wy: number,
+  design: Design,
+  parentDef: ComponentDef,
+  instance: Instance,
+  def: ComponentDef,
+  zoom: number,
+): number | null {
+  const lanes = arrayIndicatorLanes(design, parentDef, instance, def, zoom)
+  if (!lanes) return null
+  const dx = wx - instance.pos.x
+  for (let i = 0; i < lanes.length; i++) {
+    const dy = wy - lanes[i].y
+    if (dx * dx + dy * dy <= lanes[i].r * lanes[i].r) return i
+  }
+  return null
+}

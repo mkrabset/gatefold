@@ -128,8 +128,9 @@ interface Design { version: number; root: string; defs: Record<string, Component
   is how "apply template" later finds an instance's origin.
 - **Template apply**: `apply.ts` (`scopeDefIds` / `portsMatch` / `applyTemplate`) propagates a
   template's edits to matching variants in the current scope (current def + transitive nested
-  defs). Matching requires the same lineage `uuid` and an unaltered interface (port ids/names/
-  order; arity equal or either neutral). Inversion is treated as an external alteration and is
+  defs). Matching requires the same lineage `uuid` and an unaltered interface (same ordered
+  port ids; arity equal or either neutral). Port names are ignored during matching and
+  overwritten from the template on apply. Inversion is treated as an external alteration and is
   preserved from the variant; internals are re-instantiated from the template while external
   wiring is kept intact.
 - **Terminal inversion is instance-level**: templates keep clean (non-inverted) ports;
@@ -361,11 +362,13 @@ New `apps/logica/src/editor/apply.ts`, exposed via `applyTemplateToInstances(tem
   apply reaches matching instances in the currently-viewed def and everything nested in it
   (including components inside a template being edited).
 - **Matching** — a def is a candidate when it is a `variant` with the template's `uuid`; it
-  matches when its ports are unaltered (same ordered ids and names) and each port's arity is
-  equal or either side neutral. `inverted` is deliberately excluded (external).
+  matches when its ports are unaltered (same ordered ids) and each port's arity is equal or
+  either side neutral. Port names are ignored during matching; `inverted` is deliberately
+  excluded (external).
 - **Apply** — for each match, `copyDefSubgraph` re-instantiates the template's internals
   (fresh nested variant closure); the variant keeps its id, port ids, `inverted` flags, and
-  external wiring, and adopts the template's name and internals. Returns a count for the
+  external wiring, and adopts the template's name, port names, and internals. Returns a count
+  for the
   notice. Undoable via the normal history.
 
 Known limitation: applying orphans the variant's old nested closure defs (no def GC yet).

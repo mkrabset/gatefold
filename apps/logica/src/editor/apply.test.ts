@@ -52,7 +52,7 @@ function makeApplyDesign(): Design {
     ],
   }
 
-  // A variant with an altered port (renamed) — should never match.
+  // A variant with a removed input port (only 1 of the template's 2) — should never match.
   defs['altered'] = {
     id: 'altered', name: 'altered', kind: 'composite', variant: true, uuid: 'U',
     ports: [
@@ -64,6 +64,26 @@ function makeApplyDesign(): Design {
       { id: 'a-out', name: '', defId: 'output-port', pos: { x: 60, y: 0 } },
     ],
     connections: [],
+  }
+
+  // A variant with renamed ports (same ids/order/count) — should match, names overwritten.
+  defs['renamed'] = {
+    id: 'renamed', name: 'renamed', kind: 'composite', variant: true, uuid: 'U',
+    ports: [
+      { id: 'in:0', name: 'X', direction: 'input', terminal: { instanceId: 'r-in', pinId: 'in:0' }, inverted: true },
+      { id: 'in:1', name: 'Z', direction: 'input', terminal: { instanceId: 'r-in', pinId: 'in:1' } },
+      { id: 'out:0', name: 'W', direction: 'output', terminal: { instanceId: 'r-out', pinId: 'out:0' } },
+    ],
+    instances: [
+      { id: 'r-in', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+      { id: 'r-g', name: 'g', defId: 'or', pos: { x: 60, y: 0 } },
+      { id: 'r-out', name: '', defId: 'output-port', pos: { x: 120, y: 0 } },
+    ],
+    connections: [
+      { id: 'c1', from: iref('r-in', 'in:0'), to: iref('r-g', 'in:0') },
+      { id: 'c2', from: iref('r-in', 'in:1'), to: iref('r-g', 'in:1') },
+      { id: 'c3', from: iref('r-g', 'out:0'), to: iref('r-out', 'out:0') },
+    ],
   }
 
   // An out-of-scope variant living in a def `main` does not reference.
@@ -84,6 +104,7 @@ function makeApplyDesign(): Design {
     instances: [
       { id: 'i', name: 'i', defId: 'v', pos: { x: 0, y: 0 } },
       { id: 'a', name: 'a', defId: 'altered', pos: { x: 100, y: 0 } },
+      { id: 'r', name: 'r', defId: 'renamed', pos: { x: 200, y: 0 } },
     ],
     connections: [],
   }
@@ -110,7 +131,7 @@ describe('applyTemplate', () => {
     const scope = scopeDefIds(design, 'main')
     const { design: result, updated } = applyTemplate(design, 'tpl', scope)
 
-    expect(updated).toBe(1)
+    expect(updated).toBe(2)
 
     const v = result.defs['v']
     // Internals replaced: the OR gate becomes the template's AND (fresh variant copy).
@@ -126,10 +147,23 @@ describe('applyTemplate', () => {
     // Template name propagates.
     expect(v.name).toBe('tpl')
 
-    // The altered variant (renamed port) is left untouched.
+    // The altered variant (removed input) is left untouched.
     expect(result.defs['altered'].instances!.some((i) => i.id === 'a-in')).toBe(true)
     // The out-of-scope variant is untouched.
     expect(result.defs['v2'].instances).toEqual([])
+  })
+
+  it('matches renamed ports and overwrites their names from the template', () => {
+    const design = makeApplyDesign()
+    const scope = scopeDefIds(design, 'main')
+    const { design: result } = applyTemplate(design, 'tpl', scope)
+
+    const r = result.defs['renamed']
+    // Names overwritten with the template's; ids/order kept.
+    expect(r.ports.map((p) => p.name)).toEqual(['A', 'B', 'Y'])
+    expect(r.ports.map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
+    // Inversion still preserved from the variant.
+    expect(r.ports.find((p) => p.id === 'in:0')!.inverted).toBe(true)
   })
 
   it('updates nothing when no variant matches or is in scope', () => {

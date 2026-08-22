@@ -4,9 +4,11 @@ import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth
 /**
  * Propagate a composite template's changes to every matching variant in a given
  * scope. A variant "matches" when it was instantiated from the template (same lineage
- * `uuid`) and its terminal interface is unaltered (same port ids/names/order, arity
- * compatible). Inversion is treated as an external alteration and is preserved from
- * the variant rather than copied from the template.
+ * `uuid`) and its terminal interface is unaltered (same ordered port ids; arity
+ * compatible). Port names are ignored during matching and overwritten from the
+ * template on apply (so a template rename bulk-updates instances). Inversion is treated
+ * as an external alteration and is preserved from the variant rather than copied from
+ * the template.
  */
 
 /** All def ids reachable from `startId` by following instances (inclusive). */
@@ -34,12 +36,12 @@ function portArity(design: Design, def: ComponentDef, port: Port): number | null
   return resolvedPinWidth(design, def, { instanceId: t.instanceId, portId: t.pinId })
 }
 
-/** Whether `variant`'s terminals are an unaltered copy of `template`'s (ignoring inversion). */
+/** Whether `variant`'s terminals match `template`'s by ordered id (names ignored). */
 function portsMatch(design: Design, template: ComponentDef, variant: ComponentDef): boolean {
   const side = (t: Port[], v: Port[]): boolean => {
     if (t.length !== v.length) return false
     for (let i = 0; i < t.length; i++) {
-      if (t[i].id !== v[i].id || t[i].name !== v[i].name) return false
+      if (t[i].id !== v[i].id) return false
       const a = portArity(design, template, t[i])
       const b = portArity(design, variant, v[i])
       if (a !== null && b !== null && a !== b) return false

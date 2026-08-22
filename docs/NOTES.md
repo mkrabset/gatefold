@@ -128,9 +128,10 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   template automatically.
 - **Apply template to matching instances** — new `apps/logica/src/editor/apply.ts`:
   `scopeDefIds` (current def + transitive nested defs), `portsMatch` (same lineage `uuid`,
-  `variant`, and unaltered port ids/names/order; arity equal or either neutral; `inverted`
-  ignored), and `applyTemplate` (re-instantiates a variant's internals from the template,
-  preserving its port ids + `inverted` and external wiring). Store action
+  `variant`, and unaltered ordered port ids; arity equal or either neutral; `inverted` and
+  port **names** are ignored), and `applyTemplate` (re-instantiates a variant's internals from
+  the template, preserving its port ids + `inverted` and external wiring, and overwriting port
+  names with the template's — so renaming a template bulk-updates instances). Store action
   `applyTemplateToInstances` sets a notice and is undoable; the library panel shows an
   "Apply to instances" button when a template card is selected.
 - **Inversion is instance-level** — templates keep clean (non-inverted) terminals.

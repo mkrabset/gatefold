@@ -49,7 +49,8 @@ Left to right:
 - **My components** — your composite components. Drag to place; double-click to edit its
   template; **×** deletes it. **Export** / **Import** exchange your component library as JSON,
   and **Apply to instances** (shown when a template is selected) propagates that template's
-  edits to every matching placed instance. The list scrolls if it grows tall.
+  edits (including its port names) to every matching placed instance. The list scrolls if it
+  grows tall.
 
 ### Dialogs
 
@@ -119,8 +120,10 @@ instance.
 
 When you place or group a component, Logica deep-copies its definition (a **variant**), so
 every instance is independent. **My components** lists your templates; editing a template (via
-its library card) and pressing **Apply to instances** updates every matching instance that
-still has an unaltered interface.
+its library card) and pressing **Apply to instances** updates every matching instance — one
+whose terminals are the same (by id and order) as the template's. Port **names** don't affect
+matching and are overwritten with the template's names, so renaming a template's ports
+bulk-updates its instances.
 
 ---
 

@@ -89,8 +89,8 @@ authoritative — update this when a term's meaning changes.
 - **Grouping** — turning a selection into a composite (`inferGroup` → naming dialog →
   `applyGroup`); a single selected custom component is *promoted* to a template instead.
 - **Apply template** — propagating a template's edits to every matching variant in the current
-  scope (same lineage `uuid` + unaltered ports). Replaces internals, preserves external wiring
-  and the variant's inversion.
+  scope (same lineage `uuid` + same ordered port ids). Port names are ignored and overwritten
+  from the template. Replaces internals, preserves external wiring and the variant's inversion.
 - **Navigation (descend/ascend)** — the `navStack` of def ids; double-click a component to
   enter it, Escape / breadcrumb ↑ to exit.
 - **Fit-to-view** — when you enter a component, the canvas auto-zooms/pans so its internals

@@ -36,12 +36,13 @@ Left to right:
 
 - **Components** — a tree of the current sheet's instances. Double-click a composite to enter
   it; single-click to select it on the canvas.
-- **Properties** — for the selected component: its **name**, its **type**, its input/output
-  counts, its primitive **properties** (e.g. a CLOCK's *Period*, a BUS's *Lanes*), and its
-  **X/Y** position. Values commit on **Enter** or blur.
-- **Ports** — the current definition's terminals. Add (`+`) / remove (`−`) terminals (when the
-  primitive allows it), rename them, reorder by dragging the ⣿ handle, and toggle the
+- **Ports** — the current scope's terminals (shown first). Add (`+`) / remove (`−`) terminals
+  (when the primitive allows it), rename them, reorder by dragging the ⣿ handle, and toggle the
   **inversion** checkbox (the negation bubble).
+- **Properties** — for the selected component: its **name**, its **type**, its primitive
+  **properties** (e.g. a CLOCK's *Period*, a BUS's *Lanes*), and an editable terminal list for
+  that component, so you can add/remove/reorder/rename/invert its terminals without entering it.
+  Values commit on **Enter** or blur.
 
 ### Library (right)
 

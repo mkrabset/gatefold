@@ -113,15 +113,15 @@ interface EditorState {
   requestDeleteTemplate: (defId: string) => void
   confirmDeleteTemplate: () => void
   cancelDeleteTemplate: () => void
-  renamePort: (portId: string, name: string) => void
-  setPortInverted: (portId: string, inverted: boolean) => void
+  renamePort: (portId: string, name: string, defId?: string) => void
+  setPortInverted: (portId: string, inverted: boolean, defId?: string) => void
   togglePinInversion: (ref: PinRef) => void
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
   setInstanceProp: (id: string, name: string, value: unknown) => void
-  addPort: (direction: PortDirection) => void
-  removePort: (portId: string) => void
-  setPortOrder: (direction: PortDirection, ids: string[]) => void
+  addPort: (direction: PortDirection, defId?: string) => void
+  removePort: (portId: string, defId?: string) => void
+  setPortOrder: (direction: PortDirection, ids: string[], defId?: string) => void
   addInstance: (defId: string, pos: { x: number; y: number }) => void
   addConnection: (from: PinRef, to: PinRef) => void
   retargetConnection: (id: string, to: PinRef) => void
@@ -156,6 +156,20 @@ function findArrayRef(design: Design, defId: string): { parent: ComponentDef; in
     }
   }
   return null
+}
+
+/** Prune connections to the given ports of `defId` from every sheet that references it. */
+function pruneConnectionsToPorts(design: Design, defId: string, portIds: Set<string>): void {
+  for (const parent of Object.values(design.defs)) {
+    for (const inst of parent.instances ?? []) {
+      if (inst.defId !== defId) continue
+      parent.connections = (parent.connections ?? []).filter(
+        (c) =>
+          !(c.from.instanceId === inst.id && portIds.has(c.from.portId)) &&
+          !(c.to.instanceId === inst.id && portIds.has(c.to.portId)),
+      )
+    }
+  }
 }
 
 /** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
@@ -461,16 +475,16 @@ export const useEditorStore = create<EditorState>()(
         }
         delete s.design.defs[id]
       }),
-    renamePort: (portId, name) =>
+    renamePort: (portId, name, defId) =>
       set((s) => {
-        const def = s.design.defs[currentDefId(s)]
+        const def = s.design.defs[defId ?? currentDefId(s)]
         if (!allowRenameTerminals(def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (port) port.name = name
       }),
-    setPortInverted: (portId, inverted) =>
+    setPortInverted: (portId, inverted, defId) =>
       set((s) => {
-        const def = s.design.defs[currentDefId(s)]
+        const def = s.design.defs[defId ?? currentDefId(s)]
         if (isTemplateDef(s.design, def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (!port) return
@@ -519,9 +533,9 @@ export const useEditorStore = create<EditorState>()(
         if (!inst.props) inst.props = {}
         inst.props[name] = value
       }),
-    addPort: (direction) =>
+    addPort: (direction, defId) =>
       set((s) => {
-        const def = s.design.defs[currentDefId(s)]
+        const def = s.design.defs[defId ?? currentDefId(s)]
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
@@ -564,9 +578,9 @@ export const useEditorStore = create<EditorState>()(
           def.ports.push(port)
         }
       }),
-    removePort: (portId) =>
+    removePort: (portId, defId) =>
       set((s) => {
-        const def = s.design.defs[currentDefId(s)]
+        const def = s.design.defs[defId ?? currentDefId(s)]
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
@@ -578,6 +592,8 @@ export const useEditorStore = create<EditorState>()(
         const port = def.ports.find((p) => p.id === portId)
         if (port && isArityFixed(def, port.direction)) return
         def.ports = def.ports.filter((p) => p.id !== portId)
+        // Prune any parent sheet's wires to the removed terminal.
+        pruneConnectionsToPorts(s.design, def.id, new Set([portId]))
         if (def.kind !== 'composite') return
         const instId = port?.terminal?.instanceId
         if (instId) {
@@ -594,9 +610,9 @@ export const useEditorStore = create<EditorState>()(
           }
         }
       }),
-    setPortOrder: (direction, ids) =>
+    setPortOrder: (direction, ids, defId) =>
       set((s) => {
-        const def = s.design.defs[currentDefId(s)]
+        const def = s.design.defs[defId ?? currentDefId(s)]
         // Array terminals are index-ordered; reordering is meaningless.
         if (isArrayPrimitive(def)) return
         const byId = new Map(def.ports.map((p) => [p.id, p]))

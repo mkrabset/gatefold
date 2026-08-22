@@ -8,8 +8,8 @@ authoritative — update this when a term's meaning changes.
 - **Design** — the whole document: `{ version, root, defs }`. The unit saved/loaded as JSON.
 - **Definition (`ComponentDef`)** — a reusable *type*: a `primitive` or `composite`.
   Has `id`, `name`, `kind`, `ports`, and (composites only) `instances` + `connections`.
-- **Instance** — a concrete placement of a definition at a position, with its own unique
-  `id` and `name`. References its def via `defId`.
+- **Instance** — a concrete placement of a definition at a position, with a unique `id` and a
+  display `name` (not enforced unique; logic keys off `id` only). References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
   and the probe primitives 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.

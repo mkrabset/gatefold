@@ -242,6 +242,31 @@ body {
   color: var(--text-faint);
 }
 
+.side-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.side-toggle {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.side-toggle:hover {
+  color: var(--text);
+}
+
+.side-divider {
+  border-top: 1px solid var(--border);
+  margin: 6px 0;
+}
+
 .side-note {
   padding: 4px 12px 10px;
   font-size: 11px;

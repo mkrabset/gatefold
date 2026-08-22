@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
 import type { PropertySpec } from '@logica/model'
-import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, outputPorts, primitiveOf } from '@logica/model'
+import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, outputPorts, primitiveOf } from '@logica/model'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 
@@ -90,6 +90,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
 }
 
 export function Sidebar({ width }: { width: number }) {
+  const [showTree, setShowTree] = useState(true)
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
   const selectedIds = useEditorStore((s) => s.selectedIds)
@@ -102,33 +103,47 @@ export function Sidebar({ width }: { width: number }) {
   return (
     <aside className="sidebar" style={{ width }}>
       <div className="side-section">
-        <div className="side-title">Components</div>
-        <div className="tree">
-          <TreeItem
-            label={rootDef.name}
-            depth={0}
-            icon="▣"
-            kind="root"
-            selected={false}
-            expandable
-            expanded
-            onSelect={() => setSelection([])}
-            onOpen={() => navigateTo(rootDef.id)}
-          />
-          <div className="tree">
-            <CompositeChildren def={current} depth={1} selectId={(id) => setSelection([id])} onOpen={navigateTo} />
-          </div>
+        <div className="side-title side-title-row">
+          <span>Components</span>
+          <button
+            className="side-toggle"
+            title={showTree ? 'Hide component tree' : 'Show component tree'}
+            onClick={() => setShowTree((v) => !v)}
+          >
+            {showTree ? '−' : '+'}
+          </button>
         </div>
-        {navStack.length > 0 && (
-          <div className="side-note">double-click a composite to open it</div>
+        {showTree && (
+          <>
+            <div className="tree">
+              <TreeItem
+                label={rootDef.name}
+                depth={0}
+                icon="▣"
+                kind="root"
+                selected={false}
+                expandable
+                expanded
+                onSelect={() => setSelection([])}
+                onOpen={() => navigateTo(rootDef.id)}
+              />
+              <div className="tree">
+                <CompositeChildren def={current} depth={1} selectId={(id) => setSelection([id])} onOpen={navigateTo} />
+              </div>
+            </div>
+            {navStack.length > 0 && (
+              <div className="side-note">double-click a composite to open it</div>
+            )}
+          </>
         )}
       </div>
 
       <div className="side-section grow">
-        <div className="side-title">Properties</div>
-        <PropertiesPanel selectedIds={selectedIds} />
         <div className="side-title">Ports</div>
         <PortsEditor />
+        <div className="side-divider" />
+        <div className="side-title">Properties</div>
+        <PropertiesPanel selectedIds={selectedIds} />
       </div>
     </aside>
   )
@@ -174,16 +189,6 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
         <span>Type</span>
         <input defaultValue={def.kind === 'primitive' ? def.primitive : 'composite'} readOnly />
       </label>
-      <div className="field-row">
-        <label className="field">
-          <span>Inputs</span>
-          <input defaultValue={inputPorts(def).length} readOnly />
-        </label>
-        <label className="field">
-          <span>Outputs</span>
-          <input defaultValue={outputPorts(def).length} readOnly />
-        </label>
-      </div>
       {def.kind === 'primitive' &&
         def.primitive &&
         primitiveOf(def.primitive)
@@ -199,16 +204,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
               />
             </label>
           ))}
-      <div className="field-row">
-        <label className="field">
-          <span>X</span>
-          <input defaultValue={Math.round(inst.pos.x)} />
-        </label>
-        <label className="field">
-          <span>Y</span>
-          <input defaultValue={Math.round(inst.pos.y)} />
-        </label>
-      </div>
+      {!isPortGroupDef(def) && <PortsGroups defId={inst.defId} />}
     </div>
   )
 }
@@ -284,14 +280,15 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
   return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setInstanceProp(instanceId, spec.name, raw)} />
 }
 
-function PortsEditor() {
+function PortsGroups({ defId }: { defId?: string }) {
   const design = useEditorStore((s) => s.design)
   const renamePort = useEditorStore((s) => s.renamePort)
   const setPortInverted = useEditorStore((s) => s.setPortInverted)
   const addPort = useEditorStore((s) => s.addPort)
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
-  const current = design.defs[currentDefId(useEditorStore.getState())]
+  const target = defId ?? currentDefId(useEditorStore.getState())
+  const current = design.defs[target]
   const renameAllowed = allowRenameTerminals(current)
   // Templates keep clean (non-inverted) terminals; inversion is instance-level.
   const invertAllowed = !(current.kind === 'composite' && current.variant !== true && current.id !== design.root)
@@ -317,7 +314,7 @@ function PortsEditor() {
             className="mini-btn"
             title={fixed ? `The number of ${direction}s is fixed` : `Add ${direction}`}
             disabled={fixed}
-            onClick={() => addPort(direction)}
+            onClick={() => addPort(direction, defId)}
           >
             +
           </button>
@@ -330,19 +327,27 @@ function PortsEditor() {
           renameAllowed={renameAllowed}
           invertAllowed={invertAllowed}
           isConnected={isConnected}
-          onRename={renamePort}
-          onToggleInverted={setPortInverted}
-          onRemove={removePort}
-          onReorder={setPortOrder}
+          onRename={(portId, name) => renamePort(portId, name, defId)}
+          onToggleInverted={(portId, inverted) => setPortInverted(portId, inverted, defId)}
+          onRemove={(portId) => removePort(portId, defId)}
+          onReorder={(direction, ids) => setPortOrder(direction, ids, defId)}
         />
       </div>
     )
   }
 
   return (
-    <div className="props">
+    <>
       {renderGroup('Inputs', inputPorts(current), 'input')}
       {renderGroup('Outputs', outputPorts(current), 'output')}
+    </>
+  )
+}
+
+function PortsEditor() {
+  return (
+    <div className="props">
+      <PortsGroups />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (dedupe refactor + attribution, docs + user guide).
+Last updated: 2026-08-21 (apply-template name matching, instance names, sidebar properties editor).
 
 ## Where we are
 
@@ -117,6 +117,21 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
     `w2s` + Canvas's inline `toWorld`; `Sidebar` merged `NameField`/`DefNameField` into
     `CommitName`; `downloadText` moved to `util/download.ts`.
 - **Attribution** — a small "(C) Marius Krabset 2026" now sits in the toolbar's top-right.
+- **Apply-to-instances ignores port names** — `portsMatch` now compares only the ordered port
+  **ids** (plus arity); names are ignored during matching and overwritten from the template on
+  apply, so renaming a template's ports bulk-updates its instances.
+- **Instance names are no longer auto-suffixed** — placing (drag from the library) and
+  copy/paste keep the source's name verbatim (`addInstance` → `srcDef.name`, `instantiateClipboard`
+  → `inst.name`); the instance `id` stays uniquified (that's what logic keys on), so duplicate
+  names are possible and harmless.
+- **Sidebar properties rework** — the current scope's **Ports** editor now sits at the top with a
+  divider line; the selected component's properties dropped the X/Y and Inputs/Outputs-count
+  fields and gained an inline terminal editor (add/remove/rename/reorder/invert) via `PortsGroups`.
+  The port actions are now `defId`-parameterized, and `removePort` prunes the parent sheet's
+  wires to a removed terminal (`pruneConnectionsToPorts`).
+- **Relative asset links** — Vite `base: './'`, so the production build is portable.
+- **AsciiDoc user guide** — added `docs/USER_GUIDE.adoc` (auto TOC, admonition for the internal
+  primitives note) alongside the Markdown version.
 
 ## Latest (previous session)
 

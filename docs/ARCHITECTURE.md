@@ -308,11 +308,13 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   settings (gear), breadcrumb navigation, save/open JSON, theme toggle. Icon buttons carry
   `title` tooltips.
 - **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
-  properties panel (name commits on Enter/blur; a selected primitive with `properties()`
-  shows a generic editor — number/string/boolean, unit in the label — committing via
-  `setInstanceProp`), and a **ports editor** (add/remove/rename/
-  reorder ports; add/remove is gated by the primitive's `fixedInputs`/`fixedOutputs`, rename
-  by `allowRenameTerminals`; reorder is animated via @dnd-kit).
+  a **ports editor** for the current scope (shown first, with a divider), and a **properties
+  panel** for the selected component: its name (commits on Enter/blur), its type, a generic
+  editor for primitive `properties()` (number/string/boolean/select, unit in the label, via
+  `setInstanceProp`), and an inline terminal editor (`PortsGroups`, parameterized by the
+  instance's `defId`). Port add/remove is gated by `fixedInputs`/`fixedOutputs`, rename by
+  `allowRenameTerminals`; reorder is animated via @dnd-kit. The store port actions take an
+  optional `defId`, and `removePort` prunes the parent sheet's wires to a removed terminal.
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
   place a deep copy; `variant` defs are excluded). The "My components" grid scrolls
   independently when it overflows.

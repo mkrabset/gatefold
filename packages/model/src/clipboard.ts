@@ -102,18 +102,15 @@ export function instantiateClipboard(
 
   if (!def.instances) def.instances = []
   const usedInstanceIds = new Set(def.instances.map((i) => i.id))
-  const usedNames = new Set(def.instances.map((i) => i.name))
   const instIdMap = new Map<string, string>()
   const newIds: string[] = []
   for (const inst of clipboard.instances) {
     const id = uniqueId(usedInstanceIds, inst.id, '~')
     usedInstanceIds.add(id)
-    const name = uniqueId(usedNames, inst.name, '~')
-    usedNames.add(name)
     instIdMap.set(inst.id, id)
     def.instances.push({
       id,
-      name,
+      name: inst.name,
       defId: idMap.get(inst.defId) ?? inst.defId,
       pos: { x: inst.pos.x + offset.x, y: inst.pos.y + offset.y },
       ...(inst.props ? { props: { ...inst.props } } : {}),

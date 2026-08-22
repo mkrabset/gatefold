@@ -611,8 +611,7 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         const srcDef = s.design.defs[defId]
         if (!def.instances) def.instances = []
-        const base = srcDef.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'component'
-        const name = uniqueAgainst(new Set(def.instances.map((i) => i.name)), base)
+        const name = srcDef.name
         const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), name)
         // Deep copy-on-place: the instance gets its own variant def *and* a copy of
         // its whole internal hierarchy, independent of the library template.

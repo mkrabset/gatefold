@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore } from '../state/simStore'
+import { isTemplateDef } from '@logica/model'
 
 /**
  * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
@@ -150,7 +151,7 @@ export function Toolbar() {
           const name = def?.name ?? id
           const isLast = i === navStack.length - 1
           // Mark library templates (not the root, not an instance copy).
-          const isTemplate = !!def && def.variant !== true && id !== design.root
+          const isTemplate = !!def && isTemplateDef(design, def)
           return (
             <span key={id} className="crumb">
               {i > 0 && <span className="crumb-sep">/</span>}

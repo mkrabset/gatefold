@@ -27,6 +27,14 @@ export interface Netlist {
   pinNet: Map<string, number>
 }
 
+/** Separator joining instance ids into a flattened `.`-path (shared with the app). */
+export const INSTANCE_PATH_SEP = '.'
+
+/** Append `id` to a flattened instance path (empty path = the root). */
+export function joinInstancePath(path: string, id: string): string {
+  return path === '' ? id : `${path}${INSTANCE_PATH_SEP}${id}`
+}
+
 /** Minimal union-find over string keys. */
 class UnionFind {
   private parent = new Map<string, string>()
@@ -65,7 +73,7 @@ export function flatten(design: Design): Netlist {
   const leaves: Leaf[] = []
   const allPins = new Set<string>()
 
-  const join = (path: string, id: string): string => (path === '' ? id : `${path}.${id}`)
+  const join = (path: string, id: string): string => joinInstancePath(path, id)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
 
   const flattenDef = (defId: string, path: string): void => {

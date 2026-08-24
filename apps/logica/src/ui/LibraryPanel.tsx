@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { libraryPrimitives } from '@logica/model'
+import { libraryPrimitives, isTemplateDef } from '@logica/model'
 import { useEditorStore } from '../state/editorStore'
 
 /**
@@ -21,7 +21,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
   const activeDef = active ? design.defs[active] : null
-  const activeTemplate = activeDef && activeDef.kind === 'composite' && activeDef.variant !== true && activeDef.id !== design.root ? active : null
+  const activeTemplate = activeDef && isTemplateDef(design, activeDef) ? active : null
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

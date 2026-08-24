@@ -136,11 +136,30 @@ export function findConnectionTo(connections: Connection[], to: PinRef): Connect
   return connections.find((c) => pinRefEquals(c.to, to)) ?? null
 }
 
-/** True when any instance in the design references `defId` via its `defId`. */
-export function isDefReferenced(design: Design, defId: string): boolean {
+/**
+ * Every (composite def, instance) pair across the design whose instance references
+ * `defId`, in def-then-instance order.
+ */
+export function instancesReferencing(design: Design, defId: string): { def: ComponentDef; instance: Instance }[] {
+  const refs: { def: ComponentDef; instance: Instance }[] = []
   for (const def of Object.values(design.defs)) {
     if (def.kind !== 'composite') continue
-    if ((def.instances ?? []).some((i) => i.defId === defId)) return true
+    for (const inst of def.instances ?? []) {
+      if (inst.defId === defId) refs.push({ def, instance: inst })
+    }
   }
-  return false
+  return refs
+}
+
+/** True when any instance in the design references `defId` via its `defId`. */
+export function isDefReferenced(design: Design, defId: string): boolean {
+  return instancesReferencing(design, defId).length > 0
+}
+
+/**
+ * True for a reusable composite template: a non-root composite that is not an
+ * instance-local variant copy (so it is listed in the library and editable).
+ */
+export function isTemplateDef(design: Design, def: ComponentDef): boolean {
+  return def.kind === 'composite' && def.variant !== true && def.id !== design.root
 }

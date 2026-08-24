@@ -8,7 +8,7 @@ import { drawScene } from './renderer'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import type { PinRef } from '@logica/model'
-import { findConnectionTo, isNavigableDef, pinRefEquals } from '@logica/model'
+import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@logica/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -60,7 +60,7 @@ export function Canvas() {
       // Editing a template (any non-root, non-variant composite in the nav path).
       const editingTemplate = state.navStack.some((id) => {
         const d = state.design.defs[id]
-        return !!d && d.kind === 'composite' && d.variant !== true && id !== state.design.root
+        return !!d && isTemplateDef(state.design, d)
       })
       const simState = useSimStore.getState()
       const sim = simState.mode === 'simulate' && simState.engine

@@ -1,5 +1,6 @@
 export { Simulation } from './engine'
 export { flatten } from './netlist'
+export { INSTANCE_PATH_SEP, joinInstancePath } from './netlist'
 export type { FlatInstance, FlatPort, Netlist } from './netlist'
 export { DEFAULT_CONFIG, delayOf } from './config'
 export type { SimConfig } from './config'

@@ -22,6 +22,7 @@ export type { VectorContext } from './vector'
 export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits } from './seven-seg'
 export type { SevenSegMode } from './seven-seg'
 export { arrayPorts } from './array'
+export { CLOCK_DEFAULT_PERIOD } from './clock'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   and: new AndGate(),

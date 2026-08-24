@@ -17,9 +17,11 @@ import {
   inputPortDef,
   inputPorts,
   instantiateClipboard,
+  instancesReferencing,
   isArityFixed,
   isDefReferenced,
   isPortGroupDef,
+  isTemplateDef,
   libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
@@ -138,10 +140,6 @@ interface EditorState {
   importLibrary: (json: string) => void
 }
 
-/** True for a reusable composite template (non-root, non-variant). */
-const isTemplateDef = (design: Design, def: ComponentDef): boolean =>
-  def.kind === 'composite' && def.variant !== true && def.id !== design.root
-
 /** True for the switch-array/led-array primitives. */
 const isArrayPrimitive = (def?: ComponentDef): boolean =>
   !!def && def.kind === 'primitive' && (def.primitive === 'switch-array' || def.primitive === 'led-array')
@@ -150,27 +148,32 @@ const isArrayPrimitive = (def?: ComponentDef): boolean =>
 const arrayDirection = (def: ComponentDef): PortDirection =>
   def.primitive === 'switch-array' ? 'output' : 'input'
 
+/**
+ * Deep-copy `defId` and its transitive closure into the design as fresh variants and
+ * return the new top-level def id (copy-on-place). Mutates `design.defs` in place
+ * (operates on an immer draft).
+ */
+function copyDefIntoDesign(design: Design, defId: string): string {
+  const usedIds = new Set(Object.keys(design.defs))
+  const { defs, idMap } = copyDefSubgraph(design.defs, [defId], usedIds)
+  for (const [copyId, d] of Object.entries(defs)) design.defs[copyId] = d
+  return idMap.get(defId) ?? defId
+}
+
 /** Find the single instance referencing an array's (variant) def, and its parent. */
 function findArrayRef(design: Design, defId: string): { parent: ComponentDef; inst: Instance } | null {
-  for (const d of Object.values(design.defs)) {
-    for (const i of d.instances ?? []) {
-      if (i.defId === defId) return { parent: d, inst: i }
-    }
-  }
-  return null
+  const ref = instancesReferencing(design, defId)[0]
+  return ref ? { parent: ref.def, inst: ref.instance } : null
 }
 
 /** Prune connections to the given ports of `defId` from every sheet that references it. */
 function pruneConnectionsToPorts(design: Design, defId: string, portIds: Set<string>): void {
-  for (const parent of Object.values(design.defs)) {
-    for (const inst of parent.instances ?? []) {
-      if (inst.defId !== defId) continue
-      parent.connections = (parent.connections ?? []).filter(
-        (c) =>
-          !(c.from.instanceId === inst.id && portIds.has(c.from.portId)) &&
-          !(c.to.instanceId === inst.id && portIds.has(c.to.portId)),
-      )
-    }
+  for (const { def: parent, instance: inst } of instancesReferencing(design, defId)) {
+    parent.connections = (parent.connections ?? []).filter(
+      (c) =>
+        !(c.from.instanceId === inst.id && portIds.has(c.from.portId)) &&
+        !(c.to.instanceId === inst.id && portIds.has(c.to.portId)),
+    )
   }
 }
 
@@ -404,12 +407,7 @@ export const useEditorStore = create<EditorState>()(
               new Set(Object.values(s.design.defs).map((d) => d.name)),
               p.name.trim() || target.name,
             )
-            const usedIds = new Set(Object.keys(s.design.defs))
-            const { defs, idMap } = copyDefSubgraph(s.design.defs, [p.promoteDefId], usedIds)
-            for (const [copyId, d] of Object.entries(defs)) {
-              s.design.defs[copyId] = d
-            }
-            const top = s.design.defs[idMap.get(p.promoteDefId) ?? p.promoteDefId]
+            const top = s.design.defs[copyDefIntoDesign(s.design, p.promoteDefId)]
             top.name = name
             top.variant = false
             top.uuid = newUuid()
@@ -437,12 +435,7 @@ export const useEditorStore = create<EditorState>()(
         if (last) {
           // Copy-on-place: deep-copy the template and its whole hierarchy into fresh
           // variants so the grouped instance is fully independent of the library template.
-          const usedIds = new Set(Object.keys(s.design.defs))
-          const { defs, idMap } = copyDefSubgraph(s.design.defs, [last.defId], usedIds)
-          for (const [copyId, d] of Object.entries(defs)) {
-            s.design.defs[copyId] = d
-          }
-          const newDefId = idMap.get(last.defId) ?? last.defId
+          const newDefId = copyDefIntoDesign(s.design, last.defId)
           last.defId = newDefId
           const newDef = s.design.defs[newDefId]
           // Carry the inherited inversion onto the instance variant's ports.
@@ -525,7 +518,7 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId]
         // Only composite templates (not the root, not primitives, not variant copies)
         // are renameable.
-        if (!def || def.kind !== 'composite' || def.variant === true || defId === s.design.root) return
+        if (!def || !isTemplateDef(s.design, def)) return
         const trimmed = name.trim()
         if (!trimmed) return
         // Reject a name already used by any def (template, variant, built-in, or root).
@@ -648,12 +641,7 @@ export const useEditorStore = create<EditorState>()(
         const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), name)
         // Deep copy-on-place: the instance gets its own variant def *and* a copy of
         // its whole internal hierarchy, independent of the library template.
-        const usedIds = new Set(Object.keys(s.design.defs))
-        const { defs, idMap } = copyDefSubgraph(s.design.defs, [defId], usedIds)
-        for (const [copyId, d] of Object.entries(defs)) {
-          s.design.defs[copyId] = d
-        }
-        const newDefId = idMap.get(defId) ?? defId
+        const newDefId = copyDefIntoDesign(s.design, defId)
         const props = srcDef.kind === 'primitive' && srcDef.primitive ? defaultPropsOf(srcDef.primitive) : {}
         def.instances.push({ id, name, defId: newDefId, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
         s.selectedIds = [id]

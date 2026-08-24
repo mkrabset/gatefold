@@ -1,5 +1,5 @@
 import type { Design, Signal } from '@logica/model'
-import { primitiveOf } from '@logica/model'
+import { primitiveOf, CLOCK_DEFAULT_PERIOD } from '@logica/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance } from './netlist'
 import { clockValue, equalVectors, invertVector } from './signals'
@@ -129,7 +129,7 @@ export class Simulation {
 
   private sourceValues(inst: FlatInstance, now: number): Signal[][] {
     if (inst.kind === 'clock') {
-      const period = typeof inst.props?.period === 'number' ? inst.props.period : 10_000
+      const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
       return [[clockValue(period, now)]]
     }
     const lanes = this.laneCount(inst)
@@ -237,7 +237,7 @@ export class Simulation {
     let best: number | null = null
     for (const inst of this.instances) {
       if (inst.kind !== 'clock') continue
-      const period = typeof inst.props?.period === 'number' ? inst.props.period : 10_000
+      const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
       const half = period / 2
       if (half <= 0) continue
       const next = (Math.floor(this.timeValue / half) + 1) * half

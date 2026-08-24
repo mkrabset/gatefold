@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Signal } from '@logica/model'
 import { Simulation } from '@logica/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@logica/sim'
+import { INSTANCE_PATH_SEP, joinInstancePath } from '@logica/sim'
 import { useEditorStore } from './editorStore'
 import { useUiStore } from './uiStore'
 
@@ -146,7 +147,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
 
 function flatId(instanceId: string): string {
   const { path } = useSimStore.getState()
-  return path.length === 0 ? instanceId : `${path.join('.')}.${instanceId}`
+  return joinInstancePath(path.join(INSTANCE_PATH_SEP), instanceId)
 }
 
 /** The full bit-vector signal for a flattened pin, or undefined when not simulating. */

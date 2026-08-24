@@ -4,6 +4,9 @@ import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
+/** Default clock period (ps) when an instance has no explicit `period` property. */
+export const CLOCK_DEFAULT_PERIOD = 10_000
+
 export class Clock extends Gate {
   readonly kind = 'clock' as const
   readonly label = 'CLOCK'
@@ -29,7 +32,7 @@ export class Clock extends Gate {
   }
 
   properties(): PropertySpec[] {
-    return [{ name: 'period', label: 'Period', type: 'number', default: 10_000, unit: 'ps', min: 1 }]
+    return [{ name: 'period', label: 'Period', type: 'number', default: CLOCK_DEFAULT_PERIOD, unit: 'ps', min: 1 }]
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {

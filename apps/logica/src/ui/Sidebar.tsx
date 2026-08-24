@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
 import type { ComponentDef, Instance, Port } from '@logica/model'
 import type { PropertySpec } from '@logica/model'
-import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, outputPorts, primitiveOf } from '@logica/model'
+import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@logica/model'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 
@@ -154,7 +154,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   if (selectedIds.length === 0) {
     // Editing a composite template with nothing selected: allow renaming the template.
     const current = design.defs[currentDefId(useEditorStore.getState())]
-    const isTemplate = current && current.kind === 'composite' && current.variant !== true && current.id !== design.root
+    const isTemplate = !!current && isTemplateDef(design, current)
     if (isTemplate) {
       return (
         <div className="props">
@@ -291,7 +291,7 @@ function PortsGroups({ defId }: { defId?: string }) {
   const current = design.defs[target]
   const renameAllowed = allowRenameTerminals(current)
   // Templates keep clean (non-inverted) terminals; inversion is instance-level.
-  const invertAllowed = !(current.kind === 'composite' && current.variant !== true && current.id !== design.root)
+  const invertAllowed = !isTemplateDef(design, current)
 
   // A port is connected if any wire touches its pin on the port group.
   const isConnected = (port: Port): boolean => {

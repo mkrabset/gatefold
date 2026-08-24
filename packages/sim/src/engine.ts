@@ -133,7 +133,7 @@ export class Simulation {
       return [[clockValue(period, now)]]
     }
     const lanes = this.laneCount(inst)
-    const state = this.switchState.get(inst.id) ?? Array.from({ length: lanes }, () => 0 as Signal)
+    const state = this.switchState.get(inst.id) ?? this.defaultLanes(inst)
     if (inst.outputs.length === 1) {
       return [state.slice(0, lanes)]
     }
@@ -145,6 +145,12 @@ export class Simulation {
       return this.netWidths[inst.outputs[0].net]
     }
     return inst.outputs.length
+  }
+
+  /** The switch source's default lane values, from its `initialValue` property. */
+  private defaultLanes(inst: FlatInstance): Signal[] {
+    const on = typeof inst.props?.initialValue === 'boolean' && inst.props.initialValue
+    return Array.from({ length: this.laneCount(inst) }, () => (on ? 1 : 0) as Signal)
   }
 
   private driveSource(inst: FlatInstance, now: number): void {
@@ -262,14 +268,13 @@ export class Simulation {
   private laneValue(id: string, lane: number): Signal {
     const inst = this.instances.find((i) => i.id === id)
     if (!inst) return 0
-    return this.switchState.get(id)?.[lane] ?? 0
+    return this.switchState.get(id)?.[lane] ?? this.defaultLanes(inst)[lane] ?? 0
   }
 
   private setLane(id: string, lane: number, value: Signal): void {
     const inst = this.instances.find((i) => i.id === id)
     if (!inst) return
-    const lanes = this.laneCount(inst)
-    const state = [...(this.switchState.get(id) ?? Array.from({ length: lanes }, () => 0 as Signal))]
+    const state = [...(this.switchState.get(id) ?? this.defaultLanes(inst))]
     state[lane] = value
     this.switchState.set(id, state)
     this.driveSource(inst, this.timeValue)

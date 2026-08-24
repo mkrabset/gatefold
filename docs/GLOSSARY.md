@@ -25,7 +25,8 @@ authoritative — update this when a term's meaning changes.
 - **Switch-array / LED-array** — multi-lane source/sink probes. A `terminalType` property
   picks `wire` (one single-wire terminal per lane, default 1, added/removed via the ports
   editor) or `bus` (one terminal whose width is adopted from the connection, rendering a `?`
-  while undetermined). Each lane toggles/reads independently. They supersede the removed
+  while undetermined). Each lane toggles/reads independently; the switch-array's `initialValue`
+  (boolean) sets every lane's starting state when simulation begins. They supersede the removed
   single-lane SWITCH and LED primitives.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a

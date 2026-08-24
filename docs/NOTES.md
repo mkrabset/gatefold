@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (7-seg mode property, collapsible component tree).
+Last updated: 2026-08-21 (def GC, template rename collision check, switch-array initial value).
 
 ## Where we are
 
@@ -146,6 +146,10 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   keeps saves lean.
 - **Template rename collision check** — `renameDef` now rejects (with a toast) renaming a
   template to a name already used by any def (template, variant, built-in, or root).
+- **Switch-array initial value** — the switch-array gained an `initialValue` (boolean, default
+  off) property. Every lane powers on to that value when simulation starts (the engine's
+  `defaultLanes` feeds `sourceValues`/`setLane`/`laneValue`), and the renderer colors the circles
+  on in design mode when it is true.
 
 ## Latest (previous session)
 

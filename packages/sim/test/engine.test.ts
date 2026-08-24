@@ -434,6 +434,33 @@ describe('Simulation engine', () => {
     expect(sim.signal('sa', 'out:1')).toBe(0)
   })
 
+  it('powers on switch-array lanes to their initial value', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [
+        { id: 'out:0', name: 'Y0', direction: 'output' },
+        { id: 'out:1', name: 'Y1', direction: 'output' },
+        { id: 'out:2', name: 'Y2', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign([{ id: 'sa', name: 'sa', defId: 'sa', pos: { x: 0, y: 0 }, props: { initialValue: true } }], [], { sa }),
+    )
+    expect(sim.signal('sa', 'out:0')).toBe(1)
+    expect(sim.signal('sa', 'out:1')).toBe(1)
+    expect(sim.signal('sa', 'out:2')).toBe(1)
+
+    // Toggling one lane leaves the others at their initial 1.
+    sim.toggleSwitch('sa', 1)
+    sim.step()
+    expect(sim.signal('sa', 'out:1')).toBe(0)
+    expect(sim.signal('sa', 'out:0')).toBe(1)
+    expect(sim.signal('sa', 'out:2')).toBe(1)
+  })
+
   it('adopts the connected bus width and toggles lanes of a switch-array in BUS mode', () => {
     const sa: ComponentDef = {
       id: 'sa',

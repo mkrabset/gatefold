@@ -221,10 +221,11 @@ its properties, and what it does.
 * *Order* selects which end of the bus is the least-significant bit.
 
 === SWITCH-ARRAY
-* *Inputs:* none · *Outputs:* 1+ · Property *Terminal type* (`wire` / `bus`)
+* *Inputs:* none · *Outputs:* 1+ · Properties *Terminal type* (`wire` / `bus`) and *Initial value* (boolean, default off)
 * A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
-  mode a single bus output carries one lane per wire. In simulate mode, click an indicator
-  circle to toggle its lane.
+  mode a single bus output carries one lane per wire. Every lane starts at the *Initial value*
+  when simulation starts (and shows that state, colored, in design mode). In simulate mode,
+  click an indicator circle to toggle its lane.
 
 === LED-ARRAY
 * *Inputs:* 1+ · *Outputs:* none · Property *Terminal type* (`wire` / `bus`)

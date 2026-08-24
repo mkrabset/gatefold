@@ -499,6 +499,7 @@ function drawArrayBody(
     sim?: SimView,
 ) {
     const isSwitch = def.primitive === 'switch-array'
+    const initialOn = isSwitch && instance.props?.initialValue === true
 
     drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
 
@@ -519,6 +520,9 @@ function drawArrayBody(
             } else {
                 sig = sim.signalOf(instance.id, def.ports[0].id)?.[i]
             }
+        } else if (initialOn) {
+            // Show the initial (pre-simulation) on state in design mode.
+            sig = 1
         }
         drawArrayCell(ctx, cx, y, r, isSwitch, sig, p)
     }

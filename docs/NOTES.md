@@ -132,6 +132,11 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Relative asset links** — Vite `base: './'`, so the production build is portable.
 - **AsciiDoc user guide** — added `docs/USER_GUIDE.adoc` (auto TOC, admonition for the internal
   primitives note) alongside the Markdown version.
+- **7-seg `mode` property** — the display now decodes its bus as **HEX**, **DEC** (unsigned
+  decimal), or **SIGNED DEC** (two's-complement, with a leading `−` sign slot). New model
+  helpers `sevenSegPositionCount` (slot count from width + mode, using BigInt-safe digit math)
+  and `sevenSegDigits` (segment masks per slot, blank leading slots); geometry/renderer compute
+  the body width and glyphs from these.
 
 ## Latest (previous session)
 

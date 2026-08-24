@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PinRef, Port } from '@logica/model'
-import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, undeterminedHint } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef, Port, SevenSegMode } from '@logica/model'
+import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegPositionCount, undeterminedHint } from '@logica/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 
@@ -106,8 +106,9 @@ export function instanceBodySize(
   }
   if (def.kind === 'primitive' && def.primitive === 'seven-seg') {
     const lanes = sevenSegLaneCount(design, parentDef, instance, def)
-    const digits = lanes === null ? 1 : Math.max(1, Math.floor(lanes / 4))
-    const w = 2 * SEVEN_SEG_PAD + digits * SEVEN_SEG_DIGIT_W + (digits - 1) * SEVEN_SEG_GAP
+    const mode = (instance.props?.mode as SevenSegMode | undefined) ?? 'HEX'
+    const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
+    const w = 2 * SEVEN_SEG_PAD + positions * SEVEN_SEG_DIGIT_W + (positions - 1) * SEVEN_SEG_GAP
     const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
     return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }

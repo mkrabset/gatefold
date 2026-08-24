@@ -19,7 +19,8 @@ import { LedArray } from './led-array'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
-export { sevenSegGeometry, sevenSegDigit } from './seven-seg'
+export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits } from './seven-seg'
+export type { SevenSegMode } from './seven-seg'
 export { arrayPorts } from './array'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {

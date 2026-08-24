@@ -1,5 +1,5 @@
-import type {ComponentDef, Design, Instance, Palette, PinRef, Port, Signal} from '@logica/model'
-import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigit, sevenSegGeometry} from '@logica/model'
+import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@logica/model'
+import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@logica/model'
 import {
     arrayIndicatorLanes,
     busWireOffsets,
@@ -424,7 +424,7 @@ function fillPolygon(ctx: CanvasRenderingContext2D, poly: [number, number][]): v
     ctx.fill()
 }
 
-/** Draw a seven-seg body: one digit per 4-bit nibble of the bus, or "?" when undetermined. */
+/** Draw a seven-seg body, one display slot per the primitive's mode, or "?" when undetermined. */
 function drawSevenSegBody(
     ctx: CanvasRenderingContext2D,
     design: Design,
@@ -439,13 +439,14 @@ function drawSevenSegBody(
     sim?: SimView,
 ) {
     const lanes = sevenSegLaneCount(design, parentDef, instance, def)
-    const digits = lanes === null ? 1 : Math.max(1, Math.floor(lanes / 4))
+    const mode = (instance.props?.mode as SevenSegMode | undefined) ?? 'HEX'
+    const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const zoom = vp.zoom
     const digitW = SEVEN_SEG_DIGIT_W * zoom
     const digitH = SEVEN_SEG_DIGIT_H * zoom
     const gap = SEVEN_SEG_GAP * zoom
     const pad = SEVEN_SEG_PAD * zoom
-    const totalW = pad * 2 + digits * digitW + (digits - 1) * gap
+    const totalW = pad * 2 + positions * digitW + (positions - 1) * gap
 
     // Green body with a border.
     drawRoundedBox(ctx, cx - totalW / 2, cy - h / 2, totalW, h, 6, '#0d2818', '#3fb950')
@@ -460,8 +461,9 @@ function drawSevenSegBody(
     const order = instance.props?.order === 'desc'
     const raw = sim ? sim.signalOf(instance.id, inputPorts(def)[0].id) : undefined
     const bits = raw ? (order ? [...raw].reverse() : raw) : []
+    const masks = bits.length > 0 ? sevenSegDigits(bits, mode) : Array.from({ length: positions }, () => null)
 
-    for (let d = 0; d < digits; d++) {
+    for (let d = 0; d < positions; d++) {
         const dx = startX + d * (digitW + gap)
         const segs = sevenSegGeometry({ x: dx, y: cy, w: digitW, h: digitH, palette: p })
 
@@ -469,10 +471,7 @@ function drawSevenSegBody(
         ctx.fillStyle = 'rgba(63, 185, 80, 0.1)'
         for (const poly of segs) fillPolygon(ctx, poly)
 
-        if (bits.length === 0) continue
-        // d = 0 is the most-significant digit (leftmost); nibble 0 is least significant.
-        const base = (digits - 1 - d) * 4
-        const pattern = sevenSegDigit([bits[base], bits[base + 1], bits[base + 2], bits[base + 3]])
+        const pattern = masks[d]
         if (!pattern) continue
         ctx.fillStyle = '#fcd34d'
         for (let i = 0; i < 7; i++) {

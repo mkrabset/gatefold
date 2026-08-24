@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/types'
+import type { Signal } from '../src/types'
 import {
   defaultPropsOf,
   inputPortDef,
@@ -10,6 +11,9 @@ import {
   portWidth,
   primitiveDef,
   primitiveOf,
+  sevenSegDigit,
+  sevenSegDigits,
+  sevenSegPositionCount,
   withBuiltinPrimitives,
 } from '../src/primitives'
 
@@ -118,16 +122,17 @@ describe('model primitives', () => {
     expect(primitiveOf('bus').transfer([[1, 0, 1, 0]])).toEqual([[1, 0, 1, 0]])
   })
 
-  it('declares the seven-seg order property and a single neutral bus input', () => {
+  it('declares the seven-seg mode/order properties and a single neutral bus input', () => {
     const seg = primitiveDef('seven-seg')
     expect(inputPorts(seg).map((p) => p.id)).toEqual(['in:0'])
     expect(inputPorts(seg)[0].name).toBe('BUS')
     expect(outputPorts(seg)).toHaveLength(0)
 
     expect(primitiveOf('seven-seg').properties()).toEqual([
+      { name: 'mode', label: 'Mode', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC'] },
       { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
     ])
-    expect(defaultPropsOf('seven-seg')).toEqual({ order: 'asc' })
+    expect(defaultPropsOf('seven-seg')).toEqual({ mode: 'HEX', order: 'asc' })
 
     const prim = primitiveOf('seven-seg')
     const input = inputPorts(seg)[0]
@@ -136,6 +141,30 @@ describe('model primitives', () => {
     expect(prim.widthError!(input, 8)).toBeNull()
     expect(prim.widthError!(input, 6)).toBe('7-seg width must be a multiple of 4')
     expect(prim.widthError!(input, 68)).toBe('7-seg width must be at most 64 lanes')
+  })
+
+  it('decodes seven-seg values in HEX, DEC and SIGNED DEC modes', () => {
+    const zero = [1, 1, 1, 1, 1, 1, 0]
+    const one = [0, 1, 1, 0, 0, 0, 0]
+    const d4 = [0, 1, 1, 0, 0, 1, 1] // digit 4
+    const d2 = [1, 1, 0, 1, 1, 0, 1] // digit 2
+
+    // HEX: 0x1F over 8 bits → two nibbles "1", "F".
+    const hexBits: Signal[] = [1, 1, 1, 1, 1, 0, 0, 0] // LSB first: 0b00011111 = 0x1F
+    expect(sevenSegDigits(hexBits, 'HEX')).toEqual([one, sevenSegDigit([1, 1, 1, 1] as Signal[])])
+
+    // DEC: 8 bits = 42 → "42" in a 3-slot field (blank leading zero).
+    const decBits: Signal[] = [0, 1, 0, 1, 0, 1, 0, 0] // LSB first: 42
+    expect(sevenSegDigits(decBits, 'DEC')).toEqual([null, d4, d2])
+    expect(sevenSegPositionCount(8, 'DEC')).toBe(3)
+
+    // SIGNED DEC: 8 bits = -42 → sign + "42" (magnitude) in a 4-slot field.
+    const negBits: Signal[] = [0, 1, 1, 0, 1, 0, 1, 1] // LSB first: 0b11010110 = -42
+    expect(sevenSegDigits(negBits, 'SIGNED DEC')).toEqual([[0, 0, 0, 0, 0, 0, 1], null, d4, d2])
+    expect(sevenSegPositionCount(8, 'SIGNED DEC')).toBe(4)
+
+    // DEC value 0 → single "0" in the least-significant slot.
+    expect(sevenSegDigits([0, 0, 0, 0, 0, 0, 0, 0] as Signal[], 'DEC')).toEqual([null, null, zero])
   })
 
   it('folds an empty property list into an empty defaults record', () => {

@@ -18,9 +18,10 @@ authoritative — update this when a term's meaning changes.
 - **Clock** — a source primitive (no inputs, one output) that produces a periodic square
   wave; its `period` (ps) is a per-instance property. Drawn with a zoom-scaled square-wave
   glyph (sine phase).
-- **7-seg** — a probe primitive (sink) with a single bus input that renders one digit per
-  4-bit nibble (width divisible by 4, ≤ 64); its `order` property (`asc`/`desc`) picks which
-  end of the bus is the least-significant bit.
+- **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
+  Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
+  decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)
+  picks which end of the bus is the least-significant bit.
 - **Switch-array / LED-array** — multi-lane source/sink probes. A `terminalType` property
   picks `wire` (one single-wire terminal per lane, default 1, added/removed via the ports
   editor) or `bus` (one terminal whose width is adopted from the connection, rendering a `?`

@@ -212,10 +212,15 @@ its properties, and what it does.
   width of both terminals; use it to pin a bus to a specific width regardless of its source.
 
 ### 7-SEG
-- **Inputs:** 1 (`BUS`) · **Outputs:** none
-- A multi-digit hexadecimal display. Its bus width must be a **multiple of 4** and **≤ 64**
-  (one digit per 4-bit nibble, most-significant digit leftmost). Property **Order**
-  (`asc` / `desc`) selects which end of the bus is the least-significant bit.
+- **Inputs:** 1 (`BUS`) · **Outputs:** none · Properties **Mode** (`HEX` / `DEC` / `SIGNED DEC`) and **Order** (`asc` / `desc`)
+- A multi-digit display. Its bus width must be a **multiple of 4** and **≤ 64**. The **Mode**
+  controls how the bus bits are decoded:
+  - **HEX** — one digit per 4-bit nibble (0–F), most-significant digit leftmost.
+  - **DEC** — the bus as an unsigned decimal number, with enough digit slots for the full
+    value (unused leading slots stay blank).
+  - **SIGNED DEC** — the bus as a two's-complement signed number, with a leading `−` sign
+    slot that lights when negative.
+  **Order** selects which end of the bus is the least-significant bit.
 
 ### SWITCH-ARRAY
 - **Inputs:** none · **Outputs:** 1+ · Property **Terminal type** (`wire` / `bus`)

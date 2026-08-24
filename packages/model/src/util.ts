@@ -1,4 +1,4 @@
-import type { ComponentDef } from './types'
+import type { ComponentDef, Design } from './types'
 
 /** Generate a fresh UUID for a template lineage (browser + node). */
 export function newUuid(): string {
@@ -46,4 +46,18 @@ export function collectClosure(
   }
   for (const id of roots) visit(id)
   return closure
+}
+
+/**
+ * Ids of defs that are no longer reachable from the root or any non-variant def
+ * (library template, built-in primitive, or port group). These are the orphaned
+ * variant copies left behind when their instances are deleted or a template is removed.
+ */
+export function unreachableDefIds(design: Design): Set<string> {
+  const defs = design.defs
+  const roots = Object.keys(defs).filter((id) => defs[id].variant !== true)
+  const reachable = collectClosure(defs, roots, () => false)
+  const ids = new Set(Object.keys(defs))
+  for (const id of reachable) ids.delete(id)
+  return ids
 }

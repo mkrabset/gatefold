@@ -373,7 +373,8 @@ New `apps/logica/src/editor/apply.ts`, exposed via `applyTemplateToInstances(tem
   for the
   notice. Undoable via the normal history.
 
-Known limitation: applying orphans the variant's old nested closure defs (no def GC yet).
+Orphaned defs are reclaimed by a reachability GC (`unreachableDefIds` / `pruneOrphanedDefs`)
+run after delete, template-delete, apply, and load.
 
 ---
 
@@ -415,10 +416,10 @@ master-slave JK test).
 
 ## 7. Current gaps (not yet implemented)
 
-- Instance/definition name-uniqueness validation.
+- Instance/definition name-uniqueness validation (rename collision is rejected for templates;
+  instance names and def names are otherwise not globally enforced).
 - A global bus-width invariant scan (connections are validated at creation time; an
   inconsistent pre-existing design isn't proactively flagged).
-- Def reachability GC (applying a template orphans its variant's old nested defs).
 - Timing-accurate simulation (glitch/setup-hold history, per-instance delays, SCC-based
   settling for large designs) — the engine is functional (unit/inertial delay), not
   timing-accurate.

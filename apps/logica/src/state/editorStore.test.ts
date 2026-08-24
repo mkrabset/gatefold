@@ -137,6 +137,23 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(useEditorStore.getState().design.defs['and'].name).toBe('AND')
   })
 
+  it('rejects renaming a template to an already-used name', () => {
+    reset()
+    useEditorStore.getState().renameDef('half-adder', 'AND')
+    expect(useEditorStore.getState().notice).toBe('A component named "AND" already exists')
+    expect(useEditorStore.getState().design.defs['half-adder'].name).toBe('half-adder')
+  })
+
+  it('prunes a variant def once its last instance is deleted', () => {
+    reset()
+    const defId = mainInstances().find((i) => i.id === 'clk')!.defId
+    expect(useEditorStore.getState().design.defs[defId]).toBeDefined()
+
+    useEditorStore.getState().setSelection(['clk'])
+    useEditorStore.getState().deleteSelection()
+    expect(useEditorStore.getState().design.defs[defId]).toBeUndefined()
+  })
+
   it('promotes a single component to a new template, leaving the instance a variant', () => {
     reset()
     const state = useEditorStore.getState()

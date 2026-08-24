@@ -139,6 +139,13 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   the body width and glyphs from these.
 - **Collapsible component tree** — the sidebar's "Components" title gained a show/hide toggle
   (`−`/`+`), so a long component tree no longer squeezes the Ports/Properties sections.
+- **Def garbage collection** — added `unreachableDefIds` (model `util.ts`) and a store
+  `pruneOrphanedDefs` that removes orphaned `variant` defs (unreachable from the root, library
+  templates, or built-ins). Runs after `deleteSelection`, `confirmDeleteTemplate`,
+  `applyTemplateToInstances`, and `loadProject` — so deleting a component frees its name and
+  keeps saves lean.
+- **Template rename collision check** — `renameDef` now rejects (with a toast) renaming a
+  template to a name already used by any def (template, variant, built-in, or root).
 
 ## Latest (previous session)
 
@@ -312,8 +319,8 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 
 ## Open items / decisions to revisit
 
-- **No def GC** — applying a template orphans the variant's old nested closure defs (pre-existing
-  pattern; serialized/save bloat only). A reachability GC pass is future work.
+- **Def GC** — implemented: `unreachableDefIds` + `pruneOrphanedDefs` reclaim orphaned variant
+  defs after delete / template-delete / apply-template and on load (see "Latest"). Done.
 - **Apply-template arity matching is soft** — a neutral port matches, and a post-apply width
   conflict (neutral port wired to a fixed-width net) surfaces via the solver as a dashed wire,
   not rejected up-front.

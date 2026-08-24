@@ -28,11 +28,13 @@ import {
   outputPorts,
   parseDesign,
   parseLibrary,
+  portGroupDirection,
   primitiveDef,
   sanitizeDesign,
   serializeDesign,
   serializeLibrary,
   uniqueId,
+  unreachableDefIds,
   withBuiltinPrimitives,
 } from '@logica/model'
 import type { Clipboard } from '@logica/model'
@@ -170,6 +172,11 @@ function pruneConnectionsToPorts(design: Design, defId: string, portIds: Set<str
       )
     }
   }
+}
+
+/** Remove orphaned defs (variant copies no longer reachable from any kept def). */
+function pruneOrphanedDefs(design: Design): void {
+  for (const id of unreachableDefIds(design)) delete design.defs[id]
 }
 
 /** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
@@ -474,6 +481,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
         delete s.design.defs[id]
+        pruneOrphanedDefs(s.design)
       }),
     renamePort: (portId, name, defId) =>
       set((s) => {
@@ -518,7 +526,16 @@ export const useEditorStore = create<EditorState>()(
         // Only composite templates (not the root, not primitives, not variant copies)
         // are renameable.
         if (!def || def.kind !== 'composite' || def.variant === true || defId === s.design.root) return
-        def.name = name
+        const trimmed = name.trim()
+        if (!trimmed) return
+        // Reject a name already used by any def (template, variant, built-in, or root).
+        for (const [id, other] of Object.entries(s.design.defs)) {
+          if (id !== defId && other.name === trimmed) {
+            s.notice = `A component named "${trimmed}" already exists`
+            return
+          }
+        }
+        def.name = trimmed
       }),
     setInstanceProp: (id, name, value) =>
       set((s) => {
@@ -688,18 +705,32 @@ export const useEditorStore = create<EditorState>()(
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
         const deleted = new Set<string>()
+        const removedPorts = new Set<string>()
         for (const id of s.selectedIds) {
           const inst = def.instances?.find((i) => i.id === id)
           if (!inst) continue
           const instDef = s.design.defs[inst.defId]
           if (!instDef) continue
-          const isPortGroup = isPortGroupDef(instDef)
-          if (!isPortGroup) deleted.add(id)
+          if (isPortGroupDef(instDef)) {
+            // Deleting a port group resets that side's terminal count to zero.
+            const direction = portGroupDirection(instDef)
+            for (const p of def.ports) {
+              if (p.direction === direction) removedPorts.add(p.id)
+            }
+          }
+          deleted.add(id)
+        }
+        if (removedPorts.size > 0) {
+          def.ports = def.ports.filter((p) => !removedPorts.has(p.id))
         }
         def.instances = (def.instances ?? []).filter((i) => !deleted.has(i.id))
         def.connections = (def.connections ?? []).filter(
           (c) => !deleted.has(c.from.instanceId) && !deleted.has(c.to.instanceId),
         )
+        if (removedPorts.size > 0) {
+          pruneConnectionsToPorts(s.design, def.id, removedPorts)
+        }
+        pruneOrphanedDefs(s.design)
         s.selectedIds = []
       }),
     copySelection: () => {
@@ -726,6 +757,7 @@ export const useEditorStore = create<EditorState>()(
         const scope = scopeDefIds(s.design, currentDefId(s))
         const { design, updated } = applyTemplate(s.design, templateId, scope)
         s.design = design
+        pruneOrphanedDefs(s.design)
         s.notice = updated > 0 ? `Applied to ${updated} instance(s)` : 'No matching instances'
       }),
     saveProject: () => {
@@ -753,6 +785,7 @@ export const useEditorStore = create<EditorState>()(
           s.hoverPort = null
           s.pendingGroup = null
           s.pendingDelete = null
+          pruneOrphanedDefs(s.design)
           if (issues.length > 0) {
             s.notice = `Removed ${issues.length} invalid reference(s) — see console`
           }

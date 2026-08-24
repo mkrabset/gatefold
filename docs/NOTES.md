@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (apply-template name matching, instance names, sidebar properties editor).
+Last updated: 2026-08-21 (7-seg mode property, collapsible component tree).
 
 ## Where we are
 
@@ -137,6 +137,8 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   helpers `sevenSegPositionCount` (slot count from width + mode, using BigInt-safe digit math)
   and `sevenSegDigits` (segment masks per slot, blank leading slots); geometry/renderer compute
   the body width and glyphs from these.
+- **Collapsible component tree** — the sidebar's "Components" title gained a show/hide toggle
+  (`−`/`+`), so a long component tree no longer squeezes the Ports/Properties sections.
 
 ## Latest (previous session)
 

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-21 (def GC, template rename collision check, switch-array initial value).
+Last updated: 2026-08-24 (refactor: dedupe scattered logic — template predicate, copy-on-place, shared reference walk, clock constant, id-path helper).
 
 ## Where we are
 
@@ -59,6 +59,24 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   stepping, and port-group/composite signal resolution.
 
 ## Latest (this session)
+
+- **Refactoring pass — code deduplication** (no behavior changes; `typecheck`/`test`/`lint`
+  all green):
+  - `isTemplateDef(design, def)` extracted to `@logica/model` (`types.ts`); replaces six
+    hand-rolled `kind === 'composite' && variant !== true && id !== root` predicates in
+    `editorStore` (incl. `renameDef`), `Canvas`, `Sidebar` (×2), `Toolbar`, and
+    `LibraryPanel`. The stricter predicate also stops a primitive def in the breadcrumb
+    from showing a spurious "template" badge.
+  - `copyDefIntoDesign(design, defId)` (store-local) consolidates the three identical
+    copy-on-place blocks (promote, confirmGroup, addInstance).
+  - `CLOCK_DEFAULT_PERIOD` constant exported from `primitives/clock.ts`; `engine.ts` uses
+    it in place of two hardcoded `10_000` fallbacks.
+  - `instancesReferencing(design, defId)` added to `types.ts`; `isDefReferenced`,
+    `findArrayRef`, and `pruneConnectionsToPorts` now share the one graph walk.
+  - `INSTANCE_PATH_SEP` + `joinInstancePath` exported from `@logica/sim`; shared by
+    `netlist.ts` and `simStore.flatId` (single `.`-path convention, no desync).
+
+## Latest (previous session)
 
 - **Removed `switch` and `led` primitives** — superseded by `switch-array`/`led-array`. Their
   kinds were dropped from `PrimitiveKind`/`LIBRARY_KINDS` and the `switch.ts`/`led.ts` classes
@@ -151,7 +169,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `defaultLanes` feeds `sourceValues`/`setLane`/`laneValue`), and the renderer colors the circles
   on in design mode when it is true.
 
-## Latest (previous session)
+## Earlier (previous session)
 
 - **Lineage `uuid`** — `ComponentDef.uuid?: string` tracks a component's *origin*. A template
   and every variant copied from it share the same `uuid`; def identity stays `id`.

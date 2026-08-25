@@ -12,7 +12,7 @@ authoritative — update this when a term's meaning changes.
   display `name` (not enforced unique; logic keys off `id` only). References its def via `defId`.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
-  and the probe primitives 7-SEG, SWITCH-ARRAY, LED-ARRAY. Not editable as a circuit.
+  and the probe primitives 7-SEG, SWITCHES, LEDS. Not editable as a circuit.
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
 - **Clock** — a source primitive (no inputs, one output) that produces a periodic square
@@ -22,12 +22,12 @@ authoritative — update this when a term's meaning changes.
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)
   picks which end of the bus is the least-significant bit.
-- **Switch-array / LED-array** — multi-lane source/sink probes. A `terminalType` property
-  picks `wire` (one single-wire terminal per lane, default 1, added/removed via the ports
-  editor) or `bus` (one terminal whose width is adopted from the connection, rendering a `?`
-  while undetermined). Each lane toggles/reads independently; the switch-array's `initialValue`
-  (boolean) sets every lane's starting state when simulation begins. They supersede the removed
-  single-lane SWITCH and LED primitives.
+- **Switches / LEDs** — multi-lane source/sink probes. A `terminalType` property picks
+  `wire` (one single-wire terminal per lane, added/removed via the ports editor) or `bus`
+  (one terminal whose width is adopted from the connection, rendering a `?` while
+  undetermined); `bus` is the default. Each lane toggles/reads independently; the switch-array's
+  `initialValue` (boolean) sets every lane's starting state when simulation begins. They
+  supersede the removed single-lane SWITCH and LED primitives.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a
   CLOCK's `period`, a BUS's `lanes`, a 7-SEG's `order`. For arrays, `terminalType` is

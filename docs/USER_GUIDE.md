@@ -25,7 +25,8 @@ Left to right:
 - **Group** — turn the current selection into a named composite component (enabled only with
   a selection).
 - **Simulate / Exit** — switch between *design* and *simulate* mode.
-- **Run / Step / Stop / Reset** — simulation controls (see §7).
+- **Run / Step / Stop / Reset** — simulation controls (see §7). **Run** also enters simulate
+  mode from design mode and starts running; **Space** toggles run/pause while simulating.
 - **Settings (gear)** — open the simulation settings dialog.
 - **Breadcrumb** — the path of components you've navigated into (`main / adder / …`); the
   **↑** button (or **Escape**) goes up one level. A `template` badge marks a library template.
@@ -75,7 +76,8 @@ Left to right:
 | Exit up one level | Escape (while over the canvas) or the ↑ button |
 
 When you **enter** a component, the canvas automatically zooms and pans to frame its
-internals; **Escape** restores the exact view you left.
+internals; **Escape** restores the exact view you left. In simulate mode, pressing **Escape**
+at the top level leaves simulate mode; deeper, it ascends one level.
 
 ### Wiring
 
@@ -94,7 +96,8 @@ internals; **Escape** restores the exact view you left.
 | Delete / Backspace | Delete selection |
 | Ctrl/Cmd + Z | Undo |
 | Ctrl/Cmd + Shift + Z / Ctrl/Cmd + Y | Redo |
-| Escape | Go up one level |
+| Escape | Go up one level (or leave simulate mode at the top level) |
+| Space | Toggle run/pause (in simulate mode) |
 | `i` | Toggle inversion on the hovered terminal |
 
 ---
@@ -222,15 +225,15 @@ its properties, and what it does.
     slot that lights when negative.
   **Order** selects which end of the bus is the least-significant bit.
 
-### SWITCH-ARRAY
-- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`) and **Initial value** (boolean, default off)
+### SWITCHES
+- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`) and **Initial value** (boolean, default off)
 - A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
   mode a single bus output carries one lane per wire. Every lane starts at the **Initial value**
   when simulation starts (and shows that state, colored, in design mode). In simulate mode,
   click an indicator circle to toggle its lane.
 
-### LED-ARRAY
-- **Inputs:** 1+ · **Outputs:** none · Property **Terminal type** (`wire` / `bus`)
+### LEDS
+- **Inputs:** 1+ · **Outputs:** none · Property **Terminal type** (`wire` / `bus`, default `bus`)
 - A multi-lane lamp. In `wire` mode each input terminal is one LED; in `bus` mode a single bus
   input lights one LED per lane. Each lane lights when its signal is `1`.
 
@@ -242,16 +245,18 @@ its properties, and what it does.
 
 ## 7. Simulation
 
-Press **Simulate** to enter simulation mode (it resets to the top-level sheet and builds a
-simulation of your design). In this mode editing is disabled, but you can still pan, zoom, and
-navigate into components.
+Press **Simulate** — or just **Run** — to enter simulation mode (it resets to the top-level
+sheet and builds a simulation of your design). The canvas background turns **dark green**
+while simulating. In this mode editing is disabled, but you can still pan, zoom, and navigate
+into components.
 
 ### Controls
 
-- **Run** — advance the simulation continuously.
+- **Run** — enter simulate mode (if not already) and advance the simulation continuously.
 - **Step** — advance one step (see *Step mode*).
 - **Stop** — pause a running simulation.
 - **Reset** — rebuild the simulation from scratch.
+- **Space** — toggle between running and paused while simulating.
 - **Settings** — set the default gate delay (ps) and the step mode.
 
 ### How it works
@@ -265,9 +270,9 @@ to a stable state; a true oscillator is detected and shown as `x`.
 
 - Wires and terminal markers are colored by their value: **red = 1, black = 0, gray = x**.
 - **CLOCK** toggles its output on a square wave with its `Period`.
-- **SWITCH-ARRAY** lanes toggle by clicking their indicator circles (a double-click just
+- **SWITCHES** lanes toggle by clicking their indicator circles (a double-click just
   toggles twice — it does *not* enter the component).
-- **LED-ARRAY** lanes light when their signal is `1`.
+- **LEDS** lanes light when their signal is `1`.
 - **7-SEG** displays the value of each 4-bit nibble of its bus.
 
 ### Step mode
@@ -278,4 +283,4 @@ to a stable state; a true oscillator is detected and shown as `x`.
 ### Navigating in simulate mode
 
 Double-click a component to descend into it and inspect its internals live; **Escape** ascends
-back up.
+back up. At the top level, **Escape** leaves simulate mode and returns to design mode.

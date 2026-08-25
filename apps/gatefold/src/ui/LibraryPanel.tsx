@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { libraryPrimitives, isTemplateDef } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
+import { useSimStore } from '../state/simStore'
 
 /**
  * Right panel: a palette of placeable primitives plus the user's composite
@@ -18,6 +19,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const exportLibrary = useEditorStore((s) => s.exportLibrary)
   const importLibrary = useEditorStore((s) => s.importLibrary)
   const applyTemplateToInstances = useEditorStore((s) => s.applyTemplateToInstances)
+  const simulating = useSimStore((s) => s.mode) === 'simulate'
   const fileRef = useRef<HTMLInputElement>(null)
   const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
   const activeDef = active ? design.defs[active] : null
@@ -39,7 +41,7 @@ export function LibraryPanel({ width }: { width: number }) {
           <button
             key={p.kind}
             className={`lib-card${active === p.kind ? ' active' : ''}`}
-            draggable
+            draggable={!simulating}
             onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', p.kind)}
             onClick={() => setActive(p.kind)}
             title={`Drag to place ${p.label}`}
@@ -73,7 +75,7 @@ export function LibraryPanel({ width }: { width: number }) {
                 <button
                   key={d.id}
                   className={`lib-card${active === d.id ? ' active' : ''}${editing ? ' editing' : ''}`}
-                  draggable
+                  draggable={!simulating}
                   onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', d.id)}
                   onClick={() => setActive(d.id)}
                   onDoubleClick={() => navigateTo(d.id)}

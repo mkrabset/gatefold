@@ -54,6 +54,22 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
   })
   const rebuild = (): Simulation => new Simulation(useEditorStore.getState().design, config())
 
+  /** Enter simulate mode from design mode: build the engine and reset to the top level. */
+  const enterSim = (): void => {
+    const design = useEditorStore.getState().design
+    const viewport = useEditorStore.getState().viewport
+    // Simulate from the top; navigation within the simulation is tracked by `path`.
+    useEditorStore.setState({
+      navStack: [design.root],
+      viewportStack: [viewport],
+      selectedIds: [],
+      marquee: null,
+      pendingWire: null,
+      hoverPort: null,
+    })
+    set({ mode: 'simulate', engine: rebuild(), path: [], version: get().version + 1 })
+  }
+
   return {
     mode: 'design',
     running: false,
@@ -65,20 +81,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     settingsOpen: false,
 
     toggleMode: () => {
-      const { mode } = get()
-      if (mode === 'design') {
-        const design = useEditorStore.getState().design
-        const viewport = useEditorStore.getState().viewport
-        // Simulate from the top; navigation within the simulation is tracked by `path`.
-        useEditorStore.setState({
-          navStack: [design.root],
-          viewportStack: [viewport],
-          selectedIds: [],
-          marquee: null,
-          pendingWire: null,
-          hoverPort: null,
-        })
-        set({ mode: 'simulate', engine: rebuild(), path: [], version: get().version + 1 })
+      if (get().mode === 'design') {
+        enterSim()
       } else {
         get().stop()
         set({ mode: 'design', engine: null, path: [], version: get().version + 1 })
@@ -86,8 +90,11 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     },
 
     run: () => {
-      const { engine, running } = get()
-      if (running || !engine) return
+      if (get().running) return
+      // Enter simulate mode first if needed, then start running.
+      if (get().mode === 'design') enterSim()
+      const engine = get().engine
+      if (!engine) return
       set({ running: true })
       runTimer = setInterval(() => {
         const { engine } = get()

@@ -17,6 +17,8 @@ export interface Palette {
   text: string
   /** Canvas background while editing a composite template. */
   templateBg: string
+  /** Canvas background while in simulation mode. */
+  simBg: string
 }
 
 /** The "where/how to draw" context passed to `Primitive.draw`. All screen-space. */

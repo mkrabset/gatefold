@@ -10,6 +10,7 @@ import { SimSettingsDialog } from './ui/SimSettingsDialog'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
+import { useSimStore } from './state/simStore'
 
 /** True when the event targets a text entry, where editor shortcuts should be ignored. */
 function isTextInput(target: EventTarget | null): boolean {
@@ -62,6 +63,13 @@ export default function App() {
       } else if (mod && key === 'z') {
         e.preventDefault()
         useEditorStore.temporal.getState().undo()
+      } else if (!mod && e.key === ' ') {
+        // In simulate mode, Space toggles running / paused.
+        const sim = useSimStore.getState()
+        if (sim.mode !== 'simulate') return
+        e.preventDefault()
+        if (sim.running) sim.stop()
+        else sim.run()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -77,7 +85,7 @@ export default function App() {
         <ResizeHandle value={sidebarWidth} min={160} max={480} direction={1} onChange={setSidebarWidth} />
         <Canvas />
         {/* direction=-1: library is right of the handle, drag right shrinks it */}
-        <ResizeHandle value={libraryWidth} min={140} max={400} direction={-1} onChange={setLibraryWidth} />
+        <ResizeHandle value={libraryWidth} min={220} max={440} direction={-1} onChange={setLibraryWidth} />
         <LibraryPanel width={libraryWidth} />
       </div>
       <GroupDialog />

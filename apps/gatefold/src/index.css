@@ -659,7 +659,7 @@ body {
 
 .lib-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 8px;
   padding: 0 12px;
 }
@@ -769,4 +769,9 @@ body {
 .lib-label {
   font-size: 10px;
   color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }

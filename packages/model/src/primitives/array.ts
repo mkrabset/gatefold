@@ -31,7 +31,7 @@ export abstract class ArrayPrimitive extends Gate {
 
   properties(): PropertySpec[] {
     return [
-      { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
+      { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'bus', options: ['wire', 'bus'] },
     ]
   }
 

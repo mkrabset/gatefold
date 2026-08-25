@@ -5,13 +5,13 @@ import type { PropertySpec } from './primitive'
 /** An array of independent toggle switches (a multi-lane source). */
 export class SwitchArray extends ArrayPrimitive {
   readonly kind = 'switch-array' as const
-  readonly label = 'SWITCH-ARRAY'
+  readonly label = 'SWITCHES'
   readonly glyph = '⏻'
   readonly fixedInputs = true
   readonly fixedOutputs = false
 
   defaultPorts(): Port[] {
-    return arrayPorts('output', 'wire', 1)
+    return arrayPorts('output', 'bus', 1)
   }
 
   properties(): PropertySpec[] {

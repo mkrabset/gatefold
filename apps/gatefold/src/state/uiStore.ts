@@ -24,7 +24,7 @@ export const useUiStore = create<UiState>()(
     (set, get) => ({
       theme: 'dark',
       sidebarWidth: 260,
-      libraryWidth: 180,
+      libraryWidth: 260,
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => set({ theme: get().theme === 'dark' ? 'light' : 'dark' }),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),

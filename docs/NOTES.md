@@ -75,6 +75,10 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
     `findArrayRef`, and `pruneConnectionsToPorts` now share the one graph walk.
   - `INSTANCE_PATH_SEP` + `joinInstancePath` exported from `@gatefold/sim`; shared by
     `netlist.ts` and `simStore.flatId` (single `.`-path convention, no desync).
+- **Renamed the array probes** — the `switch-array` primitive's label is now `SWITCHES` and
+  the `led-array`'s is `LEDS` (the internal kinds are unchanged). Both now default to a single
+  **`bus`** terminal (`terminalType` default `wire` → `bus`; `defaultPorts()` return the bus
+  port), and the store's `?? 'wire'` fallbacks became `?? 'bus'`. Tests updated accordingly.
 
 ## Latest (previous session)
 

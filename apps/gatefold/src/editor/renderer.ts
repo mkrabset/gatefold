@@ -556,7 +556,7 @@ export function drawScene(
     sim?: SimView,
 ) {
     const def = design.defs[defId]
-    const bg = editingTemplate ? p.templateBg : p.bg
+    const bg = sim ? p.simBg : editingTemplate ? p.templateBg : p.bg
 
     ctx.fillStyle = bg
     ctx.fillRect(0, 0, cw, ch)

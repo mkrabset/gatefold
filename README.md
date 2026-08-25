@@ -12,7 +12,7 @@ and simulate them — including clocked, sequential behavior built from gates.
 ## Features
 
 - **Primitive components** — AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT,
-  BUS-SPLIT, BUS-MERGE, BUS, plus the probe primitives SWITCH-ARRAY, LED-ARRAY, and
+  BUS-SPLIT, BUS-MERGE, BUS, plus the probe primitives SWITCHES, LEDS, and
   7-SEG (multi-digit). Gates with variable arity (AND/OR/XOR, fan-in/fan-out) accept
   a configurable number of terminals.
 - **Schematic canvas** — pan (Shift + drag), zoom (mouse wheel), and drag components.
@@ -34,8 +34,9 @@ and simulate them — including clocked, sequential behavior built from gates.
   7-SEG `order`, array `terminalType`).
 - **Save / load** — whole designs as JSON; library export/import for custom components.
 - **Simulation** — design/simulate modes with Run/Step/Stop/Reset, signal-colored wires
-  (`1` red, `0` black, `x` gray), a CLOCK source, interactive switch/led/7-seg probes,
-  and configurable gate delays + step modes.
+  (`1` red, `0` black, `x` gray) on a dark-green canvas, a CLOCK source, interactive
+  switch/led/7-seg probes, and configurable gate delays + step modes. **Run** enters simulate
+  mode and starts running; **Space** toggles run/pause; **Escape** exits at the top level.
 - **Theming** — light and dark modes, resizable panels; preferences persist across reloads.
 
 ## How to run

@@ -384,9 +384,15 @@ export function Canvas() {
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && pointerOver) {
+        const sim = useSimStore.getState()
+        // At the top level in simulate mode, Escape leaves simulation entirely.
+        if (sim.mode === 'simulate' && sim.path.length === 0) {
+          sim.toggleMode()
+          return
+        }
         useEditorStore.getState().navigateUp()
-        if (useSimStore.getState().mode === 'simulate') {
-          useSimStore.getState().ascend()
+        if (sim.mode === 'simulate') {
+          sim.ascend()
         }
       } else if ((e.key === 'i' || e.key === 'I') && pointerOver) {
         const hover = useEditorStore.getState().hoverPort
@@ -437,11 +443,14 @@ export function Canvas() {
 
   // Accept drops from the component library and create an instance at the drop point.
   const handleDragOver = (e: React.DragEvent) => {
+    if (useSimStore.getState().mode === 'simulate') return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = (e: React.DragEvent) => {
+    // No placement while simulating.
+    if (useSimStore.getState().mode === 'simulate') return
     const defId = e.dataTransfer.getData('application/x-gatefold-def')
     if (!defId) return
     const state = useEditorStore.getState()

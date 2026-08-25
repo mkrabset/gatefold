@@ -4,7 +4,7 @@ import { arrayPorts, defaultPropsOf, primitiveDef, primitiveOf } from '../src/pr
 import { connectionError } from '../src/widths'
 
 describe('array primitives', () => {
-  it('builds switch-array/led-array with wire defaults', () => {
+  it('builds switch-array/led-array with bus defaults', () => {
     const sa = primitiveDef('switch-array')
     expect(sa.ports.map((p) => p.id)).toEqual(['out:0'])
     expect(sa.ports[0].direction).toBe('output')
@@ -13,7 +13,7 @@ describe('array primitives', () => {
     expect(la.ports.map((p) => p.id)).toEqual(['in:0'])
     expect(la.ports[0].direction).toBe('input')
 
-    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'wire', initialValue: false })
+    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'bus', initialValue: false })
     expect(primitiveOf('switch-array').properties().map((p) => p.name)).toEqual(['terminalType', 'initialValue'])
   })
 
@@ -46,7 +46,11 @@ describe('array primitives', () => {
     const design: Design = {
       version: 1,
       root: 'main',
-      defs: { 'switch-array': primitiveDef('switch-array'), 'fan-out': primitiveDef('fan-out'), main },
+      defs: {
+        'switch-array': { id: 'switch-array', name: 'SWITCHES', kind: 'primitive', primitive: 'switch-array', ports: arrayPorts('output', 'wire', 1) },
+        'fan-out': primitiveDef('fan-out'),
+        main,
+      },
     }
     // sa.out:0 is width 1; fo.in:0 is a bus (width = 2 outputs).
     expect(connectionError(design, main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')

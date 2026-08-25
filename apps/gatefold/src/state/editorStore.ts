@@ -185,7 +185,7 @@ function pruneOrphanedDefs(design: Design): void {
 /** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
 function applyArrayTerminalType(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, terminalType: 'wire' | 'bus'): void {
   if (!inst.props) inst.props = {}
-  const prevType = (inst.props.terminalType ?? 'wire') as 'wire' | 'bus'
+  const prevType = (inst.props.terminalType ?? 'bus') as 'wire' | 'bus'
   inst.props.terminalType = terminalType
   instDef.ports = arrayPorts(arrayDirection(instDef), terminalType, 1)
   if (terminalType !== prevType) {
@@ -548,7 +548,7 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId ?? currentDefId(s)]
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
-          if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
+          if (ref && (ref.inst.props?.terminalType ?? 'bus') === 'wire') {
             const count = def.ports.length + 1
             if (count <= 32) applyArrayPortCount(ref.parent, ref.inst, def, count)
           }
@@ -593,7 +593,7 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId ?? currentDefId(s)]
         if (isArrayPrimitive(def)) {
           const ref = findArrayRef(s.design, def.id)
-          if (ref && (ref.inst.props?.terminalType ?? 'wire') === 'wire') {
+          if (ref && (ref.inst.props?.terminalType ?? 'bus') === 'wire') {
             const count = def.ports.length - 1
             if (count >= 1) applyArrayPortCount(ref.parent, ref.inst, def, count)
           }

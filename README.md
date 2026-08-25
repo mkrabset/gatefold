@@ -1,4 +1,4 @@
-# logica
+# gatefold
 
 A graphical designer and simulator for logic circuitry, running in the browser.
 Build circuits out of logic gates and buses, group them into reusable components,
@@ -61,7 +61,7 @@ Open the URL printed by Vite (usually <http://localhost:5173>).
 ## Tech stack
 
 TypeScript · React · Zustand · HTML5 canvas, in a pnpm monorepo
-(`apps/logica` + `packages/model` + `packages/sim`).
+(`apps/gatefold` + `packages/model` + `packages/sim`).
 
 ## Development
 

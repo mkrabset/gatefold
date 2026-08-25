@@ -1,5 +1,5 @@
-import type { Design, Signal } from '@logica/model'
-import { primitiveOf, CLOCK_DEFAULT_PERIOD } from '@logica/model'
+import type { Design, Signal } from '@gatefold/model'
+import { primitiveOf, CLOCK_DEFAULT_PERIOD } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance } from './netlist'
 import { clockValue, equalVectors, invertVector } from './signals'

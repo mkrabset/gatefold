@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  apps/logica:
+  apps/gatefold:
     dependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1
@@ -19,10 +19,10 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.8)
-      '@logica/model':
+      '@gatefold/model':
         specifier: workspace:*
         version: link:../../packages/model
-      '@logica/sim':
+      '@gatefold/sim':
         specifier: workspace:*
         version: link:../../packages/sim
       immer:
@@ -86,7 +86,7 @@ importers:
 
   packages/sim:
     dependencies:
-      '@logica/model':
+      '@gatefold/model':
         specifier: workspace:*
         version: link:../model
     devDependencies:

@@ -1,4 +1,4 @@
-import type { Palette } from '@logica/model'
+import type { Palette } from '@gatefold/model'
 
 /**
  * Color palettes for the canvas renderer. The DOM UI is themed separately via CSS

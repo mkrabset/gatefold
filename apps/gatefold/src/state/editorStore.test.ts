@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cloneDef, inputPortDef, inputPortId, libraryPrimitives, newUuid, outputPortDef, outputPortId, primitiveDef } from '@logica/model'
-import type { ComponentDef, Design } from '@logica/model'
+import { cloneDef, inputPortDef, inputPortId, libraryPrimitives, newUuid, outputPortDef, outputPortId, primitiveDef } from '@gatefold/model'
+import type { ComponentDef, Design } from '@gatefold/model'
 import {
   beginMoveTransaction,
   endMoveTransaction,

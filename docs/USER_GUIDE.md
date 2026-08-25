@@ -1,7 +1,7 @@
-# Logica — User Guide
+# Gatefold — User Guide
 
 A walkthrough of the interface and a reference for every primitive component and the
-simulator. Logica is a browser-based graphical designer and simulator for logic circuits:
+simulator. Gatefold is a browser-based graphical designer and simulator for logic circuits:
 you place components, wire them together, group them into reusable parts, and simulate the
 result.
 
@@ -119,7 +119,7 @@ instance.
 
 ### Copy-on-place and templates
 
-When you place or group a component, Logica deep-copies its definition (a **variant**), so
+When you place or group a component, Gatefold deep-copies its definition (a **variant**), so
 every instance is independent. **My components** lists your templates; editing a template (via
 its library card) and pressing **Apply to instances** updates every matching instance — one
 whose terminals are the same (by id and order) as the template's. Port **names** don't affect
@@ -131,7 +131,7 @@ bulk-updates its instances.
 ## 4. Buses
 
 A **bus** is a terminal carrying multiple wires (its **width**). Widths are *derived*, not
-stored — Logica solves them from the wiring. Hover a bus pin to see its `×n` arity; an
+stored — Gatefold solves them from the wiring. Hover a bus pin to see its `×n` arity; an
 **undetermined** pin adopts the width of whatever it connects to and renders as a thin dashed
 wire (or a `?` box on a display).
 

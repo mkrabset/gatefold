@@ -1,4 +1,4 @@
-import type { Signal } from '@logica/model'
+import type { Signal } from '@gatefold/model'
 
 /** 3-state NOT of a single bit. */
 export function invert(s: Signal): Signal {

@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PrimitiveKind } from '@logica/model'
-import { isPortGroupDef, pinWidth } from '@logica/model'
+import type { ComponentDef, Design, Instance, PrimitiveKind } from '@gatefold/model'
+import { isPortGroupDef, pinWidth } from '@gatefold/model'
 
 export interface FlatPort {
   portId: string

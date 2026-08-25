@@ -1,5 +1,5 @@
 /**
- * Core domain model for Logica.
+ * Core domain model for Gatefold.
  *
  * A design is a registry of component *definitions* (`ComponentDef`). A composite
  * definition describes its internals as a graph of *instances* wired together by

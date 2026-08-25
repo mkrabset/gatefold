@@ -1,5 +1,5 @@
-import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@logica/model'
-import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@logica/model'
+import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@gatefold/model'
+import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
 import {
     arrayIndicatorLanes,
     busWireOffsets,

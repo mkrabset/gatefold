@@ -18,7 +18,7 @@ export function parseDesign(json: string): Design {
   } catch {
     throw new Error('Not a valid JSON file')
   }
-  if (!isDesign(data)) throw new Error('Not a valid Logica design')
+  if (!isDesign(data)) throw new Error('Not a valid Gatefold design')
   return data
 }
 

@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PinRef, Port, SevenSegMode } from '@logica/model'
-import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegPositionCount, undeterminedHint } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef, Port, SevenSegMode } from '@gatefold/model'
+import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 

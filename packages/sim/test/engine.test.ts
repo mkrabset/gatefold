@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Instance, PinRef } from '@logica/model'
-import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef } from '@gatefold/model'
+import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { Simulation } from '../src/engine'
 import { DEFAULT_CONFIG } from '../src/config'
 

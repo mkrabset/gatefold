@@ -1,10 +1,10 @@
 {
-  "name": "logica",
+  "name": "gatefold",
   "private": true,
   "packageManager": "pnpm@11.21.0",
   "scripts": {
-    "dev": "pnpm --filter @logica/app dev",
-    "build": "pnpm --filter @logica/app build",
+    "dev": "pnpm --filter @gatefold/app dev",
+    "build": "pnpm --filter @gatefold/app build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"

@@ -7,8 +7,8 @@ import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBou
 import { drawScene } from './renderer'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
-import type { PinRef } from '@logica/model'
-import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@logica/model'
+import type { PinRef } from '@gatefold/model'
+import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@gatefold/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -442,7 +442,7 @@ export function Canvas() {
   }
 
   const handleDrop = (e: React.DragEvent) => {
-    const defId = e.dataTransfer.getData('application/x-logica-def')
+    const defId = e.dataTransfer.getData('application/x-gatefold-def')
     if (!defId) return
     const state = useEditorStore.getState()
     const rect = wrapRef.current!.getBoundingClientRect()

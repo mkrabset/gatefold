@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { libraryPrimitives, isTemplateDef } from '@logica/model'
+import { libraryPrimitives, isTemplateDef } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
 
 /**
@@ -40,7 +40,7 @@ export function LibraryPanel({ width }: { width: number }) {
             key={p.kind}
             className={`lib-card${active === p.kind ? ' active' : ''}`}
             draggable
-            onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', p.kind)}
+            onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', p.kind)}
             onClick={() => setActive(p.kind)}
             title={`Drag to place ${p.label}`}
           >
@@ -74,7 +74,7 @@ export function LibraryPanel({ width }: { width: number }) {
                   key={d.id}
                   className={`lib-card${active === d.id ? ' active' : ''}${editing ? ' editing' : ''}`}
                   draggable
-                  onDragStart={(e) => e.dataTransfer.setData('application/x-logica-def', d.id)}
+                  onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', d.id)}
                   onClick={() => setActive(d.id)}
                   onDoubleClick={() => navigateTo(d.id)}
                   title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}

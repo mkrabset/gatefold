@@ -60,7 +60,7 @@ export function parseLibrary(json: string): LibraryFile {
   } catch {
     throw new Error('Not a valid JSON file')
   }
-  if (!isLibraryFile(data)) throw new Error('Not a valid Logica library')
+  if (!isLibraryFile(data)) throw new Error('Not a valid Gatefold library')
   return data
 }
 

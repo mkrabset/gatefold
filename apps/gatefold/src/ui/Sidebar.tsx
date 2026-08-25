@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
-import type { ComponentDef, Instance, Port } from '@logica/model'
-import type { PropertySpec } from '@logica/model'
-import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@logica/model'
+import type { ComponentDef, Instance, Port } from '@gatefold/model'
+import type { PropertySpec } from '@gatefold/model'
+import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 

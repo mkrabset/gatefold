@@ -6,6 +6,6 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['@logica/model'],
+    exclude: ['@gatefold/model'],
   },
 })

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * UI preferences, persisted to localStorage under the key `logica-ui`. Keep this
+ * UI preferences, persisted to localStorage under the key `gatefold-ui`. Keep this
  * store limited to pure presentation state (theme, panel sizes) — document/editing
  * state lives in `editorStore`.
  */
@@ -30,6 +30,6 @@ export const useUiStore = create<UiState>()(
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
       setLibraryWidth: (libraryWidth) => set({ libraryWidth }),
     }),
-    { name: 'logica-ui' },
+    { name: 'gatefold-ui' },
   ),
 )

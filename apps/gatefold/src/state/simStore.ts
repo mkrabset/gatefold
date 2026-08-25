@@ -1,8 +1,8 @@
 import { create } from 'zustand'
-import type { Signal } from '@logica/model'
-import { Simulation } from '@logica/sim'
-import { DEFAULT_CONFIG, type SimConfig } from '@logica/sim'
-import { INSTANCE_PATH_SEP, joinInstancePath } from '@logica/sim'
+import type { Signal } from '@gatefold/model'
+import { Simulation } from '@gatefold/sim'
+import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
+import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
 import { useEditorStore } from './editorStore'
 import { useUiStore } from './uiStore'
 

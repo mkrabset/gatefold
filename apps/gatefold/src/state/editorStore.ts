@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ComponentDef, Design, Instance, PinRef, Port, PortDirection } from '@logica/model'
+import type { ComponentDef, Design, Instance, PinRef, Port, PortDirection } from '@gatefold/model'
 import {
   allowRenameTerminals,
   applyGroup,
@@ -38,8 +38,8 @@ import {
   uniqueId,
   unreachableDefIds,
   withBuiltinPrimitives,
-} from '@logica/model'
-import type { Clipboard } from '@logica/model'
+} from '@gatefold/model'
+import type { Clipboard } from '@gatefold/model'
 import { instanceBounds } from '../editor/geometry'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
 import { downloadText } from '../util/download'
@@ -750,7 +750,7 @@ export const useEditorStore = create<EditorState>()(
       }),
     saveProject: () => {
       const s = get()
-      downloadText('design.logica.json', serializeDesign(s.design))
+      downloadText('design.gatefold.json', serializeDesign(s.design))
     },
     loadProject: (json) => {
       try {
@@ -785,7 +785,7 @@ export const useEditorStore = create<EditorState>()(
     },
     exportLibrary: () => {
       const s = get()
-      downloadText('library.logica.json', serializeLibrary(buildLibraryFile(s.design)))
+      downloadText('library.gatefold.json', serializeLibrary(buildLibraryFile(s.design)))
     },
     importLibrary: (json) => {
       try {

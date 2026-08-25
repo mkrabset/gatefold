@@ -1,6 +1,6 @@
 # Glossary
 
-Terminology used across Logica's code, docs, and discussions. Kept terse and
+Terminology used across Gatefold's code, docs, and discussions. Kept terse and
 authoritative — update this when a term's meaning changes.
 
 ## Core data

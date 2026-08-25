@@ -4,7 +4,7 @@ Last updated: 2026-08-24 (refactor: dedupe scattered logic — template predicat
 
 ## Where we are
 
-Logica is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
+Gatefold is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
 HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
 hierarchical circuits, with JSON save/load and library export/import, **and a working
 event-driven simulator** (combinational + gate-built latches/flip-flops, buses, probe
@@ -13,8 +13,8 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 
 ## Simulation (this session)
 
-- **`@logica/sim` package** — a pure, framework-free engine (`packages/sim`) that depends
-  only on `@logica/model`. Never mutates the `Design`; holds a flattened netlist + signal
+- **`@gatefold/sim` package** — a pure, framework-free engine (`packages/sim`) that depends
+  only on `@gatefold/model`. Never mutates the `Design`; holds a flattened netlist + signal
   state.
 - **`Primitive.transfer(inputs: Signal[][]): Signal[][]`** — pure 3-state (`0`/`1`/`x`)
   combinational logic per primitive (the previously-reserved slot). `x` propagates; `0`
@@ -49,7 +49,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   - `PropertySpec` gained a `'select'` type (used by `terminalType`); the sim engine's source
     state is a per-instance **lane vector** (`toggleSwitch(id, lane)`), so individual output
     terminals (WIRE) or bus lanes (BUS) toggle independently.
-- **Sim UI** (`apps/logica/src/state/simStore.ts` + `editor/renderer.ts` + `ui/SimSettingsDialog.tsx`)
+- **Sim UI** (`apps/gatefold/src/state/simStore.ts` + `editor/renderer.ts` + `ui/SimSettingsDialog.tsx`)
   — design/simulate mode toggle; Run/Step/Stop/Reset; switch toggling; signal-colored wires
   (red=`1`, black=`0`, gray=`x`) and single-wire markers; a settings dialog (gate delay ps,
   step mode). In simulate mode editing is disabled but navigation still works (instance-path
@@ -62,7 +62,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 
 - **Refactoring pass — code deduplication** (no behavior changes; `typecheck`/`test`/`lint`
   all green):
-  - `isTemplateDef(design, def)` extracted to `@logica/model` (`types.ts`); replaces six
+  - `isTemplateDef(design, def)` extracted to `@gatefold/model` (`types.ts`); replaces six
     hand-rolled `kind === 'composite' && variant !== true && id !== root` predicates in
     `editorStore` (incl. `renameDef`), `Canvas`, `Sidebar` (×2), `Toolbar`, and
     `LibraryPanel`. The stricter predicate also stops a primitive def in the breadcrumb
@@ -73,7 +73,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
     it in place of two hardcoded `10_000` fallbacks.
   - `instancesReferencing(design, defId)` added to `types.ts`; `isDefReferenced`,
     `findArrayRef`, and `pruneConnectionsToPorts` now share the one graph walk.
-  - `INSTANCE_PATH_SEP` + `joinInstancePath` exported from `@logica/sim`; shared by
+  - `INSTANCE_PATH_SEP` + `joinInstancePath` exported from `@gatefold/sim`; shared by
     `netlist.ts` and `simStore.flatId` (single `.`-path convention, no desync).
 
 ## Latest (previous session)
@@ -177,7 +177,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   demo design, and on `loadProject` (migration for older saves). `cloneDef`/`copyDefSubgraph`
   preserve it (variants inherit), so `addInstance`/paste/group all link variants to their
   template automatically.
-- **Apply template to matching instances** — new `apps/logica/src/editor/apply.ts`:
+- **Apply template to matching instances** — new `apps/gatefold/src/editor/apply.ts`:
   `scopeDefIds` (current def + transitive nested defs), `portsMatch` (same lineage `uuid`,
   `variant`, and unaltered ordered port ids; arity equal or either neutral; `inverted` and
   port **names** are ignored), and `applyTemplate` (re-instantiates a variant's internals from
@@ -294,7 +294,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   highlight ring exactly when the wire can be released to connect/re-target (same
   `hitTestPort` call as `onPointerUp`).
 - **Width becomes a constraint solver** — `pinWidth`/`isNeutralPin` moved to a new
-  `apps/logica/src/editor/widths.ts`: width is now solved by fixpoint propagation over
+  `apps/gatefold/src/editor/widths.ts`: width is now solved by fixpoint propagation over
   connection equalities, composite-terminal mirrors, fan-in/fan-out constants, and the
   `×2` relations of bus-split/merge (via `Primitive.deriveWidth`). Undetermined pins are
   neutral; a conflict or a non-integer result (odd bus into a splitter) marks the sheet

@@ -1,4 +1,4 @@
-// Barrel export for `@logica/model` — the shared, framework-free domain model.
+// Barrel export for `@gatefold/model` — the shared, framework-free domain model.
 export * from './types'
 export * from './util'
 export * from './widths'

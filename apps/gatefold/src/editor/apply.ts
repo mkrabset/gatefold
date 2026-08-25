@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Port } from '@logica/model'
-import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth } from '@logica/model'
+import type { ComponentDef, Design, Port } from '@gatefold/model'
+import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth } from '@gatefold/model'
 
 /**
  * Propagate a composite template's changes to every matching variant in a given

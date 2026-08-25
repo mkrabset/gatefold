@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore } from '../state/simStore'
-import { isTemplateDef } from '@logica/model'
+import { isTemplateDef } from '@gatefold/model'
 
 /**
  * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
@@ -101,8 +101,8 @@ export function Toolbar() {
   return (
     <header className="toolbar">
       <div className="brand">
-        <span className="brand-mark">L</span>
-        <span className="brand-name">logica</span>
+        <span className="brand-mark">G</span>
+        <span className="brand-name">gatefold</span>
       </div>
 
       <div className="tb-divider" />

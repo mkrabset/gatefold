@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Port } from '@logica/model'
-import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
+import type { ComponentDef, Design, Port } from '@gatefold/model'
+import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, portPosition, sideHeight, sidePinOffset } from './geometry'
-import { connectionError } from '@logica/model'
+import { connectionError } from '@gatefold/model'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 

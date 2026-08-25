@@ -1,4 +1,4 @@
-import type { VectorContext } from '@logica/model'
+import type { VectorContext } from '@gatefold/model'
 
 /**
  * Adapts a `CanvasRenderingContext2D` to the model's DOM-free `VectorContext`, so

@@ -1,4 +1,4 @@
-# Logica — Implementation Plan
+# Gatefold — Implementation Plan
 
 A graphical designer and simulator for logic circuitry. Runs in the browser, built on
 TypeScript, React, and Zustand. Circuits are composed of components (gates, clock
@@ -24,8 +24,8 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ## 2. Tech stack & tooling
 
-- **pnpm monorepo**: `apps/logica` (`@logica/app`) + `packages/model` (`@logica/model`),
-  where `@logica/model` holds the pure domain model (no UI deps) and is consumed as source.
+- **pnpm monorepo**: `apps/gatefold` (`@gatefold/app`) + `packages/model` (`@gatefold/model`),
+  where `@gatefold/model` holds the pure domain model (no UI deps) and is consumed as source.
 - **Vite + React 19 + TypeScript** (strict mode).
 - **Zustand** (state management) + **immer** (immutable updates) + **zundo** (undo/redo).
 - **HTML5 `<canvas>`** for the schematic editor, backed by a retained scene-graph model with
@@ -35,7 +35,7 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ---
 
-## 3. Core data model (`@logica/model`)
+## 3. Core data model (`@gatefold/model`)
 
 The model cleanly separates **definitions** (types) from **instances** (usages).
 
@@ -279,7 +279,7 @@ primitive references normalized to built-in ids.
 ├── PLAN.md                 # this roadmap
 ├── docs/                   # ARCHITECTURE.md, NOTES.md, GLOSSARY.md
 ├── apps/
-│   └── logica/src/
+│   └── gatefold/src/
 │       ├── editor/     geometry.ts, renderer.ts, routing.ts, palette.ts,
 │       │               canvasVector.ts, Canvas.tsx
 │       ├── state/      editorStore.ts, uiStore.ts

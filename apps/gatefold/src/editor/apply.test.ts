@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design } from '@logica/model'
-import { inputPortDef, outputPortDef, primitiveDef } from '@logica/model'
+import type { ComponentDef, Design } from '@gatefold/model'
+import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { applyTemplate, scopeDefIds } from './apply'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })

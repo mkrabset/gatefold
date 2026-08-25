@@ -1,4 +1,4 @@
-import type { PrimitiveKind } from '@logica/model'
+import type { PrimitiveKind } from '@gatefold/model'
 
 export interface SimConfig {
   /** Default propagation delay for a gate, in picoseconds. */

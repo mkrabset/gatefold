@@ -1,4 +1,4 @@
-# Logica — Architecture & Design Summary
+# Gatefold — Architecture & Design Summary
 
 Status: work in progress. This document describes the design as it exists today.
 `PLAN.md` holds the forward-looking roadmap; this document captures decisions that
@@ -16,20 +16,20 @@ have been implemented and the reasoning behind them.
 ├── PLAN.md                 # roadmap
 ├── docs/ARCHITECTURE.md    # this document
 ├── apps/
-│   └── logica/             # @logica/app — Vite + React + TypeScript
+│   └── gatefold/             # @gatefold/app — Vite + React + TypeScript
 └── packages/
-    ├── model/              # @logica/model — shared domain model (no UI deps)
-    └── sim/                # @logica/sim — pure event-driven simulator (no UI deps)
+    ├── model/              # @gatefold/model — shared domain model (no UI deps)
+    └── sim/                # @gatefold/sim — pure event-driven simulator (no UI deps)
 ```
 
 - Package manager: **pnpm** (v11). Lockfile: `pnpm-lock.yaml`.
-- `@logica/model` is consumed as raw TypeScript source via its `exports` field
+- `@gatefold/model` is consumed as raw TypeScript source via its `exports` field
   (`"exports": { ".": "./src/index.ts" }`), so no build step is needed.
 - Tests: **Vitest**. The app runs with `jsdom`; the model package runs in `node`.
 
 ---
 
-## 2. Domain model (`@logica/model`)
+## 2. Domain model (`@gatefold/model`)
 
 Lives in `packages/model/src/`. Pure types + data — no framework dependencies.
 
@@ -153,7 +153,7 @@ interface Design { version: number; root: string; defs: Record<string, Component
 
 ---
 
-## 3. State management (`apps/logica/src/state`)
+## 3. State management (`apps/gatefold/src/state`)
 
 ### `editorStore` — zustand + immer + zundo
 The document and editing state:
@@ -183,14 +183,14 @@ a single history entry via a `handleSet` coalescer driven by `beginMoveTransacti
 undoable state).
 
 ### `uiStore` — zustand + persist
-UI preferences persisted to `localStorage` (`logica-ui`):
+UI preferences persisted to `localStorage` (`gatefold-ui`):
 - `theme: 'light' | 'dark'`
 - `sidebarWidth`, `libraryWidth` (resizable panel widths)
 
 ### `simStore` — zustand (simulation runtime, separate from `editorStore`)
 - `mode: 'design' | 'simulate'` — the global toggle; entering simulate mode resets `navStack`
   to the root and builds a `Simulation` from the current `design`.
-- `engine: Simulation | null` — the `@logica/sim` engine (rebuilt on `toggleMode`/`reset`/
+- `engine: Simulation | null` — the `@gatefold/sim` engine (rebuilt on `toggleMode`/`reset`/
   `setDefaultDelay`); it **never mutates the design**.
 - `running`, `path` (instance-id path parallel to `navStack`), `version` (redraw trigger),
   `stepMode`, `defaultDelay`, `settingsOpen`.
@@ -201,7 +201,7 @@ UI preferences persisted to `localStorage` (`logica-ui`):
 
 ---
 
-## 4. Editor (`apps/logica/src/editor`)
+## 4. Editor (`apps/gatefold/src/editor`)
 
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — base body dimensions (before pin radii).
@@ -299,7 +299,7 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 
 ---
 
-## 5. UI shell (`apps/logica/src/ui`)
+## 5. UI shell (`apps/gatefold/src/ui`)
 
 > Note: the contents of the side panels are provisional and will likely change
 > significantly — treat the specifics below as placeholders, not a stable contract.
@@ -330,7 +330,7 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 
 ## 6. Grouping into composite components
 
-Implemented via `@logica/model`'s `group.ts`, driven by the toolbar **Group** button
+Implemented via `@gatefold/model`'s `group.ts`, driven by the toolbar **Group** button
 (enabled with 2+ selected) and the `GroupDialog`.
 
 - **`inferGroup(design, defId, ids)`** classifies each connection: both endpoints selected
@@ -358,7 +358,7 @@ Pure (no input mutation) and fully unit-tested.
 
 ## 6b. Applying template changes to instances
 
-New `apps/logica/src/editor/apply.ts`, exposed via `applyTemplateToInstances(templateId)`:
+New `apps/gatefold/src/editor/apply.ts`, exposed via `applyTemplateToInstances(templateId)`:
 
 - **Scope** — `scopeDefIds(design, currentDefId)` BFSs instance references downward, so the
   apply reaches matching instances in the currently-viewed def and everything nested in it
@@ -378,9 +378,9 @@ run after delete, template-delete, apply, and load.
 
 ---
 
-## 6c. Simulator (`@logica/sim`)
+## 6c. Simulator (`@gatefold/sim`)
 
-A pure, framework-free package (`packages/sim`, depends only on `@logica/model`). It reads a
+A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model`). It reads a
 `Design`, never mutates it, and exposes `Simulation`.
 
 - **`netlist.ts`** — flattens the hierarchy through `Port.terminal` into leaf primitive
@@ -462,8 +462,8 @@ master-slave JK test).
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping, and
   port-group/composite signal resolution.
-- `apps/logica/src/editor/routing.test.ts` — bezier control-point math and tangents.
-- `apps/logica/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
-- `apps/logica/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
+- `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
+- `apps/gatefold/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
+- `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
   multi-step) and copy/paste.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.

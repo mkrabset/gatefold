@@ -588,8 +588,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#_bus_merge">BUS-MERGE</a></li>
 <li><a href="#_bus">BUS</a></li>
 <li><a href="#_7_seg">7-SEG</a></li>
-<li><a href="#_switch_array">SWITCHES</a></li>
-<li><a href="#_led_array">LEDS</a></li>
+<li><a href="#_switches">SWITCHES</a></li>
+<li><a href="#_leds">LEDS</a></li>
 </ul>
 </li>
 <li><a href="#_7_simulation">7. Simulation</a>
@@ -670,8 +670,8 @@ a selection).</p>
 <p><strong>Simulate / Exit</strong> — switch between <em>design</em> and <em>simulate</em> mode.</p>
 </li>
 <li>
-<p><strong>Run / Step / Stop / Reset</strong> — simulation controls (see §7). <strong>Run</strong> also enters simulate
-mode from design mode and starts running; <strong>Space</strong> toggles run/pause while simulating.</p>
+<p><strong>Run / Step / Stop / Reset</strong> — simulation controls (see §7). <strong>Run</strong> also enters simulate mode
+from design mode and starts running; <strong>Space</strong> toggles run/pause while simulating.</p>
 </li>
 <li>
 <p><strong>Settings (gear)</strong> — open the simulation settings dialog.</p>
@@ -1165,11 +1165,11 @@ slot that lights when negative.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_switch_array">SWITCHES</h3>
+<h3 id="_switches">SWITCHES</h3>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Inputs:</strong> none · <strong>Outputs:</strong> 1+ · Properties <strong>Terminal type</strong> (<code>wire</code> / <code>bus</code>) and <strong>Initial value</strong> (boolean, default off)</p>
+<p><strong>Inputs:</strong> none · <strong>Outputs:</strong> 1+ · Properties <strong>Terminal type</strong> (<code>wire</code> / <code>bus</code>, default <code>bus</code>) and <strong>Initial value</strong> (boolean, default off)</p>
 </li>
 <li>
 <p>A multi-lane interactive source. In <code>wire</code> mode each output terminal is one switch; in <code>bus</code>
@@ -1181,11 +1181,11 @@ click an indicator circle to toggle its lane.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="_led_array">LEDS</h3>
+<h3 id="_leds">LEDS</h3>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Inputs:</strong> 1+ · <strong>Outputs:</strong> none · Property <strong>Terminal type</strong> (<code>wire</code> / <code>bus</code>)</p>
+<p><strong>Inputs:</strong> 1+ · <strong>Outputs:</strong> none · Property <strong>Terminal type</strong> (<code>wire</code> / <code>bus</code>, default <code>bus</code>)</p>
 </li>
 <li>
 <p>A multi-lane lamp. In <code>wire</code> mode each input terminal is one LED; in <code>bus</code> mode a single bus
@@ -1216,10 +1216,10 @@ group components or edit a composite&#8217;s ports.</p>
 <h2 id="_7_simulation">7. Simulation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Press <strong>Simulate</strong> — or just <strong>Run</strong> — to enter simulation mode (it resets to the top-level
-sheet and builds a simulation of your design). The canvas background turns <strong>dark green</strong>
-while simulating. In this mode editing is disabled, but you can still pan, zoom, and navigate
-into components.</p>
+<p>Press <strong>Simulate</strong> — or just <strong>Run</strong> — to enter simulation mode (it resets to the top-level sheet
+and builds a simulation of your design). The canvas background turns <strong>dark green</strong> while
+simulating. In this mode editing is disabled, but you can still pan, zoom, and navigate into
+components.</p>
 </div>
 <div class="sect2">
 <h3 id="_controls">Controls</h3>
@@ -1303,7 +1303,7 @@ back up. At the top level, <strong>Escape</strong> leaves simulate mode and retu
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-08-25 00:21:28 +0200
+Last updated 2026-08-25 19:33:30 +0200
 </div>
 </div>
 <script>

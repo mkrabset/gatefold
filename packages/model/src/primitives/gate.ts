@@ -115,6 +115,10 @@ export abstract class Gate implements Primitive {
     return true
   }
 
+  isSequential(): boolean {
+    return false
+  }
+
   portGroupDirection(): 'input' | 'output' | null {
     return null
   }

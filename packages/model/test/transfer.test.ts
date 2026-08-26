@@ -62,4 +62,8 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(primitiveOf('input-port').transfer([])).toEqual([])
     expect(primitiveOf('output-port').transfer([])).toEqual([])
   })
+
+  it('DFF is sequential — no combinational transfer', () => {
+    expect(primitiveOf('dff').transfer([s(1), s(1), s(0)])).toEqual([])
+  })
 })

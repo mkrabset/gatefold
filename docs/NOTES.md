@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; Verilog idea).
+Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog idea).
 
 ## Where we are
 
@@ -110,6 +110,28 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Verilog export** — captured as a future idea in `PLAN.md` §12 (+ roadmap row 9): a pure
   `exportVerilog(design)` for FPGA, combinational-first, with a **floating-net validation gate**
   (only designs with no undriven nets are codegen-able).
+- **`DFF` primitive (sequential)** — new `dff` primitive (`D`/`CLK`/`RST` → `Q`) with properties
+  `edge` (`posedge`/`negedge`), `initialValue`, and `resetActiveHigh`. The engine gained a
+  **sequential path**: `Primitive.isSequential()` / `clockPortId()` / `resetPortId()`, a
+  `Sequential` per instance wired into `seqFanout` on the CLK and RST nets, and
+  `evaluateSequential` (edge-triggered sample of D with clk-to-q delay; async reset forces Q to
+  `initialValue`, overriding the clock). Q powers on to `initialValue`; `lastClk` seeds from the
+  settled clock. This is the register model the future Verilog exporter maps 1:1 to
+  `always @(posedge clk) …`, so sequential designs export as real FPGA flops rather than gate
+  feedback. Tests: model (library/ports/props/`isSequential`) + engine (posedge/negedge, async
+  reset active-high/low, `initialValue`, shift register, DFF-in-composite).
+- **DFF terminal labels** — the DFF's terminals have distinct purposes, so it opts into
+  `Primitive.showTerminalNames()`, and the renderer's `drawTerminalLabels` draws each port name
+  inside the body next to its pin (`D`/`CLK`/`RST` on the left, `Q` on the right). Other
+  primitives keep their unlabeled pins.
+- **Source/sink inversion fix** — inversion bubbles previously had no effect on sources/sinks
+  (the engine only applied `Port.inverted` for combinational gates). Now `driveSource`/source-init
+  invert a source's output net (`out.inverted`), and the renderer applies input inversion to sink
+  displays (LED/7-seg) while un-inverting the switch circle so it still shows the toggle state.
+  Added `invertSignal` (3-state NOT) to the model's `logic.ts`. Tests: engine (inverted switch
+  output) + model (`invertSignal`).
+- **Inversion bubbles 20% larger** — `drawPin` bubble radius is now
+  `pinRadiusWorld(1) * zoom * 1.2`.
 
 ## Latest (previous session)
 

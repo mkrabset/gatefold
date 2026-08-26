@@ -48,7 +48,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'bus' | 'input-port' | 'output-port'
-  | 'seven-seg' | 'switch-array' | 'led-array'
+  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff'
 
 interface ComponentDef {
   id: string
@@ -102,13 +102,16 @@ interface Design { version: number; root: string; defs: Record<string, Component
 - **Primitive library** (`primitives/`): built-in components are polymorphic — one
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
-  `bus.ts`, the internal `input-port.ts`/`output-port.ts`, and the probe primitives
-  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`). Each supplies its
+  `bus.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`, and the sequential `dff.ts`). Each supplies its
   label/glyph, default ports, arity
   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
   input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
-  function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The registry (`index.ts`) maps a
+  function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
+  it declares `isSequential()`, `clockPortId()` (`in:1`) and `resetPortId()` (`in:2`), and its
+  `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The registry
+  (`index.ts`) maps a
   `PrimitiveKind` to its behaviour object; `primitiveDef(kind)` produces the serializable
   `ComponentDef`. The port primitives are not listed in the library (their pins are derived
   from the enclosing composite). The `not` gate is a `buffer` whose output port is `inverted`.
@@ -399,6 +402,12 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
     change counter detects true oscillators and freezes them at `x`. This breaks the `x`
     deadlock in gated feedback (e.g. a JK whose set/reset is gated by its own outputs).
+  - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF) is not a
+    combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
+    `resetPortId()`) net, and `evaluateSequential` — on a configured `edge` — samples `D` and
+    schedules `Q` at `now + delay`; an asserted `RST` (`resetActiveHigh` selects polarity)
+    forces `Q` to `initialValue` asynchronously, overriding the clock. Q powers on to
+    `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
 - **`signals.ts`** — `invert`/`invertVector`/`equalVectors`/`clockValue`.
 - **`config.ts`** — `SimConfig { defaultDelay, perKindDelay, stepMode }` (delays in ps).
 
@@ -406,11 +415,13 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
 (3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
 splits, split/merge reshape). `Port.inverted` is applied by the engine at pin boundaries, so
 NOT = buffer with an inverted output. Sources (CLOCK/SWITCH-ARRAY) and sinks
-(LED-ARRAY/7-SEG) are driven/read by the engine rather than via `transfer`.
+(LED-ARRAY/7-SEG) are driven/read by the engine rather than via `transfer`; sequential
+primitives (DFF) are driven by the sequential path above.
 
-Sequential circuits are built from gates: level-sensitive latches settle via feedback, and
+Gate-built sequential is still supported: level-sensitive latches settle via feedback, and
 edge-triggered master-slave flip-flops work via the inertial delay model (verified by the
-master-slave JK test).
+master-slave JK test) — but the DFF primitive is the intended way to model registers, since it
+evaluates as a true edge-triggered element and (later) exports to real FPGA flip-flops.
 
 ---
 

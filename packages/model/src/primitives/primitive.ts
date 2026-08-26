@@ -75,6 +75,16 @@ export interface Primitive {
   isPortGroup(): boolean
   /** True when the def can be entered for editing. */
   isNavigable(): boolean
+  /** True for stateful (edge-triggered) primitives, evaluated by the engine's sequential
+   *  path rather than the combinational `transfer`. */
+  isSequential(): boolean
+  /** The clock input's port id for a sequential primitive, or null. */
+  clockPortId?(): string | null
+  /** The asynchronous reset input's port id for a sequential primitive, or null. */
+  resetPortId?(): string | null
+  /** True when this primitive's terminal names should be drawn next to its pins
+   *  (terminals with distinct purposes, e.g. the DFF's D/CLK/RST). */
+  showTerminalNames?(): boolean
   /** Which port group this is (only meaningful when `isPortGroup()`). */
   portGroupDirection(): 'input' | 'output' | null
   /** Intrinsic bus width of `port` given the full port list (`null` = neutral/adopt).

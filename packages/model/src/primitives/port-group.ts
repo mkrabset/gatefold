@@ -31,6 +31,10 @@ export abstract class PortGroup implements Primitive {
     return false
   }
 
+  isSequential(): boolean {
+    return false
+  }
+
   abstract portGroupDirection(): 'input' | 'output'
 
   intrinsicWidth(): number {

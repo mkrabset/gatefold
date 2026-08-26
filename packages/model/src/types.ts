@@ -45,6 +45,7 @@ export type PrimitiveKind =
   | 'seven-seg'
   | 'switch-array'
   | 'led-array'
+  | 'dff'
 
 export interface ComponentDef {
   id: string

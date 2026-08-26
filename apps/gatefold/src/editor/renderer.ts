@@ -1,5 +1,5 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@gatefold/model'
-import {inputPorts, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
+import {inputPorts, invertSignal, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
 import {
     arrayIndicatorLanes,
     busWireOffsets,
@@ -101,7 +101,7 @@ function drawPin(
     ctx.stroke()
     if (inverted) {
         // One bubble per wire lane, so a wide bus doesn't get a single huge bubble.
-        const laneRadius = pinRadiusWorld(1) * vp.zoom
+        const laneRadius = pinRadiusWorld(1) * vp.zoom * 1.2
         const dir = bubbleOnLeft ? -1 : 1
         for (const dy of busWireOffsets(width)) {
             drawInversionRing(ctx, s.x + dir * laneRadius, s.y + dy * vp.zoom, laneRadius, vp.zoom, p, bg)
@@ -245,6 +245,40 @@ function drawPorts(
     for (const port of outputPorts(def)) drawPort(port, p.pinHover, false)
 }
 
+/**
+ * Draw a primitive's terminal names inside its body, next to each pin. Used by primitives
+ * whose terminals have distinct purposes (e.g. the DFF's D/CLK/RST), so the pins are
+ * self-explanatory without hovering.
+ */
+function drawTerminalLabels(
+    ctx: CanvasRenderingContext2D,
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    def: ComponentDef,
+    cw: number,
+    ch: number,
+    vp: Viewport,
+    p: Palette,
+) {
+    ctx.fillStyle = p.text
+    ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
+    ctx.textBaseline = 'middle'
+    const gap = 8 * vp.zoom
+    for (const port of inputPorts(def)) {
+        const pos = portPosition(design, parentDef, instance, def, port.id)
+        const ps = w2s(pos.x, pos.y, cw, ch, vp)
+        ctx.textAlign = 'left'
+        ctx.fillText(port.name, ps.x + gap, ps.y)
+    }
+    for (const port of outputPorts(def)) {
+        const pos = portPosition(design, parentDef, instance, def, port.id)
+        const ps = w2s(pos.x, pos.y, cw, ch, vp)
+        ctx.textAlign = 'right'
+        ctx.fillText(port.name, ps.x - gap, ps.y)
+    }
+}
+
 function drawInstance(
     ctx: CanvasRenderingContext2D,
     design: Design,
@@ -318,6 +352,10 @@ function drawInstance(
                     pinRadius: pinRadiusOf,
                 })
             }
+        }
+        // Terminal names inside the body for primitives with distinct terminals (DFF).
+        if (def.primitive && primitiveOf(def.primitive).showTerminalNames?.()) {
+            drawTerminalLabels(ctx, design, parentDef, instance, def, cw, ch, vp, p)
         }
         // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
         if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
@@ -459,7 +497,8 @@ function drawSevenSegBody(
     const startX = cx - totalW / 2 + pad + digitW / 2
 
     const order = instance.props?.order === 'desc'
-    const raw = sim ? sim.signalOf(instance.id, inputPorts(def)[0].id) : undefined
+    let raw = sim ? sim.signalOf(instance.id, inputPorts(def)[0].id) : undefined
+    if (raw && inputPorts(def)[0]?.inverted) raw = raw.map(invertSignal)
     const bits = raw ? (order ? [...raw].reverse() : raw) : []
     const masks = bits.length > 0 ? sevenSegDigits(bits, mode) : Array.from({ length: positions }, () => null)
 
@@ -514,12 +553,17 @@ function drawArrayBody(
         const r = lanes[i].r * vp.zoom
         let sig: Signal | undefined
         if (sim) {
+            const port = def.ports.length > 1 ? def.ports[i] : def.ports[0]
             if (def.ports.length > 1) {
-                const portId = def.ports[i]?.id
+                const portId = port?.id
                 if (portId) sig = sim.valueOf(instance.id, portId)
             } else {
-                sig = sim.signalOf(instance.id, def.ports[0].id)?.[i]
+                sig = port ? sim.signalOf(instance.id, port.id)?.[i] : undefined
             }
+            // Apply the terminal's inversion. For a switch this undoes the engine's output
+            // inversion (so the circle shows the toggle state); for an LED it applies the
+            // input inversion (so the lamp lights on the inverted signal).
+            if (sig !== undefined && port?.inverted) sig = invertSignal(sig)
         } else if (initialOn) {
             // Show the initial (pre-simulation) on state in design mode.
             sig = 1

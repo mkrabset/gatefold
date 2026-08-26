@@ -1,8 +1,8 @@
 import type { Design, Signal } from '@gatefold/model'
 import { primitiveOf, CLOCK_DEFAULT_PERIOD } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
-import { flatten, type FlatInstance } from './netlist'
-import { clockValue, equalVectors, invertVector } from './signals'
+import { flatten, type FlatInstance, type FlatPort } from './netlist'
+import { clockValue, equalVectors, invert, invertVector } from './signals'
 
 /** Per-net change threshold above which a net is considered oscillating. */
 const OSC_LIMIT = 200
@@ -21,6 +21,20 @@ interface Event {
 interface Gate {
   inst: FlatInstance
   delay: number
+}
+
+/** A stateful, edge-triggered primitive (e.g. a D flip-flop with async reset). */
+interface Sequential {
+  inst: FlatInstance
+  delay: number
+  clkInput: FlatPort
+  dInput: FlatPort
+  rstInput: FlatPort | null
+  qOutput: FlatPort
+  edge: 'posedge' | 'negedge'
+  resetActiveHigh: boolean
+  resetValue: Signal
+  lastClk: Signal
 }
 
 /** Minimal binary min-heap keyed by event time. */
@@ -76,8 +90,10 @@ export class Simulation {
   private driven: boolean[]
   private pinNet: Map<string, number>
   private gates: Gate[]
+  private sequentials: Sequential[]
   private values: (Signal[] | undefined)[]
   private fanout: Gate[][]
+  private seqFanout: Sequential[][]
   private version: number[]
   private switchState = new Map<string, Signal[]>()
   private events = new MinHeap()
@@ -98,10 +114,16 @@ export class Simulation {
       Array.from({ length: this.netWidths[i] }, () => (this.driven[i] ? 0 : ('x' as Signal))),
     )
     this.fanout = Array.from({ length: n }, () => [])
+    this.seqFanout = Array.from({ length: n }, () => [])
     this.version = new Array(n).fill(0)
     this.gates = []
+    this.sequentials = []
 
     for (const inst of this.instances) {
+      if (primitiveOf(inst.kind).isSequential()) {
+        this.addSequential(inst, config)
+        continue
+      }
       const isGate = inst.inputs.length > 0 && inst.outputs.length > 0
       const isSource = inst.inputs.length === 0 && inst.outputs.length > 0
       if (isGate) {
@@ -111,12 +133,20 @@ export class Simulation {
       } else if (isSource) {
         const values = this.sourceValues(inst, 0)
         for (let j = 0; j < inst.outputs.length; j++) {
-          this.values[inst.outputs[j].net] = values[j] ?? ['x']
+          const out = inst.outputs[j]
+          const v = values[j] ?? ['x']
+          this.values[out.net] = out.inverted ? invertVector(v) : v
         }
       }
     }
 
     this.powerOnSettle()
+
+    // Initialise each sequential's last-seen clock from the settled clock net, so the
+    // first edge after power-on is detected correctly (including gated clocks).
+    for (const seq of this.sequentials) {
+      seq.lastClk = this.valueOf(seq.clkInput.net)[0]
+    }
   }
 
   get time(): number {
@@ -157,9 +187,11 @@ export class Simulation {
     const values = this.sourceValues(inst, now)
     for (let j = 0; j < inst.outputs.length; j++) {
       const out = inst.outputs[j]
+      const v = values[j] ?? ['x']
       this.version[out.net]++
-      this.values[out.net] = values[j] ?? ['x']
+      this.values[out.net] = out.inverted ? invertVector(v) : v
       for (const g of this.fanout[out.net]) this.evaluateGate(g, now)
+      for (const s of this.seqFanout[out.net]) this.evaluateSequential(s, now)
     }
   }
 
@@ -210,6 +242,65 @@ export class Simulation {
       let v = outputs[j] ?? []
       if (op.inverted) v = invertVector(v)
       this.schedule(now + gate.delay, op.net, v)
+    }
+  }
+
+  /** Build the per-instance sequential state for a stateful primitive (e.g. a DFF). */
+  private addSequential(inst: FlatInstance, config: SimConfig): void {
+    const prim = primitiveOf(inst.kind)
+    const clkInput = inst.inputs.find((ip) => ip.portId === prim.clockPortId?.()) ?? inst.inputs[0]
+    const rstInput = inst.inputs.find((ip) => ip.portId === prim.resetPortId?.()) ?? null
+    const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
+    const qOutput = inst.outputs[0]
+    const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
+
+    const seq: Sequential = {
+      inst,
+      delay: delayOf(config, inst.kind),
+      clkInput,
+      dInput,
+      rstInput,
+      qOutput,
+      edge: inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
+      resetActiveHigh: inst.props?.resetActiveHigh !== false,
+      resetValue,
+      lastClk: 'x',
+    }
+    this.sequentials.push(seq)
+    // Wake on both the clock and (when present) the async reset net.
+    this.seqFanout[clkInput.net].push(seq)
+    if (rstInput) this.seqFanout[rstInput.net].push(seq)
+
+    // Power-on output value.
+    this.values[qOutput.net] = [qOutput.inverted ? invert(resetValue) : resetValue]
+  }
+
+  /**
+   * Evaluate a sequential primitive on a clock/reset net change. Async reset forces the
+   * output to its reset value; otherwise a configured clock edge samples D and schedules
+   * the new output after the clk-to-q delay.
+   */
+  private evaluateSequential(seq: Sequential, now: number): void {
+    const clk = seq.clkInput.inverted ? invert(this.valueOf(seq.clkInput.net)[0]) : this.valueOf(seq.clkInput.net)[0]
+    const prev = seq.lastClk
+    seq.lastClk = clk
+
+    let next: Signal | null = null
+    if (seq.rstInput) {
+      const rst = seq.rstInput.inverted ? invert(this.valueOf(seq.rstInput.net)[0]) : this.valueOf(seq.rstInput.net)[0]
+      if (rst === (seq.resetActiveHigh ? 1 : 0)) {
+        next = seq.resetValue
+      }
+    }
+    if (next === null) {
+      const edge = seq.edge === 'posedge' ? prev === 0 && clk === 1 : prev === 1 && clk === 0
+      if (edge) {
+        next = seq.dInput.inverted ? invert(this.valueOf(seq.dInput.net)[0]) : this.valueOf(seq.dInput.net)[0]
+      }
+    }
+    if (next !== null) {
+      const out = seq.qOutput.inverted ? invert(next) : next
+      this.schedule(now + seq.delay, seq.qOutput.net, [out])
     }
   }
 
@@ -310,6 +401,7 @@ export class Simulation {
       }
       this.values[e.net] = e.value
       for (const g of this.fanout[e.net]) this.evaluateGate(g, e.t)
+      for (const s of this.seqFanout[e.net]) this.evaluateSequential(s, e.t)
     }
     return true
   }

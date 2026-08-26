@@ -343,6 +343,7 @@ it needs already exists in `@gatefold/model`:
 | Composite | `module … endmodule` + instance |
 | input-port / output-port | module `input` / `output` ports |
 | CLOCK | not synthesizable → top-level clock input (or testbench stimulus) |
+| DFF | `always @(posedge clk) q <= d` (plus an `if (rst)` branch from `initialValue`/`resetActiveHigh`) |
 | SWITCHES | top-level `input` ports (or testbench) |
 | LEDS / 7-SEG | top-level `output` ports (7-seg: optional BCD→7-seg decoder) |
 
@@ -352,10 +353,10 @@ it needs already exists in `@gatefold/model`:
    **validate the flattened netlist and reject (or hard-warn on) any floating/undriven net** before
    emitting code. The simulator already computes `driven[]` in `@gatefold/sim`'s `netlist.ts`, so
    this gate is cheap to add.
-2. **Sequential logic is the hard part.** Flip-flops are currently built *from gates* (latches,
-   master-slave); exporting those yields feedback loops that FPGA tools reject as combinational
-   loops or infer as latches. → start **combinational-only**; a future `DFF`/register primitive
-   would map 1:1 to `always @(posedge clk)` and make clocked designs export cleanly.
+2. **Sequential logic** — gate-built latches/flip-flops would still export as feedback loops, but
+   the **`dff` primitive** (now implemented, with async reset) is the intended register model and
+   maps 1:1 to `always @(posedge clk) q <= d`; its `initialValue`/`resetActiveHigh` become the
+   `if (rst)` branch, so initialization is synthesizable.
 3. **Combinational loops** (already detected as oscillators by the sim) are unsynthesizable — the
    exporter should warn/skip them.
 4. **Naming** — instance/port names need Verilog-identifier sanitization and keyword avoidance,
@@ -373,7 +374,6 @@ it needs already exists in `@gatefold/model`:
 
 ### Open decisions
 
-- Combinational-only first, or also add a `DFF` primitive?
 - Hierarchical modules (recommended) vs. one flat module?
 - Include a testbench generator (CLOCK/SWITCHES stimulus, LEDS/7-SEG `$monitor`)?
 - Export the whole `Design` (root as top module) vs. only the currently-viewed canvas?

@@ -18,6 +18,12 @@ authoritative — update this when a term's meaning changes.
 - **Clock** — a source primitive (no inputs, one output) that produces a periodic square
   wave; its `period` (ps) is a per-instance property. Drawn with a zoom-scaled square-wave
   glyph (sine phase).
+- **DFF** — a D flip-flop primitive (`D`, `CLK`, `RST` → `Q`). A *stateful* primitive the
+  simulator evaluates on clock edges rather than via `transfer`: on the configured `edge`
+  (`posedge`/`negedge`) `Q` samples `D` (clk-to-q delay), and an asserted `RST` (`resetActiveHigh`
+  selects polarity) forces `Q` asynchronously to its `initialValue`. This is the primitive the
+  future Verilog exporter maps 1:1 to `always @(posedge clk) q <= d` (with a reset branch), so
+  sequential circuits export as real FPGA registers rather than feedback gate structures.
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

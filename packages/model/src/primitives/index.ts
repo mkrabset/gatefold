@@ -16,6 +16,7 @@ import { OutputPort } from './output-port'
 import { SevenSeg } from './seven-seg'
 import { SwitchArray } from './switch-array'
 import { LedArray } from './led-array'
+import { Dff } from './dff'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
@@ -23,6 +24,7 @@ export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits 
 export type { SevenSegMode } from './seven-seg'
 export { arrayPorts } from './array'
 export { CLOCK_DEFAULT_PERIOD } from './clock'
+export { invertSignal } from './logic'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   and: new AndGate(),
@@ -41,10 +43,11 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'seven-seg': new SevenSeg(),
   'switch-array': new SwitchArray(),
   'led-array': new LedArray(),
+  dff: new Dff(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

@@ -8,7 +8,7 @@ const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, port
 const inst = (id: string, defId: string): Instance => ({ id, name: id, defId, pos: { x: 0, y: 0 } })
 const conn = (id: string, from: PinRef, to: PinRef) => ({ id, from, to })
 
-const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg'] as const
+const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg', 'dff'] as const
 
 function mkDesign(
   instances: ComponentDef['instances'],
@@ -582,5 +582,217 @@ describe('Simulation engine', () => {
     sim.toggleSwitch('sa', 5)
     sim.step()
     expect(sim.signalOf('seg', 'in:0')).toEqual([0, 0, 0, 0, 0, 1, 0, 0])
+  })
+
+  it('inverts a switch-array output when its terminal is inverted', () => {
+    const sw: ComponentDef = {
+      id: 'sw',
+      name: 'SW',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [{ id: 'out:0', name: 'BUS', direction: 'output', inverted: true }],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [inst('sw', 'sw'), inst('l', 'led-array')],
+        [conn('c1', iref('sw', 'out:0'), iref('l', 'in:0'))],
+        { sw },
+      ),
+    )
+    // Switch off (0) → inverted output is 1.
+    expect(sim.signal('l', 'in:0')).toBe(1)
+    sim.setSwitch('sw', 1)
+    sim.step()
+    // Switch on (1) → inverted output is 0.
+    expect(sim.signal('l', 'in:0')).toBe(0)
+  })
+
+  it('DFF samples D on a posedge and ignores D changes between edges', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('f', 'dff')],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+        ],
+      ),
+    )
+    // Power-on Q = 0.
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    // D changes but no clock edge → Q holds.
+    sim.setSwitch('d', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    // Rising edge samples D.
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+    // D drops again; Q holds until the next edge.
+    sim.setSwitch('d', 0)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+  })
+
+  it('DFF samples D on a negedge', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), { id: 'f', name: 'f', defId: 'dff', pos: { x: 0, y: 0 }, props: { edge: 'negedge' } }],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+        ],
+      ),
+    )
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1) // posedge — ignored by a negedge DFF
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    sim.setSwitch('clk', 0) // negedge — sample D
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+  })
+
+  it('DFF powers on to its initial value', () => {
+    const sim = new Simulation(
+      mkDesign([{ id: 'f', name: 'f', defId: 'dff', pos: { x: 0, y: 0 }, props: { initialValue: true } }], []),
+    )
+    expect(sim.signal('f', 'out:0')).toBe(1)
+  })
+
+  it('DFF async reset overrides the clock, then releases on the next edge', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('f', 'dff')],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+          conn('c3', iref('rst', 'out:0'), iref('f', 'in:2')),
+        ],
+      ),
+    )
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+    // Assert reset (active-high): Q forced to 0 regardless of the clock.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    // While held, clock edges are ignored.
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    // Deassert, then the next edge samples D again.
+    sim.setSwitch('rst', 0)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+  })
+
+  it('DFF supports an active-low reset', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('rst', 'switch-array'), { id: 'f', name: 'f', defId: 'dff', pos: { x: 0, y: 0 }, props: { resetActiveHigh: false } }],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+          conn('c3', iref('rst', 'out:0'), iref('f', 'in:2')),
+        ],
+      ),
+    )
+    sim.setSwitch('rst', 1) // deassert (active-low)
+    sim.step()
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+    sim.setSwitch('rst', 0) // assert (active-low) → Q forced to 0
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+  })
+
+  it('chains DFFs into a shift register', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('f1', 'dff'), inst('f2', 'dff')],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f1', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f1', 'in:1')),
+          conn('c3', iref('clk', 'out:0'), iref('f2', 'in:1')),
+          conn('c4', iref('f1', 'out:0'), iref('f2', 'in:0')),
+        ],
+      ),
+    )
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f1', 'out:0')).toBe(1)
+    expect(sim.signal('f2', 'out:0')).toBe(0)
+    sim.setSwitch('d', 0)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f1', 'out:0')).toBe(0)
+    expect(sim.signal('f2', 'out:0')).toBe(1)
+  })
+
+  it('resolves DFF pins through a composite boundary', () => {
+    const reg: ComponentDef = {
+      id: 'reg',
+      name: 'reg',
+      kind: 'composite',
+      ports: [
+        { id: 'in:0', name: 'D', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:0' } },
+        { id: 'in:1', name: 'CLK', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:1' } },
+        { id: 'in:2', name: 'RST', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:2' } },
+        { id: 'out:0', name: 'Q', direction: 'output', terminal: { instanceId: 'co', pinId: 'out:0' } },
+      ],
+      instances: [
+        { id: 'ci', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+        { id: 'f', name: 'f', defId: 'dff', pos: { x: 60, y: 0 } },
+        { id: 'co', name: '', defId: 'output-port', pos: { x: 120, y: 0 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('ci', 'in:0'), to: iref('f', 'in:0') },
+        { id: 'c2', from: iref('ci', 'in:1'), to: iref('f', 'in:1') },
+        { id: 'c3', from: iref('ci', 'in:2'), to: iref('f', 'in:2') },
+        { id: 'c4', from: iref('f', 'out:0'), to: iref('co', 'out:0') },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('r', 'reg')],
+        [
+          conn('w1', iref('d', 'out:0'), iref('r', 'in:0')),
+          conn('w2', iref('clk', 'out:0'), iref('r', 'in:1')),
+        ],
+        { reg },
+      ),
+    )
+    // RST (in:2) is floating → not asserted.
+    expect(sim.signal('r', 'out:0')).toBe(0)
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('r', 'out:0')).toBe(1)
+    // The internal DFF pin resolves through the boundary too.
+    expect(sim.signal('r.f', 'out:0')).toBe(1)
   })
 })

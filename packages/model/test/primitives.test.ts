@@ -4,6 +4,7 @@ import type { Signal } from '../src/types'
 import {
   defaultPropsOf,
   inputPortDef,
+  invertSignal,
   isArityFixed,
   isPortGroupDef,
   libraryPrimitives,
@@ -18,8 +19,8 @@ import {
 } from '../src/primitives'
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS, DFF', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff'])
   })
 
   it('inverts the NOT output and leaves the buffer un-inverted', () => {
@@ -170,6 +171,39 @@ describe('model primitives', () => {
   it('folds an empty property list into an empty defaults record', () => {
     expect(primitiveOf('and').properties()).toEqual([])
     expect(defaultPropsOf('and')).toEqual({})
+  })
+
+  it('declares the DFF as a sequential primitive with D/CLK/RST/Q', () => {
+    const dff = primitiveDef('dff')
+    expect(inputPorts(dff).map((p) => p.name)).toEqual(['D', 'CLK', 'RST'])
+    expect(inputPorts(dff).map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2'])
+    expect(outputPorts(dff).map((p) => p.name)).toEqual(['Q'])
+    expect(isArityFixed(dff, 'input')).toBe(true)
+    expect(isArityFixed(dff, 'output')).toBe(true)
+
+    const prim = primitiveOf('dff')
+    expect(prim.isSequential()).toBe(true)
+    expect(prim.clockPortId?.()).toBe('in:1')
+    expect(prim.resetPortId?.()).toBe('in:2')
+    expect(prim.properties()).toEqual([
+      { name: 'edge', label: 'Edge', type: 'select', default: 'posedge', options: ['posedge', 'negedge'] },
+      { name: 'initialValue', label: 'Initial value', type: 'boolean', default: false },
+      { name: 'resetActiveHigh', label: 'Active-high reset', type: 'boolean', default: true },
+    ])
+    expect(defaultPropsOf('dff')).toEqual({ edge: 'posedge', initialValue: false, resetActiveHigh: true })
+    expect(portWidth(dff, inputPorts(dff)[0])).toBe(1)
+  })
+
+  it('marks ordinary gates as non-sequential', () => {
+    expect(primitiveOf('and').isSequential()).toBe(false)
+    expect(primitiveOf('clock').isSequential()).toBe(false)
+    expect(primitiveOf('input-port').isSequential()).toBe(false)
+  })
+
+  it('inverts a single signal in 3-state', () => {
+    expect(invertSignal(0)).toBe(1)
+    expect(invertSignal(1)).toBe(0)
+    expect(invertSignal('x')).toBe('x')
   })
 
   it('builds bus-split/bus-merge with one bus terminal on the wide side', () => {

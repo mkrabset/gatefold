@@ -25,3 +25,8 @@ export function xorBits(bits: Signal[]): Signal {
   if (bits.includes('x')) return 'x'
   return bits.filter((b) => b === 1).length % 2 === 1 ? 1 : 0
 }
+
+/** 3-state NOT of a single bit (`x` stays `x`). */
+export function invertSignal(s: Signal): Signal {
+  return s === 'x' ? 'x' : s === 0 ? 1 : 0
+}

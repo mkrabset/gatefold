@@ -1,7 +1,7 @@
 import type { ComponentDef, Design } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isComponentDef, isRecord } from './serialize'
-import { collectClosure, newUuid, remapInstanceDefs, uniqueId } from './util'
+import { newUuid, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Export/import of the custom component library. A library file is the set of
@@ -20,25 +20,61 @@ export interface LibraryFile {
 const isPrimitiveDef = (def: ComponentDef | undefined): boolean => !!def && def.kind === 'primitive'
 
 /**
- * Collect the library's template composites and their composite def closure, deep-cloned
- * with `variant` stripped. Instance references to primitive defs (including `variant`
- * primitive copies) are normalized to their built-in id so imports always resolve.
+ * Collect the library's template composites (and their composite def closure) for export,
+ * deep-cloned with `variant` stripped. References to a template's variant copies are collapsed
+ * back to the template itself via the shared lineage `uuid`, so only the library templates are
+ * exported — never the instance-local copies. Instance references to primitive defs (including
+ * `variant` primitive copies) are normalized to their built-in id so imports always resolve.
  */
 export function exportLibrary(design: Design): LibraryFile {
-  const roots = Object.values(design.defs).filter(
-    (d) => d.kind === 'composite' && d.id !== design.root && !d.variant,
+  const templates = Object.values(design.defs).filter(
+    (d) => d.kind === 'composite' && d.id !== design.root && d.variant !== true,
   )
 
-  const closure = collectClosure(design.defs, roots.map((r) => r.id), isPrimitiveDef)
+  // Map each template's lineage uuid to its id, so a variant copy can be collapsed back to
+  // the template it was copied from.
+  const uuidToTemplate = new Map<string, string>()
+  for (const t of templates) if (t.uuid) uuidToTemplate.set(t.uuid, t.id)
+
+  /** The library template a composite def belongs to, or null (primitive / unresolved). */
+  const templateIdOf = (defId: string): string | null => {
+    const ref = design.defs[defId]
+    if (!ref || ref.kind !== 'composite') return null
+    if (ref.variant !== true) return ref.id
+    return (ref.uuid && uuidToTemplate.get(ref.uuid)) ?? null
+  }
+
+  // Walk the templates' instance graph, collapsing variants to their templates. A variant
+  // with no matching template is promoted (exported with `variant` stripped) so the file
+  // stays self-contained rather than carrying a dangling reference.
+  const exportIds = new Set<string>()
+  const visit = (defId: string): void => {
+    if (exportIds.has(defId)) return
+    const def = design.defs[defId]
+    if (!def || def.kind !== 'composite') return
+    exportIds.add(defId)
+    for (const inst of def.instances ?? []) {
+      const ref = design.defs[inst.defId]
+      if (!ref) continue
+      if (ref.kind === 'primitive') continue
+      const tid = templateIdOf(ref.id)
+      visit(tid ?? ref.id)
+    }
+  }
+  for (const t of templates) visit(t.id)
 
   const components: ComponentDef[] = []
-  for (const id of closure) {
+  for (const id of exportIds) {
     const def = cloneDef(design.defs[id])
     delete def.variant
     for (const inst of def.instances ?? []) {
       const ref = design.defs[inst.defId]
+      if (!ref) continue
       if (isPrimitiveDef(ref) && ref.primitive) {
         inst.defId = ref.primitive
+      } else if (ref.kind === 'composite') {
+        const tid = templateIdOf(ref.id)
+        if (tid !== null) inst.defId = tid
       }
     }
     components.push(def)

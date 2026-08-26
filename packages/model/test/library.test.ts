@@ -44,6 +44,44 @@ function makeDesign(): Design {
   return { version: 1, root: 'main', defs }
 }
 
+function makeNestedDesign(): Design {
+  const defs: Record<string, ComponentDef> = {
+    and: primitiveDef('and'),
+    'input-port': inputPortDef(),
+    'output-port': outputPortDef(),
+  }
+  defs['half-adder'] = {
+    id: 'half-adder',
+    name: 'half-adder',
+    kind: 'composite',
+    uuid: 'uuid-ha',
+    ports: [],
+    instances: [inst('x1', 'and')],
+    connections: [],
+  }
+  defs['adder'] = {
+    id: 'adder',
+    name: 'adder',
+    kind: 'composite',
+    uuid: 'uuid-adder',
+    ports: [],
+    // Copy-on-place: adder contains a variant copy of half-adder, not the template itself.
+    instances: [inst('h1', 'half-adder~2')],
+    connections: [],
+  }
+  defs['half-adder~2'] = { ...cloneDef(defs['half-adder']), id: 'half-adder~2', variant: true }
+  defs['adder~9'] = { ...cloneDef(defs['adder']), id: 'adder~9', variant: true }
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [inst('a1', 'adder~9')],
+    connections: [],
+  }
+  return { version: 1, root: 'main', defs }
+}
+
 describe('exportLibrary', () => {
   it('exports template composites and their composite closure only', () => {
     const design = makeDesign()
@@ -76,6 +114,31 @@ describe('exportLibrary', () => {
   it('rejects invalid library JSON', () => {
     expect(() => parseLibrary('nope')).toThrow()
     expect(() => parseLibrary('{"version":1,"components":[{}}]')).toThrow()
+  })
+
+  it('collapses variant copies back to their template so only templates are exported', () => {
+    const lib = exportLibrary(makeNestedDesign())
+
+    const ids = lib.components.map((c) => c.id).sort()
+    expect(ids).toEqual(['adder', 'half-adder'])
+
+    // The nested reference points at the template, not the variant copy.
+    const adder = lib.components.find((c) => c.id === 'adder')!
+    expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder')
+  })
+
+  it('promotes an orphaned variant so the export stays self-contained', () => {
+    const design = makeNestedDesign()
+    // Delete the half-adder template, leaving only its variant copy referenced by adder.
+    delete design.defs['half-adder']
+
+    const lib = exportLibrary(design)
+    const ids = lib.components.map((c) => c.id).sort()
+    expect(ids).toEqual(['adder', 'half-adder~2'])
+
+    const adder = lib.components.find((c) => c.id === 'adder')!
+    expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder~2')
+    expect(lib.components.every((c) => !c.variant)).toBe(true)
   })
 })
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { currentDefId, useEditorStore } from '../state/editorStore'
+import { useSimStore } from '../state/simStore'
 import type { ComponentDef, Instance, Port } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
 import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
@@ -96,6 +97,13 @@ export function Sidebar({ width }: { width: number }) {
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const setSelection = useEditorStore((s) => s.setSelection)
   const navigateTo = useEditorStore((s) => s.navigateTo)
+  const simulating = useSimStore((s) => s.mode) === 'simulate'
+
+  // In simulate mode, navigation is done on the canvas (which keeps the sim path in
+  // sync); entering defs from the tree is disabled.
+  const openDef = (defId: string) => {
+    if (!simulating) navigateTo(defId)
+  }
 
   const rootDef = design.defs[design.root]
   const current = design.defs[currentDefId(useEditorStore.getState())]
@@ -125,10 +133,10 @@ export function Sidebar({ width }: { width: number }) {
                 expandable
                 expanded
                 onSelect={() => setSelection([])}
-                onOpen={() => navigateTo(rootDef.id)}
+                onOpen={() => openDef(rootDef.id)}
               />
               <div className="tree">
-                <CompositeChildren def={current} depth={1} selectId={(id) => setSelection([id])} onOpen={navigateTo} />
+                <CompositeChildren def={current} depth={1} selectId={(id) => setSelection([id])} onOpen={openDef} />
               </div>
             </div>
             {navStack.length > 0 && (

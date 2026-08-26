@@ -434,9 +434,11 @@ master-slave JK test).
   serialized verbatim. `parseDesign` validates the shape and throws on malformed input.
 - **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` /
   `parseLibrary`). Export collects the template composites and their transitive composite
-  closure, deep-cloned with `variant` stripped and references to primitive defs normalized to
-  built-in ids. Import merges with fresh collision-free ids/names (never overwriting), assigns
-  fresh lineage `uuid`s, and remaps internal references.
+  closure, deep-cloned with `variant` stripped; references to a template's `variant` copies are
+  collapsed back to the template via the shared lineage `uuid` (an orphaned variant with no
+  matching template is promoted so the file stays self-contained), and references to primitive
+  defs are normalized to built-in ids. Import merges with fresh collision-free ids/names (never
+  overwriting), assigns fresh lineage `uuid`s, and remaps internal references.
 - **File I/O** lives in the app: the toolbar's Open/Save JSON buttons and the library
   panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
   the design and resets navigation/selection and the undo history.

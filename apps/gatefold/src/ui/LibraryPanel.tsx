@@ -78,7 +78,9 @@ export function LibraryPanel({ width }: { width: number }) {
                   draggable={!simulating}
                   onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', d.id)}
                   onClick={() => setActive(d.id)}
-                  onDoubleClick={() => navigateTo(d.id)}
+                  onDoubleClick={() => {
+                    if (!simulating) navigateTo(d.id)
+                  }}
                   title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}
                 >
                   <span

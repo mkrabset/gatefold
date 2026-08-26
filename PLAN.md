@@ -312,3 +312,68 @@ primitive references normalized to built-in ids.
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload (done); component library export/import (done) | ✅ done |
 | 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |
+| 9 | Verilog codegen — structural export for FPGA (see §12) | ⏳ pending |
+
+---
+
+## 12. Verilog export (future idea)
+
+Export the canvas/design as synthesizable Verilog so a circuit can be run on an FPGA (or in an
+HDL simulator). Documented as an idea for now — not implemented.
+
+### Feasibility
+
+A pure `design → string` transform, in the same spirit as `serialize.ts`/`library.ts`. Everything
+it needs already exists in `@gatefold/model`:
+
+- `Primitive.transfer(inputs)` — per-kind combinational truth function.
+- Derived bus widths (the width solver in `widths.ts`) → Verilog vectors.
+- `Port.inverted` → inverter/bubble.
+- Hierarchical defs/instances/connections → `module`/instance/nets.
+
+### Natural mapping
+
+| Gatefold | Verilog |
+|----------|---------|
+| AND / OR / XOR (n-ary) | `and` / `or` / `xor` gate primitives (n inputs) or `assign y = &i;` |
+| NOT / inverted port | `not` primitive or `~` |
+| BUFFER / BUS | wire alias / `buf` |
+| FAN-IN / BUS-MERGE | concatenation `{a, b}` |
+| FAN-OUT / BUS-SPLIT | slicing `v[msb:lsb]` |
+| Composite | `module … endmodule` + instance |
+| input-port / output-port | module `input` / `output` ports |
+| CLOCK | not synthesizable → top-level clock input (or testbench stimulus) |
+| SWITCHES | top-level `input` ports (or testbench) |
+| LEDS / 7-SEG | top-level `output` ports (7-seg: optional BCD→7-seg decoder) |
+
+### Caveats / constraints
+
+1. **3-state is a simulation concept.** `x` has no synthesizable meaning, so the exporter must
+   **validate the flattened netlist and reject (or hard-warn on) any floating/undriven net** before
+   emitting code. The simulator already computes `driven[]` in `@gatefold/sim`'s `netlist.ts`, so
+   this gate is cheap to add.
+2. **Sequential logic is the hard part.** Flip-flops are currently built *from gates* (latches,
+   master-slave); exporting those yields feedback loops that FPGA tools reject as combinational
+   loops or infer as latches. → start **combinational-only**; a future `DFF`/register primitive
+   would map 1:1 to `always @(posedge clk)` and make clocked designs export cleanly.
+3. **Combinational loops** (already detected as oscillators by the sim) are unsynthesizable — the
+   exporter should warn/skip them.
+4. **Naming** — instance/port names need Verilog-identifier sanitization and keyword avoidance,
+   plus a deterministic, collision-free top-level module name (`main`).
+
+### Proposed shape
+
+- `exportVerilog(design: Design): { source: string; warnings: string[] }` in
+  `packages/model/src/verilog.ts` (pure, framework-free).
+- Emit **hierarchical modules** (one `module` per composite) rather than a single flat netlist —
+  more idiomatic and debuggable.
+- `packages/model/test/verilog.test.ts` covering gate mapping, bus slicing/concatenation, inversion,
+  hierarchy/ports, identifier sanitization, and the floating-net validation.
+- UI hookup: an "Export Verilog" button (like Export Library) via `downloadText('design.v', …)`.
+
+### Open decisions
+
+- Combinational-only first, or also add a `DFF` primitive?
+- Hierarchical modules (recommended) vs. one flat module?
+- Include a testbench generator (CLOCK/SWITCHES stimulus, LEDS/7-SEG `$monitor`)?
+- Export the whole `Design` (root as top module) vs. only the currently-viewed canvas?

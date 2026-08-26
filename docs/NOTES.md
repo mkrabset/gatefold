@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-24 (refactor: dedupe scattered logic — template predicate, copy-on-place, shared reference walk, clock constant, id-path helper).
+Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; Verilog idea).
 
 ## Where we are
 
@@ -79,6 +79,37 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   the `led-array`'s is `LEDS` (the internal kinds are unchanged). Both now default to a single
   **`bus`** terminal (`terminalType` default `wire` → `bus`; `defaultPorts()` return the bus
   port), and the store's `?? 'wire'` fallbacks became `?? 'bus'`. Tests updated accordingly.
+- **Renamed the project to "Gatefold"** — directory `apps/logica` → `apps/gatefold`, package
+  scope `@logica/*` → `@gatefold/*`, brand strings (`index.html` title, toolbar brand-name and
+  its `L`→`G` mark), the `localStorage` key (`gatefold-ui`), download names
+  (`design.gatefold.json` / `library.gatefold.json`), the drag MIME type
+  (`application/x-gatefold-def`), error strings, and all docs; the example `.logica.json` files
+  were renamed. `pnpm install` re-linked the workspace; typecheck/test/build all green.
+- **Sim-mode UX**:
+  - The canvas background turns **dark green** while simulating (`Palette.simBg` in both
+    palettes; `renderer.ts` selects it in sim mode).
+  - **Run** now enters simulate mode from design mode and starts running (extracted
+    `enterSim()`; `toggleMode` reuses it).
+  - **Space** toggles run/pause in simulate mode (global keydown in `App.tsx`).
+  - **Escape** at the top level in simulate mode leaves simulate mode (deeper, it ascends).
+- **Library panel** — grid switched to `repeat(auto-fill, minmax(92px, 1fr))`, default width
+  180→260 and min 140→220, and labels ellipsize, so no component button is pushed off-screen.
+- **Library export fix** — `exportLibrary` no longer exports `variant` copies: references to a
+  template's variant copies are collapsed back to the template via the shared lineage `uuid`,
+  so a component containing other components exports only the library templates (an orphaned
+  variant with no matching template is promoted so the file stays self-contained).
+  `library.test.ts` covers collapse + promotion.
+- **Sim-mode hardening (template isolation)**:
+  - Library cards are not draggable in simulate mode (`LibraryPanel` `draggable={!simulating}`;
+    `Canvas` `handleDragOver`/`handleDrop` guard).
+  - Entering a template while simulating is disabled (`LibraryPanel`/`Sidebar` gate), and
+    `simStore` gained a `viewingLive()` guard so `rawSignalOf` (and `simColorOf`/`simValueOf`/
+    `simSignalOf`) plus `toggleSwitch` only act on the live def at the current `path`. Fixes
+    template internals flashing live signal colors from a sibling instance (the `navStack`/`path`
+    desync + instance-id collision).
+- **Verilog export** — captured as a future idea in `PLAN.md` §12 (+ roadmap row 9): a pure
+  `exportVerilog(design)` for FPGA, combinational-first, with a **floating-net validation gate**
+  (only designs with no undriven nets are codegen-able).
 
 ## Latest (previous session)
 
@@ -362,6 +393,10 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - `PropertySpec` has no schema version stamp; number props only clamp to min/max.
 - The primitive "internal circuitry" placeholder shows single pins for bus-split/merge
   (their width is instance-specific, so it can't be shown without an instance).
+- **Verilog export** — future idea, captured in `PLAN.md` §12: a pure `exportVerilog(design)`
+  for FPGA targeting. Key decisions deferred: combinational-only vs. adding a `DFF` primitive;
+  hierarchical vs. flat modules; testbench generation; and a **floating-net validation gate**
+  (only designs with no undriven nets are acceptable for codegen, since `x` isn't synthesizable).
 
 ## Commands
 

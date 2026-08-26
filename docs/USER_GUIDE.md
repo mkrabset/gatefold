@@ -247,8 +247,9 @@ its properties, and what it does.
 
 Press **Simulate** — or just **Run** — to enter simulation mode (it resets to the top-level
 sheet and builds a simulation of your design). The canvas background turns **dark green**
-while simulating. In this mode editing is disabled, but you can still pan, zoom, and navigate
-into components.
+while simulating. In this mode editing is disabled — you can't place components from the
+library or enter a library template — but you can still pan, zoom, and navigate into the
+components on the canvas.
 
 ### Controls
 

@@ -127,6 +127,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     toggleSwitch: (instanceId, lane = 0) => {
       const { engine } = get()
       if (!engine) return
+      if (!viewingLive()) return
       const id = flatId(instanceId)
       engine.toggleSwitch(id, lane)
       engine.step()
@@ -157,10 +158,31 @@ function flatId(instanceId: string): string {
   return joinInstancePath(path.join(INSTANCE_PATH_SEP), instanceId)
 }
 
+/**
+ * Whether the currently-viewed def (top of `navStack`) is the live def at the current
+ * `path`. When the user navigates into a def that is not part of the running simulation
+ * (e.g. a library template), the signal/pin ids no longer correspond to flattened netlist
+ * keys, so signal lookups and switch toggles must be suppressed.
+ */
+function viewingLive(): boolean {
+  const { path } = useSimStore.getState()
+  const editor = useEditorStore.getState()
+  let def = editor.design.defs[editor.design.root]
+  if (!def) return false
+  for (const id of path) {
+    const inst = def.instances?.find((i) => i.id === id)
+    const next = inst && editor.design.defs[inst.defId]
+    if (!next) return false
+    def = next
+  }
+  return def.id === editor.navStack[editor.navStack.length - 1]
+}
+
 /** The full bit-vector signal for a flattened pin, or undefined when not simulating. */
 function rawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   const { engine, mode } = useSimStore.getState()
   if (mode !== 'simulate' || !engine) return undefined
+  if (!viewingLive()) return undefined
   return engine.signalOf(flatId(instanceId), portId)
 }
 

@@ -33,6 +33,8 @@ Left to right:
 * *Breadcrumb* — the path of components you've navigated into (`main / adder / …`); the
   *↑* button (or *Escape*) goes up one level. A `template` badge marks a library template.
 * *Open / Save JSON* — load or save the whole design as a `.json` file.
+* *Export Verilog* — generate synthesizable Verilog from the current design and download it as a
+  `.v` file (see §8).
 * *Theme toggle* — switch between dark and light.
 
 === Sidebar (left)
@@ -291,3 +293,30 @@ to a stable state; a true oscillator is detected and shown as `x`.
 
 Double-click a component to descend into it and inspect its internals live; *Escape* ascends
 back up. At the top level, *Escape* leaves simulate mode and returns to design mode.
+
+== 8. Exporting Verilog
+
+Press *Export Verilog* in the toolbar to generate synthesizable Verilog from the current design
+(the same JSON you get from *Save JSON*) and download it as `design.v`, so the circuit can be
+taken into an FPGA toolchain or an HDL simulator.
+
+What the generator produces:
+
+* One *`module` per composite*, with the top-level sheet (`main`) as the top module.
+* *Gates* (AND/OR/XOR/NOT/BUFFER) as `assign` expressions, so terminal inversion becomes a `~`.
+* *DFF* as `always @(posedge clk …)`, with the async reset (when connected) and `INIT` from the
+  _Initial value_ property.
+* *Buses* as `[n-1:0]` vectors — FAN-IN/BUS-MERGE concatenate, FAN-OUT/BUS-SPLIT slice.
+* *Hierarchy* as nested module instantiations; composite ports become module ports.
+
+Probes map to top-level I/O: *CLOCK* and *SWITCHES* become `input` pins, *LEDS* and *7-SEG*
+become `output` pins. A *SWITCHES* placed inside a composite is exported as a constant fixed at
+its _Initial value_.
+
+The export reports issues by severity:
+
+* *Errors* (shown as a toast and logged to the console): _floating nets_ (an input/output with no
+  driver) and a _nested CLOCK_ (a clock inside a composite can't be exported).
+* *Info* (console only): nested SWITCHES (fixed initial value) and nested LEDS/7-SEG (not exported).
+
+The same generator is available as a CLI: `pnpm --filter @gatefold/verilog cli <design.json> [out.v]`.

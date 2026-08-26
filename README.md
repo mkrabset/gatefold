@@ -32,7 +32,8 @@ and simulate them — including clocked, sequential behavior built from gates.
 - **Copy / paste / delete** and **undo / redo**.
 - **Component properties** — per-instance values (e.g. CLOCK `period`, BUS `lanes`,
   7-SEG `order`, array `terminalType`).
-- **Save / load** — whole designs as JSON; library export/import for custom components.
+- **Save / load** — whole designs as JSON; library export/import for custom components; and
+  **Verilog export** (synthesizable `.v` for FPGA/HDL, via a toolbar button or a CLI).
 - **Simulation** — design/simulate modes with Run/Step/Stop/Reset, signal-colored wires
   (`1` red, `0` black, `x` gray) on a dark-green canvas, a CLOCK source, interactive
   switch/led/7-seg probes, and configurable gate delays + step modes. **Run** enters simulate
@@ -62,7 +63,7 @@ Open the URL printed by Vite (usually <http://localhost:5173>).
 ## Tech stack
 
 TypeScript · React · Zustand · HTML5 canvas, in a pnpm monorepo
-(`apps/gatefold` + `packages/model` + `packages/sim`).
+(`apps/gatefold` + `packages/model` + `packages/sim` + `packages/verilog`).
 
 ## Development
 

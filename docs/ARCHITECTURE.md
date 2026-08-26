@@ -19,13 +19,14 @@ have been implemented and the reasoning behind them.
 │   └── gatefold/             # @gatefold/app — Vite + React + TypeScript
 └── packages/
     ├── model/              # @gatefold/model — shared domain model (no UI deps)
-    └── sim/                # @gatefold/sim — pure event-driven simulator (no UI deps)
+    ├── sim/                # @gatefold/sim — pure event-driven simulator (no UI deps)
+    └── verilog/            # @gatefold/verilog — JSON → Verilog codegen (no UI deps)
 ```
 
 - Package manager: **pnpm** (v11). Lockfile: `pnpm-lock.yaml`.
 - `@gatefold/model` is consumed as raw TypeScript source via its `exports` field
   (`"exports": { ".": "./src/index.ts" }`), so no build step is needed.
-- Tests: **Vitest**. The app runs with `jsdom`; the model package runs in `node`.
+- Tests: **Vitest**. The app runs with `jsdom`; the model/sim/verilog packages run in `node`.
 
 ---
 
@@ -454,6 +455,28 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
   panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
   the design and resets navigation/selection and the undo history.
 
+## 8b. Verilog export (`@gatefold/verilog`)
+
+A pure package (`packages/verilog`, depends only on `@gatefold/model`) that turns the serialized
+design into synthesizable Verilog. The input is the same JSON `serializeDesign` produces; the
+output is a `.v` module hierarchy — this keeps the generator fully decoupled from the app.
+
+- **`exportVerilog(json): { source, issues }`** — `parseDesign` → `withBuiltinPrimitives` →
+  `sanitizeDesign`, then a `Generator` walks the composite hierarchy and emits one `module` per
+  composite (root = top module, children emitted first).
+- **Per module** — a local union-find resolves connection endpoints into named nets (with widths
+  from the model's width solver); port-group instances are dissolved so a composite's `ports`
+  become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
+  `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`; buses emit
+  concatenation/slicing; child composites emit instantiations.
+- **Probes** — CLOCK/SWITCHES become top-level `input`s, LEDS/7-SEG top-level `output`s. A nested
+  switch is emitted as a constant at its `initialValue`; a nested clock or sink is not exported.
+- **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested
+  clocks, and dangling refs; info for nested switches/sinks. The app logs infos to the console and
+  surfaces errors as a toast; the CLI (`tsx src/cli.ts`) prints them to stderr.
+- Identifier sanitization + Verilog-keyword avoidance + collision dedup apply to module, port, and
+  net names.
+
 ---
 
 ## 9. Testing
@@ -473,8 +496,12 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 - `packages/model/test/transfer.test.ts` — `Primitive.transfer` 3-state truth tables and bus
   reshape.
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
-  JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping, and
-  port-group/composite signal resolution.
+  JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
+  port-group/composite signal resolution, and the DFF (posedge/negedge, async reset, initial value,
+  shift register, composite).
+- `packages/verilog/test/verilog.test.ts` — gate emission, inversion, DFF (with/without reset),
+  fan-in bus concatenation, nested composite modules, identifier sanitization, floating-net
+  warning, and the nested-switch fixed-initial-value constant.
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - `apps/gatefold/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,

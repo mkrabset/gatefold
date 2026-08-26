@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog idea).
+Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog export).
 
 ## Where we are
 
@@ -132,6 +132,20 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   output) + model (`invertSignal`).
 - **Inversion bubbles 20% larger** — `drawPin` bubble radius is now
   `pinRadiusWorld(1) * zoom * 1.2`.
+- **Verilog export (`@gatefold/verilog`)** — new `packages/verilog` package: `exportVerilog(json)`
+  turns the serialized design into a synthesizable `.v` module hierarchy (input = the save-JSON
+  format, output = Verilog, so the generator is fully decoupled from the app). One `module` per
+  composite (root = top), gates as `assign` (inversion = `~`), the DFF as
+  `always @(posedge clk …)` with async reset + `INIT`, buses as `[n-1:0]` concat/slice, child
+  composites as instantiations, and probes as top-level I/O (CLOCK/SWITCHES → `input`, LEDS/7-SEG →
+  `output`). A nested switch is emitted as a constant at its `initialValue`. Identifier
+  sanitization/keyword avoidance/dedup. Exposed as: a `tsx` CLI
+  (`pnpm --filter @gatefold/verilog cli <in.json> [out.v]`), a toolbar **Export Verilog** button
+  (downloads `design.v`), and `packages/verilog/test/verilog.test.ts` (9 tests). `pnpm-workspace.yaml`
+  gained `allowBuilds: { esbuild: true }` for `tsx`.
+- **Verilog issue severity** — `exportVerilog` returns `issues: { level: 'info' | 'error'; message }[]`.
+  Errors (toast + console): floating nets, nested clocks, dangling refs. Info (console only): nested
+  switches (fixed initial value) and nested sinks (not exported).
 
 ## Latest (previous session)
 

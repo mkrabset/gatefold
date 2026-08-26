@@ -106,6 +106,12 @@ authoritative — update this when a term's meaning changes.
   transform, so exiting restores the exact view you left.
 - **Selection** — `selectedIds`; marquee (drag empty space), Shift+click to toggle, drag a
   selected component to move the whole selection.
+- **Verilog export** — generating synthesizable Verilog from the serialized design (`@gatefold/verilog`,
+  `exportVerilog(json)`): the JSON save format is the input, a `.v` module hierarchy is the output.
+  One `module` per composite (root = top), gates as `assign`, the DFF as `always @(posedge clk)`
+  with reset, buses as `[n-1:0]`, and probes as top-level I/O. Reports issues by severity: *errors*
+  (floating nets, nested clocks) vs *info* (nested switches/sinks). Also exposed as a CLI and a
+  toolbar button.
 
 ## Simulation
 

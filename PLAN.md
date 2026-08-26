@@ -312,14 +312,23 @@ primitive references normalized to built-in ids.
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload (done); component library export/import (done) | ✅ done |
 | 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |
-| 9 | Verilog codegen — structural export for FPGA (see §12) | ⏳ pending |
+| 9 | Verilog codegen — structural export for FPGA (see §12) | 🔄 in progress |
 
 ---
 
-## 12. Verilog export (future idea)
+## 12. Verilog export
 
-Export the canvas/design as synthesizable Verilog so a circuit can be run on an FPGA (or in an
-HDL simulator). Documented as an idea for now — not implemented.
+Export the design as synthesizable Verilog so a circuit can be run on an FPGA (or in an HDL
+simulator).
+
+**Status — first iteration implemented** as `packages/verilog` (`@gatefold/verilog`): `exportVerilog(json)`
+(JSON in, Verilog out), a `tsx` CLI (`pnpm --filter @gatefold/verilog cli <in.json> [out.v]`), and a
+toolbar **Export Verilog** button. Covers: combinational gates (assign-based, so inversion is a
+`~`), the DFF (`always @(posedge clk …)` with async reset + `INIT`), buses (concat/slice),
+composite hierarchy, identifier sanitization, and top-level CLOCK/SWITCHES → `input` + LEDS/7-SEG →
+`output`. Issues are reported with severity: **error** for floating nets, nested clocks, and dangling
+refs; **info** for nested switches (exported as a fixed initial value) and nested sinks (not exported).
+Tests in `packages/verilog/test/`.
 
 ### Feasibility
 

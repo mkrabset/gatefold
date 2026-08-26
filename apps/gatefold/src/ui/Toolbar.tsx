@@ -80,6 +80,7 @@ export function Toolbar() {
   const openGroupDialog = useEditorStore((s) => s.openGroupDialog)
   const saveProject = useEditorStore((s) => s.saveProject)
   const loadProject = useEditorStore((s) => s.loadProject)
+  const exportVerilog = useEditorStore((s) => s.exportVerilog)
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
@@ -185,6 +186,11 @@ export function Toolbar() {
         <IconButton title="Save JSON" onClick={saveProject}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M8 3v8M8 11l-3-3M8 11l3-3M3 13h10" />
+          </svg>
+        </IconButton>
+        <IconButton title="Export Verilog" onClick={exportVerilog}>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M4 3h8M4 3v2M4 3l-1 2M12 3v2M12 3l1 2M3 13h10M4 8h8M6 8v5M10 8v5" />
           </svg>
         </IconButton>
       </div>

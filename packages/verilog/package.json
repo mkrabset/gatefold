@@ -1,0 +1,25 @@
+{
+  "name": "@gatefold/verilog",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "cli": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@gatefold/model": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.10"
+  }
+}

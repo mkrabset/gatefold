@@ -40,6 +40,7 @@ import {
   withBuiltinPrimitives,
 } from '@gatefold/model'
 import type { Clipboard } from '@gatefold/model'
+import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { instanceBounds } from '../editor/geometry'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
 import { downloadText } from '../util/download'
@@ -138,6 +139,7 @@ interface EditorState {
   loadProject: (json: string) => void
   exportLibrary: () => void
   importLibrary: (json: string) => void
+  exportVerilog: () => void
 }
 
 /** True for the switch-array/led-array primitives. */
@@ -795,6 +797,21 @@ export const useEditorStore = create<EditorState>()(
         })
       } catch (e) {
         set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not import library'))
+      }
+    },
+    exportVerilog: () => {
+      try {
+        const { source, issues } = buildVerilog(serializeDesign(get().design))
+        downloadText('design.v', source)
+        const errors = issues.filter((i) => i.level === 'error')
+        const infos = issues.filter((i) => i.level === 'info')
+        for (const i of infos) console.info(`Verilog export: ${i.message}`)
+        for (const e of errors) console.error(`Verilog export error: ${e.message}`)
+        if (errors.length > 0) {
+          set((s) => void (s.notice = `Exported Verilog with ${errors.length} error(s) — see console`))
+        }
+      } catch (e) {
+        set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not export Verilog'))
       }
     },
     })),

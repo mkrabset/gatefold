@@ -39,7 +39,8 @@ export interface SimView {
 
 const GRID = 24
 const WIRE_WIDTH = 1.5
-const HALO_WIDTH = 2.5
+/** Extra halo width on each side of a wire, in screen pixels (zoom-independent). */
+const HALO_MARGIN = 3
 
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
 function pinRadius(width: number, zoom: number): number {
@@ -711,7 +712,7 @@ export function drawScene(
                 })
             }
         }
-        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, bg, (WIRE_WIDTH + HALO_WIDTH * 2) * vp.zoom)
+        for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, bg, WIRE_WIDTH * vp.zoom + HALO_MARGIN * 2)
         for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, w.color, WIRE_WIDTH * vp.zoom)
     }
 

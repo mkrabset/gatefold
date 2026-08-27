@@ -14,7 +14,7 @@ const SIGNAL_COLORS: Record<Signal, { dark: string; light: string }> = {
   x: { dark: '#6b7280', light: '#9ca3af' },
 }
 
-/** Simulated time (ps) advanced per run tick (~16 ms). */
+/** Fallback simulated time (ps) advanced per run tick (~16 ms) when there is no clock. */
 const RUN_STEP = 1000
 
 interface SimState {
@@ -95,11 +95,17 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       if (get().mode === 'design') enterSim()
       const engine = get().engine
       if (!engine) return
+      // Fresh timing lamps on each play/resume.
+      engine.resetTiming()
       set({ running: true })
       runTimer = setInterval(() => {
         const { engine } = get()
         if (!engine) return
-        engine.advanceTo(engine.time + RUN_STEP)
+        // Advance to the next clock edge (so short clocks are sampled correctly);
+        // fall back to a fixed step when the design has no clock source. Then settle
+        // so the circuit is never left mid-cascade (e.g. when pausing).
+        engine.advanceTo(engine.time + (engine.nextClockEdgeDelta() ?? RUN_STEP))
+        engine.settle()
         set((s) => ({ version: s.version + 1 }))
       }, 16)
     },
@@ -205,4 +211,15 @@ export function simValueOf(instanceId: string, portId: string): Signal | undefin
 /** Resolve the full bit-vector signal for a pin, or undefined. */
 export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   return rawSignalOf(instanceId, portId)
+}
+
+/** The timing-breach lamp state for a design with exactly one clock. */
+export function simTimingStatus(): { active: boolean; half: boolean; full: boolean } {
+  const { engine, mode } = useSimStore.getState()
+  if (mode !== 'simulate' || !engine) return { active: false, half: false, full: false }
+  return {
+    active: engine.hasSingleClock(),
+    half: engine.timingHalfViolation,
+    full: engine.timingFullViolation,
+  }
 }

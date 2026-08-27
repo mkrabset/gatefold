@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { useSimStore } from '../state/simStore'
+import { useSimStore, simTimingStatus } from '../state/simStore'
 import { isTemplateDef } from '@gatefold/model'
 
 /**
@@ -84,6 +84,7 @@ export function Toolbar() {
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
+  useSimStore((s) => s.version)
   const toggleMode = useSimStore((s) => s.toggleMode)
   const run = useSimStore((s) => s.run)
   const step = useSimStore((s) => s.step)
@@ -91,6 +92,7 @@ export function Toolbar() {
   const reset = useSimStore((s) => s.reset)
   const ascend = useSimStore((s) => s.ascend)
   const openSettings = useSimStore((s) => s.openSettings)
+  const timing = simTimingStatus()
 
   const onOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -143,6 +145,19 @@ export function Toolbar() {
           </svg>
         </IconButton>
       </div>
+
+      {timing.active && (
+        <span
+          className={`timing-lamp${timing.full ? ' full' : timing.half ? ' half' : ''}`}
+          title={
+            timing.full
+              ? 'Clock too fast — logic does not settle within one clock period'
+              : timing.half
+                ? 'Clock too fast — logic does not settle before the next clock edge (half period)'
+                : 'Timing OK — logic settles within half a clock period'
+          }
+        />
+      )}
 
       <div className="tb-divider" />
 

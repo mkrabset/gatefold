@@ -269,6 +269,18 @@ components on the canvas.
 - **Space** — toggle between running and paused while simulating.
 - **Settings** — set the default gate delay (ps) and the step mode.
 
+### Timing lamp
+
+When the design has **exactly one CLOCK**, a small lamp appears in the toolbar next to the
+simulation controls and reports how fast the logic settles relative to that clock's period:
+
+- **green** — the combinational logic settles within half a clock period.
+- **yellow** — it takes more than half a period (it doesn't settle before the next clock edge).
+- **red** — it takes more than a full period (the clock is too fast for the logic).
+
+A yellow or red lamp latches on and stays until the next **Run**/**Reset**. Hover the lamp for a
+tooltip.
+
 ### How it works
 
 The engine is event-driven with **inertial gate delays**: a gate's output changes a configured

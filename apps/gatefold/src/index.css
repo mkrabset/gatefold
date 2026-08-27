@@ -143,6 +143,25 @@ body {
   background: var(--border);
 }
 
+.timing-lamp {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin: 0 6px;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+
+.timing-lamp.half {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber);
+}
+
+.timing-lamp.full {
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+}
+
 .tb-spacer {
   flex: 1;
 }

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog export).
+Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog export; event-driven clock; timing lamps).
 
 ## Where we are
 
@@ -107,9 +107,6 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
     `simSignalOf`) plus `toggleSwitch` only act on the live def at the current `path`. Fixes
     template internals flashing live signal colors from a sibling instance (the `navStack`/`path`
     desync + instance-id collision).
-- **Verilog export** — captured as a future idea in `PLAN.md` §12 (+ roadmap row 9): a pure
-  `exportVerilog(design)` for FPGA, combinational-first, with a **floating-net validation gate**
-  (only designs with no undriven nets are codegen-able).
 - **`DFF` primitive (sequential)** — new `dff` primitive (`D`/`CLK`/`RST` → `Q`) with properties
   `edge` (`posedge`/`negedge`), `initialValue`, and `resetActiveHigh`. The engine gained a
   **sequential path**: `Primitive.isSequential()` / `clockPortId()` / `resetPortId()`, a
@@ -146,6 +143,22 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Verilog issue severity** — `exportVerilog` returns `issues: { level: 'info' | 'error'; message }[]`.
   Errors (toast + console): floating nets, nested clocks, dangling refs. Info (console only): nested
   switches (fixed initial value) and nested sinks (not exported).
+- **Event-driven clock (run aliasing fix)** — the clock is no longer a continuous source sampled at
+  `advanceTo` checkpoints; each clock keeps **one pending edge event** that toggles its net and
+  schedules the next edge at `now + half`. `advanceTo(t)` now advances *through* all events `≤ t`
+  (time-bounded, via a `drainEvents(shouldProcess)` + `MinHeap.peek()`), and `settle()` stops at the
+  next clock edge. This eliminates the `1000 ps`-tick aliasing for short clock periods and makes
+  `run()` advance to the next clock edge (`engine.nextClockEdgeDelta()`, exposed) with a `RUN_STEP`
+  fallback for clockless designs; `run()` then calls `engine.settle()` (made public) so pausing never
+  leaves a mid-cascade state. Tests: intermediate-edge advancing + a DFF on a `1000 ps` clock
+  (engine tests).
+- **Timing-breach lamps (single clock)** — the engine now latches a **half-period** breach
+  (`timingHalfViolation`) when a gate output settles later than its triggering clock edge + `half`,
+  and a **full-period** breach (`timingFullViolation`) when later than `edge + period`. Gate events
+  carry the triggering edge (`Event.edge`), propagated through the cascade and reset on clock edges /
+  manual source toggles. Exposed via `hasSingleClock()` / `resetTiming()` (run resets the lamps).
+  The toolbar shows a green/yellow/red **lamp** (with tooltips) whenever there is exactly one clock.
+  Tests: no-breach / half / full chains of buffers, zero/multiple clocks, `resetTiming`.
 
 ## Latest (previous session)
 
@@ -403,11 +416,9 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 
 ## Immediate next steps (pick up here)
 
-1. **Sim polish** — per-kind/per-instance delay overrides in the settings UI; make `run()`
-   clock-period-aware (currently a fixed `1000 ps`/tick); `simStore` unit tests.
-2. **Sequential primitives (optional)** — a built-in `DFF`/register (behavioral edge
-   triggering) as an alternative to gate-built flops, if desired.
-3. **Timing accuracy (later)** — glitch/setup-hold history view; SCC-based settling for
+1. **Sim polish** — per-kind/per-instance delay overrides in the settings UI; `simStore` unit
+   tests. (Run is now clock-aware via the event-driven clock + advance-to-next-edge — done.)
+2. **Timing accuracy (later)** — glitch/setup-hold history view; SCC-based settling for
    large designs.
 
 ## Open items / decisions to revisit

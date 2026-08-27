@@ -24,6 +24,19 @@ function mkDesign(
   return { version: 1, root: 'main', defs }
 }
 
+/** A single clock (period 1000 ps) driving a chain of `n` buffers (n×100 ps path delay). */
+function timingDesign(n: number): Design {
+  const instances: Instance[] = [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }]
+  const connections: ComponentDef['connections'] = []
+  let prev: PinRef = iref('clk', 'out:0')
+  for (let i = 0; i < n; i++) {
+    instances.push(inst(`b${i}`, 'buffer'))
+    connections.push(conn(`c${i}`, prev, iref(`b${i}`, 'in:0')))
+    prev = iref(`b${i}`, 'out:0')
+  }
+  return mkDesign(instances, connections)
+}
+
 describe('Simulation engine', () => {
   it('propagates combinational logic from switches', () => {
     const sim = new Simulation(
@@ -366,6 +379,43 @@ describe('Simulation engine', () => {
     expect(sim.signal('l', 'in:0')).toBe(1)
     sim.step()
     expect(sim.signal('l', 'in:0')).toBe(0)
+  })
+
+  it('advances through intermediate clock edges (event-driven)', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }, inst('l', 'led-array')],
+        [conn('c1', iref('clk', 'out:0'), iref('l', 'in:0'))],
+      ),
+    )
+    expect(sim.signal('l', 'in:0')).toBe(1)
+    sim.advanceTo(1200) // crosses edges at 500 (0) and 1000 (1)
+    expect(sim.signal('l', 'in:0')).toBe(1)
+    sim.advanceTo(1700) // crosses the edge at 1500 (0)
+    expect(sim.signal('l', 'in:0')).toBe(0)
+  })
+
+  it('samples a DFF with a short-period clock without aliasing', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('d', 'switch-array'),
+          { id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } },
+          inst('f', 'dff'),
+        ],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+        ],
+      ),
+    )
+    sim.setSwitch('d', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    // Advance in 1000 ps steps (the run-loop cadence): the posedge at t=1000 must be seen.
+    sim.advanceTo(1000)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
   })
 
   it('resolves signals on port-group and composite-boundary pins', () => {
@@ -794,5 +844,57 @@ describe('Simulation engine', () => {
     expect(sim.signal('r', 'out:0')).toBe(1)
     // The internal DFF pin resolves through the boundary too.
     expect(sim.signal('r.f', 'out:0')).toBe(1)
+  })
+
+  it('reports no timing breach when logic settles within a half period', () => {
+    const sim = new Simulation(timingDesign(3), { ...DEFAULT_CONFIG, stepMode: 'clock-edge' })
+    for (let i = 0; i < 10; i++) sim.step()
+    expect(sim.hasSingleClock()).toBe(true)
+    expect(sim.timingHalfViolation).toBe(false)
+    expect(sim.timingFullViolation).toBe(false)
+  })
+
+  it('reports a half-period breach when logic settles past the next edge', () => {
+    const sim = new Simulation(timingDesign(6), { ...DEFAULT_CONFIG, stepMode: 'clock-edge' })
+    for (let i = 0; i < 10; i++) sim.step()
+    expect(sim.timingHalfViolation).toBe(true)
+    expect(sim.timingFullViolation).toBe(false)
+  })
+
+  it('reports a full-period breach when logic settles past a full period', () => {
+    const sim = new Simulation(timingDesign(11), { ...DEFAULT_CONFIG, stepMode: 'clock-edge' })
+    for (let i = 0; i < 20; i++) sim.step()
+    expect(sim.timingHalfViolation).toBe(true)
+    expect(sim.timingFullViolation).toBe(true)
+  })
+
+  it('does not report timing for zero or multiple clocks', () => {
+    const noClock = new Simulation(
+      mkDesign(
+        [inst('s', 'switch-array'), inst('l', 'led-array')],
+        [conn('c', iref('s', 'out:0'), iref('l', 'in:0'))],
+      ),
+    )
+    expect(noClock.hasSingleClock()).toBe(false)
+
+    const twoClocks = new Simulation(
+      mkDesign(
+        [
+          { id: 'c1', name: 'c1', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } },
+          { id: 'c2', name: 'c2', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 2000 } },
+        ],
+        [],
+      ),
+    )
+    expect(twoClocks.hasSingleClock()).toBe(false)
+  })
+
+  it('clears latched breaches on resetTiming()', () => {
+    const sim = new Simulation(timingDesign(6), { ...DEFAULT_CONFIG, stepMode: 'clock-edge' })
+    for (let i = 0; i < 10; i++) sim.step()
+    expect(sim.timingHalfViolation).toBe(true)
+    sim.resetTiming()
+    expect(sim.timingHalfViolation).toBe(false)
+    expect(sim.timingFullViolation).toBe(false)
   })
 })

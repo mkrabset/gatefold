@@ -395,10 +395,22 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
 - **`engine.ts`** — event-driven evaluation with **inertial** gate delays:
   - a min-heap of timed events; an input change schedules a gate's output at `now + delay`;
     versioned events supersede pending outputs (inertial).
-  - `Simulation.step()` (`quiescent` = settle, `clock-edge` = advance one edge per
-    `SimConfig.stepMode`), `advanceTo(t)` (clock square wave from `Instance.props.period` ps),
-    `setSwitch(id, value)` / `toggleSwitch(id, lane)` (per-lane switch state for
-    `switch-array`), `signalOf(id, portId)` / `signal(id, portId)`.
+  - `Simulation.step()` (`quiescent` = settle the combinational cascade, `clock-edge` = advance
+    one clock edge then settle), `advanceTo(t)` (advance *through* all events up to `t`),
+    `settle()` (flush pending gate events, stopping at the next clock edge — public so `run()`
+    can leave the circuit settled each tick), `nextClockEdgeDelta()`, `setSwitch(id, value)` /
+    `toggleSwitch(id, lane)` (per-lane switch state for `switch-array`), `signalOf(id, portId)` /
+    `signal(id, portId)`.
+  - **Event-driven clock**: each clock source keeps one pending edge event; when it fires the
+    clock's net flips and the next edge is scheduled at `now + half` (`Instance.props.period`/2).
+    So time advance is bounded ("process events ≤ t") rather than "settle until the queue is
+    empty", and any clock period is captured without aliasing.
+  - **Timing-breach detection** (single clock only): gate events carry the clock-edge time that
+    triggered their cascade (`Event.edge`), and `evaluateGate` latches a **half-period breach**
+    when an output settles later than `edge + half`, or a **full-period breach** when later than
+    `edge + period`. Exposed as `timingHalfViolation`/`timingFullViolation` + `hasSingleClock()`
+    + `resetTiming()`; the app shows a green/yellow/red toolbar lamp while a single clock is
+    present.
   - **Power-on resolution**: driven nets initialize to `0` (floating stay `x`), then a
     zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
     change counter detects true oscillators and freezes them at `x`. This breaks the `x`
@@ -435,7 +447,6 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 - Timing-accurate simulation (glitch/setup-hold history, per-instance delays, SCC-based
   settling for large designs) — the engine is functional (unit/inertial delay), not
   timing-accurate.
-- `run()` is not clock-period-aware (fixed `1000 ps`/tick).
 
 ---
 

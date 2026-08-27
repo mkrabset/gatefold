@@ -1267,6 +1267,30 @@ canvas.</p>
 </li>
 </ul>
 </div>
+<div class="sect2">
+<h3 id="_timing_lamp">Timing lamp</h3>
+<div class="paragraph">
+<p>When the design has <strong>exactly one CLOCK</strong>, a small lamp appears in the toolbar next to the
+simulation controls and reports how fast the logic settles relative to that clock&#8217;s period:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>green</strong> — the combinational logic settles within half a clock period.</p>
+</li>
+<li>
+<p><strong>yellow</strong> — it takes more than half a period (it doesn&#8217;t settle before the next clock edge).</p>
+</li>
+<li>
+<p><strong>red</strong> — it takes more than a full period (the clock is too fast for the logic).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A yellow or red lamp latches on and stays until the next <strong>Run</strong>/<strong>Reset</strong>. Hover the lamp for a
+tooltip.</p>
+</div>
+</div>
 </div>
 <div class="sect2">
 <h3 id="_how_it_works">How it works</h3>

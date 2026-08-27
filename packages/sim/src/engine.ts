@@ -16,6 +16,8 @@ interface Event {
   net: number
   value: Signal[]
   v: number
+  /** The clock-edge time that triggered this event's cascade (for gate/DFF events). */
+  edge?: number
 }
 
 interface Gate {
@@ -35,6 +37,13 @@ interface Sequential {
   resetActiveHigh: boolean
   resetValue: Signal
   lastClk: Signal
+}
+
+/** State for an event-driven clock source (at most one pending edge event at a time). */
+interface ClockState {
+  net: number
+  half: number
+  period: number
 }
 
 /** Minimal binary min-heap keyed by event time. */
@@ -78,6 +87,10 @@ class MinHeap {
     }
     return top
   }
+
+  peek(): Event | undefined {
+    return this.a.length > 0 ? this.a[0] : undefined
+  }
 }
 
 /**
@@ -91,6 +104,8 @@ export class Simulation {
   private pinNet: Map<string, number>
   private gates: Gate[]
   private sequentials: Sequential[]
+  private clocks: ClockState[] = []
+  private clockByNet = new Map<number, ClockState>()
   private values: (Signal[] | undefined)[]
   private fanout: Gate[][]
   private seqFanout: Sequential[][]
@@ -99,6 +114,12 @@ export class Simulation {
   private events = new MinHeap()
   private timeValue = 0
   private stepMode: SimConfig['stepMode']
+  /** Latched: the logic has failed to settle within half a clock period. */
+  timingHalfViolation = false
+  /** Latched: the logic has failed to settle within a full clock period. */
+  timingFullViolation = false
+  /** The clock-edge time that started the cascade currently being processed. */
+  private currentEdgeTime = 0
 
   constructor(design: Design, config: SimConfig = DEFAULT_CONFIG) {
     const netlist = flatten(design)
@@ -124,6 +145,10 @@ export class Simulation {
         this.addSequential(inst, config)
         continue
       }
+      if (inst.kind === 'clock') {
+        this.addClock(inst)
+        continue
+      }
       const isGate = inst.inputs.length > 0 && inst.outputs.length > 0
       const isSource = inst.inputs.length === 0 && inst.outputs.length > 0
       if (isGate) {
@@ -131,7 +156,7 @@ export class Simulation {
         this.gates.push(gate)
         for (const ip of inst.inputs) this.fanout[ip.net].push(gate)
       } else if (isSource) {
-        const values = this.sourceValues(inst, 0)
+        const values = this.sourceValues(inst)
         for (let j = 0; j < inst.outputs.length; j++) {
           const out = inst.outputs[j]
           const v = values[j] ?? ['x']
@@ -157,11 +182,7 @@ export class Simulation {
     return this.values[net] ?? ['x']
   }
 
-  private sourceValues(inst: FlatInstance, now: number): Signal[][] {
-    if (inst.kind === 'clock') {
-      const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
-      return [[clockValue(period, now)]]
-    }
+  private sourceValues(inst: FlatInstance): Signal[][] {
     const lanes = this.laneCount(inst)
     const state = this.switchState.get(inst.id) ?? this.defaultLanes(inst)
     if (inst.outputs.length === 1) {
@@ -183,8 +204,27 @@ export class Simulation {
     return Array.from({ length: this.laneCount(inst) }, () => (on ? 1 : 0) as Signal)
   }
 
+  /** Seed an event-driven clock source: set its power-on value and schedule its first edge. */
+  private addClock(inst: FlatInstance): void {
+    const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
+    const half = period / 2
+    const out = inst.outputs[0]
+    const initial = clockValue(period, 0)
+    const output = out.inverted ? invert(initial) : initial
+    const clock: ClockState = { net: out.net, half, period }
+    this.clocks.push(clock)
+    this.clockByNet.set(out.net, clock)
+    this.values[out.net] = [output]
+    if (half > 0) {
+      this.schedule(half, out.net, [invert(output)])
+    }
+  }
+
   private driveSource(inst: FlatInstance, now: number): void {
-    const values = this.sourceValues(inst, now)
+    const values = this.sourceValues(inst)
+    // A manual source toggle starts a fresh (non-clock) cascade, so its settling time is
+    // not attributed to a stale clock edge.
+    this.currentEdgeTime = now
     for (let j = 0; j < inst.outputs.length; j++) {
       const out = inst.outputs[j]
       const v = values[j] ?? ['x']
@@ -241,7 +281,8 @@ export class Simulation {
       const op = gate.inst.outputs[j]
       let v = outputs[j] ?? []
       if (op.inverted) v = invertVector(v)
-      this.schedule(now + gate.delay, op.net, v)
+      this.schedule(now + gate.delay, op.net, v, this.currentEdgeTime)
+      this.latchTiming(now + gate.delay)
     }
   }
 
@@ -300,20 +341,29 @@ export class Simulation {
     }
     if (next !== null) {
       const out = seq.qOutput.inverted ? invert(next) : next
-      this.schedule(now + seq.delay, seq.qOutput.net, [out])
+      this.schedule(now + seq.delay, seq.qOutput.net, [out], this.currentEdgeTime)
     }
   }
 
-  private schedule(t: number, net: number, value: Signal[]): void {
+  private schedule(t: number, net: number, value: Signal[], edge?: number): void {
     this.version[net]++
-    this.events.push({ t, net, value, v: this.version[net] })
+    this.events.push({ t, net, value, v: this.version[net], ...(edge !== undefined ? { edge } : {}) })
+  }
+
+  /** Latch a timing breach when a single clock's logic settles too slowly. */
+  private latchTiming(t: number): void {
+    if (this.clocks.length !== 1) return
+    const clock = this.clocks[0]
+    const lag = t - this.currentEdgeTime
+    if (lag > clock.half) this.timingHalfViolation = true
+    if (lag > clock.period) this.timingFullViolation = true
   }
 
   /** Settle combinational logic to quiescence at the current time. False if oscillating. */
   step(): boolean {
     if (this.stepMode === 'clock-edge') {
       const delta = this.nextClockEdgeDelta()
-      if (delta !== null) return this.advanceTo(this.timeValue + delta)
+      if (delta !== null) this.advanceTo(this.timeValue + delta)
     }
     return this.settle()
   }
@@ -324,27 +374,33 @@ export class Simulation {
   }
 
   /** Time until the next clock edge (min half-period across all clocks), or null. */
-  private nextClockEdgeDelta(): number | null {
+  nextClockEdgeDelta(): number | null {
     let best: number | null = null
-    for (const inst of this.instances) {
-      if (inst.kind !== 'clock') continue
-      const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
-      const half = period / 2
-      if (half <= 0) continue
-      const next = (Math.floor(this.timeValue / half) + 1) * half
+    for (const clock of this.clocks) {
+      if (clock.half <= 0) continue
+      const next = (Math.floor(this.timeValue / clock.half) + 1) * clock.half
       const delta = next - this.timeValue
       if (best === null || delta < best) best = delta
     }
     return best
   }
 
-  /** Advance time to `t`, recompute clock sources, and settle. */
+  /** True when the design has exactly one clock source (timing indicators apply). */
+  hasSingleClock(): boolean {
+    return this.clocks.length === 1
+  }
+
+  /** Clear the latched timing-breach lamps (e.g. on play/resume). */
+  resetTiming(): void {
+    this.timingHalfViolation = false
+    this.timingFullViolation = false
+  }
+
+  /** Advance time to `t`, processing every event (including clock edges) up to `t`. */
   advanceTo(t: number): boolean {
+    const ok = this.drainEvents((top) => top.t <= t)
     this.timeValue = t
-    for (const inst of this.instances) {
-      if (inst.kind === 'clock') this.driveSource(inst, t)
-    }
-    return this.settle()
+    return ok
   }
 
   setSwitch(id: string, value: Signal): void {
@@ -384,25 +440,46 @@ export class Simulation {
     return this.signalOf(id, portId)?.[0] ?? 'x'
   }
 
-  private settle(): boolean {
+  /**
+   * Process events while `shouldProcess` holds, advancing time through them. A clock-edge
+   * event toggles its clock and schedules the next edge; other events propagate through the
+   * fan-out (with inertial delay and oscillator detection). Returns false on a safety cap.
+   */
+  private drainEvents(shouldProcess: (top: Event) => boolean): boolean {
     const changeCount = new Array(this.values.length).fill(0)
     let processed = 0
     while (this.events.size > 0) {
+      const top = this.events.peek()!
+      if (!shouldProcess(top)) break
       const e = this.events.pop()!
       if (e.v !== this.version[e.net]) continue // superseded (inertial)
       if (++processed > MAX_EVENTS) return false
       this.timeValue = e.t
       if (equalVectors(this.valueOf(e.net), e.value)) continue
-      changeCount[e.net]++
-      if (changeCount[e.net] > OSC_LIMIT) {
-        // Oscillating: freeze at unknown and stop propagating.
-        this.values[e.net] = Array.from({ length: this.netWidths[e.net] }, () => 'x' as Signal)
-        continue
+      const clock = this.clockByNet.get(e.net)
+      if (clock) {
+        // Clock edge: start a fresh cascade and schedule the next (toggled) edge.
+        this.currentEdgeTime = e.t
+        this.schedule(e.t + clock.half, e.net, [invert(e.value[0])])
+      } else {
+        // Gate/DFF event: restore the cascade's originating edge for lag attribution.
+        this.currentEdgeTime = e.edge ?? this.currentEdgeTime
+        changeCount[e.net]++
+        if (changeCount[e.net] > OSC_LIMIT) {
+          // Oscillating: freeze at unknown and stop propagating.
+          this.values[e.net] = Array.from({ length: this.netWidths[e.net] }, () => 'x' as Signal)
+          continue
+        }
       }
       this.values[e.net] = e.value
       for (const g of this.fanout[e.net]) this.evaluateGate(g, e.t)
       for (const s of this.seqFanout[e.net]) this.evaluateSequential(s, e.t)
     }
     return true
+  }
+
+  /** Settle combinational logic without advancing the clock (stop at the next edge). */
+  settle(): boolean {
+    return this.drainEvents((top) => !this.clockByNet.has(top.net))
   }
 }

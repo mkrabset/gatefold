@@ -96,9 +96,9 @@ describe('model primitives', () => {
 
   it('declares the clock period property with unit and default', () => {
     expect(primitiveOf('clock').properties()).toEqual([
-      { name: 'period', label: 'Period', type: 'number', default: 10_000, unit: 'ps', min: 1 },
+      { name: 'period', label: 'Period', type: 'number', default: 100_000, unit: 'ps', min: 1 },
     ])
-    expect(defaultPropsOf('clock')).toEqual({ period: 10_000 })
+    expect(defaultPropsOf('clock')).toEqual({ period: 100_000 })
   })
 
   it('declares the bus lanes property and fixes the terminal width to it', () => {
@@ -173,11 +173,13 @@ describe('model primitives', () => {
     expect(defaultPropsOf('and')).toEqual({})
   })
 
-  it('declares the DFF as a sequential primitive with D/CLK/RST/Q', () => {
+  it('declares the DFF as a sequential primitive with D/CLK/RST/Q/!Q', () => {
     const dff = primitiveDef('dff')
     expect(inputPorts(dff).map((p) => p.name)).toEqual(['D', 'CLK', 'RST'])
     expect(inputPorts(dff).map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2'])
-    expect(outputPorts(dff).map((p) => p.name)).toEqual(['Q'])
+    expect(outputPorts(dff).map((p) => p.name)).toEqual(['Q', '!Q'])
+    expect(outputPorts(dff).map((p) => p.id)).toEqual(['out:0', 'out:1'])
+    expect(outputPorts(dff)[1].inverted).toBe(true)
     expect(isArityFixed(dff, 'input')).toBe(true)
     expect(isArityFixed(dff, 'output')).toBe(true)
 

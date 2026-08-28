@@ -5,10 +5,11 @@ import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
 /**
- * A positive/negative-edge-triggered D flip-flop with an optional asynchronous reset.
- * A *stateful* primitive: the simulator evaluates it on clock edges (and resets it
- * level-sensitively) rather than through the combinational `transfer`, so it maps 1:1
- * to a real register (and, later, to `always @(posedge clk) …` in Verilog).
+ * A positive/negative-edge-triggered D flip-flop with an optional asynchronous reset,
+ * plus an inverted `!Q` output. A *stateful* primitive: the simulator evaluates it on
+ * clock edges (and resets it level-sensitively) rather than through the combinational
+ * `transfer`, so it maps 1:1 to a real register (and, later, to
+ * `always @(posedge clk) …` in Verilog).
  */
 export class Dff extends Gate {
   readonly kind = 'dff' as const
@@ -23,6 +24,7 @@ export class Dff extends Gate {
       { id: inputPortId(1), name: 'CLK', direction: 'input' },
       { id: inputPortId(2), name: 'RST', direction: 'input' },
       { id: outputPortId(0), name: 'Q', direction: 'output' },
+      { id: outputPortId(1), name: '!Q', direction: 'output', inverted: true },
     ]
   }
 

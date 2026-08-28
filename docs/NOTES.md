@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` inverted output).
 
 ## Where we are
 
@@ -35,6 +35,12 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   one-shot fit without the store needing canvas dimensions. A new `useEffect` in `Canvas.tsx`
   watches `fitToken` (tracking the last handled value in a ref) and fits exactly once per load;
   empty designs keep the default `{x:400, y:250, zoom:1}` viewport.
+- **DFF `!Q` output** — the DFF now exposes a second output terminal, `!Q` (`out:1`, `inverted:
+  true`, name "!Q"), complementing `Q`. The engine's sequential path was generalized from a
+  single `qOutput` to `outputs: FlatPort[]`, driving every output with per-terminal inversion
+  (power-on, clock-edge sample, and async reset alike). The Verilog exporter marks only the first
+  DFF output as `reg` and emits the inverted sibling as `assign !Q = ~Q;` (XOR-inversion against
+  `Q`). Tests updated/added in `primitives.test.ts`, `engine.test.ts`, and `verilog.test.ts`.
 
 ## Simulation (previous session)
 
@@ -57,7 +63,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; true
   oscillators are detected (per-net change count) and frozen at `x`. This breaks the `x`
   deadlock in gated feedback (e.g. a JK's set/reset gated by its own outputs).
-- **Clock & step** — CLOCK `period` (ps, now `10 000` default) drives a square wave via
+- **Clock & step** — CLOCK `period` (ps, now `100 000` default) drives a square wave via
   `advanceTo(t)`; `step()` is `'quiescent'` (settle) or `'clock-edge'` (advance one edge),
   per `SimConfig.stepMode`.
 - **Probe primitives** — `switch-array` (multi-lane toggle source), `led-array` (multi-lane

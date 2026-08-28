@@ -715,6 +715,34 @@ describe('Simulation engine', () => {
     expect(sim.signal('f', 'out:0')).toBe(1)
   })
 
+  it('DFF drives the inverse of Q on its !Q output', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('f', 'dff')],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+          conn('c3', iref('rst', 'out:0'), iref('f', 'in:2')),
+        ],
+      ),
+    )
+    // Power-on: Q = 0, !Q = 1.
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    expect(sim.signal('f', 'out:1')).toBe(1)
+    // Rising clock edge samples D = 1 → Q = 1, !Q = 0.
+    sim.setSwitch('d', 1)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(1)
+    expect(sim.signal('f', 'out:1')).toBe(0)
+    // Async reset forces Q = 0 → !Q = 1.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(sim.signal('f', 'out:0')).toBe(0)
+    expect(sim.signal('f', 'out:1')).toBe(1)
+  })
+
   it('DFF async reset overrides the clock, then releases on the next edge', () => {
     const sim = new Simulation(
       mkDesign(

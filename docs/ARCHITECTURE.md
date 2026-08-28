@@ -111,7 +111,9 @@ interface Design { version: number; root: string; defs: Record<string, Component
   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
   it declares `isSequential()`, `clockPortId()` (`in:1`) and `resetPortId()` (`in:2`), and its
-  `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The registry
+  `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The DFF exposes
+  `Q` plus an inverted `!Q` output (`out:1` with `inverted: true`), driven by the engine's
+  sequential path and exported as `assign !Q = ~Q;`. The registry
   (`index.ts`) maps a
   `PrimitiveKind` to its behaviour object; `primitiveDef(kind)` produces the serializable
   `ComponentDef`. The port primitives are not listed in the library (their pins are derived
@@ -424,8 +426,9 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
   - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF) is not a
     combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
     `resetPortId()`) net, and `evaluateSequential` — on a configured `edge` — samples `D` and
-    schedules `Q` at `now + delay`; an asserted `RST` (`resetActiveHigh` selects polarity)
-    forces `Q` to `initialValue` asynchronously, overriding the clock. Q powers on to
+    schedules every output (`Q` and the inverted `!Q`) at `now + delay`, applying each output's
+    terminal inversion; an asserted `RST` (`resetActiveHigh` selects polarity)
+    forces the outputs to `initialValue` asynchronously, overriding the clock. Q powers on to
     `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
 - **`signals.ts`** — `invert`/`invertVector`/`equalVectors`/`clockValue`.
 - **`config.ts`** — `SimConfig { defaultDelay, perKindDelay, stepMode }` (delays in ps).
@@ -490,8 +493,9 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - **Per module** — a local union-find resolves connection endpoints into named nets (with widths
   from the model's width solver); port-group instances are dissolved so a composite's `ports`
   become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
-  `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`; buses emit
-  concatenation/slicing; child composites emit instantiations.
+  `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
+  `assign !Q = ~Q;` for its inverted output; buses emit concatenation/slicing; child composites
+  emit instantiations.
 - **Probes** — CLOCK/SWITCHES become top-level `input`s, LEDS/7-SEG top-level `output`s. A nested
   switch is emitted as a constant at its `initialValue`; a nested clock or sink is not exported.
 - **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested

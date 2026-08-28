@@ -287,12 +287,13 @@ class Generator {
 
     const netOf = (pin: PinRef): string => netNameOfPin.get(pinKey(pin))!
 
-    // DFF Q nets are `reg`.
+    // DFF Q nets are `reg` (the register output); derived outputs (e.g. !Q) are `assign`ed.
     const regNets = new Set<string>()
     for (const inst of instances) {
       const idef = design.defs[inst.defId]
       if (idef?.primitive === 'dff') {
-        for (const p of outputPorts(idef)) regNets.add(netOf({ instanceId: inst.id, portId: p.id }))
+        const out = outputPorts(idef)[0]
+        if (out) regNets.add(netOf({ instanceId: inst.id, portId: out.id }))
       }
     }
 
@@ -420,6 +421,11 @@ class Generator {
           stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${q} <= ${qv(init)}; else ${q} <= ${qv(dSig)};`)
         } else {
           stmts.push(`always @(${effEdge} ${clk}) ${q} <= ${qv(dSig)};`)
+        }
+        // Derived outputs (e.g. the inverted `!Q`): continuous assignments from Q.
+        for (const p of outputPorts(idef).slice(1)) {
+          const invertFromQ = (p.inverted === true) !== qInverted
+          stmts.push(`assign ${net(p.id)} = ${invertFromQ ? `~(${q})` : q};`)
         }
         return
       }

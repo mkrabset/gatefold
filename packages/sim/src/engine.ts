@@ -32,7 +32,7 @@ interface Sequential {
   clkInput: FlatPort
   dInput: FlatPort
   rstInput: FlatPort | null
-  qOutput: FlatPort
+  outputs: FlatPort[]
   edge: 'posedge' | 'negedge'
   resetActiveHigh: boolean
   resetValue: Signal
@@ -292,7 +292,7 @@ export class Simulation {
     const clkInput = inst.inputs.find((ip) => ip.portId === prim.clockPortId?.()) ?? inst.inputs[0]
     const rstInput = inst.inputs.find((ip) => ip.portId === prim.resetPortId?.()) ?? null
     const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
-    const qOutput = inst.outputs[0]
+    const outputs = inst.outputs
     const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
 
     const seq: Sequential = {
@@ -301,7 +301,7 @@ export class Simulation {
       clkInput,
       dInput,
       rstInput,
-      qOutput,
+      outputs,
       edge: inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
       resetActiveHigh: inst.props?.resetActiveHigh !== false,
       resetValue,
@@ -312,8 +312,10 @@ export class Simulation {
     this.seqFanout[clkInput.net].push(seq)
     if (rstInput) this.seqFanout[rstInput.net].push(seq)
 
-    // Power-on output value.
-    this.values[qOutput.net] = [qOutput.inverted ? invert(resetValue) : resetValue]
+    // Power-on output values (each output applies its own terminal inversion).
+    for (const op of outputs) {
+      this.values[op.net] = [op.inverted ? invert(resetValue) : resetValue]
+    }
   }
 
   /**
@@ -340,8 +342,10 @@ export class Simulation {
       }
     }
     if (next !== null) {
-      const out = seq.qOutput.inverted ? invert(next) : next
-      this.schedule(now + seq.delay, seq.qOutput.net, [out], this.currentEdgeTime)
+      for (const op of seq.outputs) {
+        const out = op.inverted ? invert(next) : next
+        this.schedule(now + seq.delay, op.net, [out], this.currentEdgeTime)
+      }
     }
   }
 

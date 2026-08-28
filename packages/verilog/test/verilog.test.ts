@@ -93,6 +93,30 @@ describe('exportVerilog', () => {
     expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) Q <= 1'b0; else Q <= D;")
   })
 
+  it('emits an inverted Q as a continuous assignment from Q', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'D'), output('out:0', 'Q'), output('out:1', 'QN')],
+      instances: [
+        pgIn(),
+        { id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } },
+        { id: 'f', name: 'f', defId: 'dff', pos: { x: 0, y: 0 } },
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('f', 'in:0') },
+        { id: 'c2', from: iref('clk', 'out:0'), to: iref('f', 'in:1') },
+        { id: 'c3', from: iref('f', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c4', from: iref('f', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output reg Q')
+    expect(source).toContain('output QN')
+    expect(source).toContain('always @(posedge clk_CLK) Q <= D;')
+    expect(source).toContain('assign QN = ~(Q);')
+  })
+
   it('emits bus concatenation for fan-in', () => {
     const main: ComponentDef = {
       id: 'main', name: 'main', kind: 'composite',

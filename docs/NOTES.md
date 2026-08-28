@@ -35,12 +35,15 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   one-shot fit without the store needing canvas dimensions. A new `useEffect` in `Canvas.tsx`
   watches `fitToken` (tracking the last handled value in a ref) and fits exactly once per load;
   empty designs keep the default `{x:400, y:250, zoom:1}` viewport.
-- **DFF `!Q` output** — the DFF now exposes a second output terminal, `!Q` (`out:1`, `inverted:
-  true`, name "!Q"), complementing `Q`. The engine's sequential path was generalized from a
-  single `qOutput` to `outputs: FlatPort[]`, driving every output with per-terminal inversion
-  (power-on, clock-edge sample, and async reset alike). The Verilog exporter marks only the first
-  DFF output as `reg` and emits the inverted sibling as `assign !Q = ~Q;` (XOR-inversion against
-  `Q`). Tests updated/added in `primitives.test.ts`, `engine.test.ts`, and `verilog.test.ts`.
+- **DFF `!Q` output** — the DFF now exposes a second output terminal, `!Q` (`out:1`, name "!Q"),
+  carrying the complement of `Q`. Unlike a NOT-style terminal it is inverted *internally* (via a
+  new `Primitive.complementPortId()`), so it has **no inversion bubble** and `out:1` has no
+  `inverted` flag. The engine's sequential path was generalized from a single `qOutput` to
+  `outputs: FlatPort[]`, applying the internal complement then the terminal (bubble) inversion
+  per output (power-on, clock-edge sample, and async reset alike). The Verilog exporter marks
+  only the first DFF output as `reg` and emits the complemented sibling as `assign !Q = ~Q;`
+  (XOR-inversion against `Q`). Tests updated/added in `primitives.test.ts`, `engine.test.ts`, and
+  `verilog.test.ts`.
 
 ## Simulation (previous session)
 

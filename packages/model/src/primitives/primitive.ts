@@ -82,6 +82,9 @@ export interface Primitive {
   clockPortId?(): string | null
   /** The asynchronous reset input's port id for a sequential primitive, or null. */
   resetPortId?(): string | null
+  /** For a sequential primitive, the output whose value is the complement of the
+   *  register state, applied internally (no inversion bubble), or null. */
+  complementPortId?(): string | null
   /** True when this primitive's terminal names should be drawn next to its pins
    *  (terminals with distinct purposes, e.g. the DFF's D/CLK/RST). */
   showTerminalNames?(): boolean

@@ -33,6 +33,8 @@ interface Sequential {
   dInput: FlatPort
   rstInput: FlatPort | null
   outputs: FlatPort[]
+  /** Output port id whose value is the complement of the register state, or null. */
+  complementId: string | null
   edge: 'posedge' | 'negedge'
   resetActiveHigh: boolean
   resetValue: Signal
@@ -293,6 +295,7 @@ export class Simulation {
     const rstInput = inst.inputs.find((ip) => ip.portId === prim.resetPortId?.()) ?? null
     const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
     const outputs = inst.outputs
+    const complementId = prim.complementPortId?.() ?? null
     const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
 
     const seq: Sequential = {
@@ -302,6 +305,7 @@ export class Simulation {
       dInput,
       rstInput,
       outputs,
+      complementId,
       edge: inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
       resetActiveHigh: inst.props?.resetActiveHigh !== false,
       resetValue,
@@ -312,9 +316,11 @@ export class Simulation {
     this.seqFanout[clkInput.net].push(seq)
     if (rstInput) this.seqFanout[rstInput.net].push(seq)
 
-    // Power-on output values (each output applies its own terminal inversion).
+    // Power-on output values: apply the internal complement first, then the terminal
+    // inversion (bubble), so `!Q` powers on to the inverse of `Q`.
     for (const op of outputs) {
-      this.values[op.net] = [op.inverted ? invert(resetValue) : resetValue]
+      const internal = op.portId === complementId ? invert(resetValue) : resetValue
+      this.values[op.net] = [op.inverted ? invert(internal) : internal]
     }
   }
 
@@ -343,7 +349,8 @@ export class Simulation {
     }
     if (next !== null) {
       for (const op of seq.outputs) {
-        const out = op.inverted ? invert(next) : next
+        const internal = op.portId === seq.complementId ? invert(next) : next
+        const out = op.inverted ? invert(internal) : internal
         this.schedule(now + seq.delay, op.net, [out], this.currentEdgeTime)
       }
     }

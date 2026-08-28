@@ -112,7 +112,8 @@ interface Design { version: number; root: string; defs: Record<string, Component
   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
   it declares `isSequential()`, `clockPortId()` (`in:1`) and `resetPortId()` (`in:2`), and its
   `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The DFF exposes
-  `Q` plus an inverted `!Q` output (`out:1` with `inverted: true`), driven by the engine's
+  `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
+  no bubble), driven by the engine's
   sequential path and exported as `assign !Q = ~Q;`. The registry
   (`index.ts`) maps a
   `PrimitiveKind` to its behaviour object; `primitiveDef(kind)` produces the serializable
@@ -426,8 +427,9 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
   - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF) is not a
     combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
     `resetPortId()`) net, and `evaluateSequential` — on a configured `edge` — samples `D` and
-    schedules every output (`Q` and the inverted `!Q`) at `now + delay`, applying each output's
-    terminal inversion; an asserted `RST` (`resetActiveHigh` selects polarity)
+    schedules every output (`Q` and the internally-complemented `!Q`) at `now + delay`, applying
+    each output's internal complement (`complementPortId()`) and terminal inversion; an asserted
+    `RST` (`resetActiveHigh` selects polarity)
     forces the outputs to `initialValue` asynchronously, overriding the clock. Q powers on to
     `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
 - **`signals.ts`** — `invert`/`invertVector`/`equalVectors`/`clockValue`.

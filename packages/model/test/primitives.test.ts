@@ -179,7 +179,7 @@ describe('model primitives', () => {
     expect(inputPorts(dff).map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2'])
     expect(outputPorts(dff).map((p) => p.name)).toEqual(['Q', '!Q'])
     expect(outputPorts(dff).map((p) => p.id)).toEqual(['out:0', 'out:1'])
-    expect(outputPorts(dff)[1].inverted).toBe(true)
+    expect(outputPorts(dff)[1].inverted).toBeUndefined()
     expect(isArityFixed(dff, 'input')).toBe(true)
     expect(isArityFixed(dff, 'output')).toBe(true)
 
@@ -187,6 +187,7 @@ describe('model primitives', () => {
     expect(prim.isSequential()).toBe(true)
     expect(prim.clockPortId?.()).toBe('in:1')
     expect(prim.resetPortId?.()).toBe('in:2')
+    expect(prim.complementPortId?.()).toBe('out:1')
     expect(prim.properties()).toEqual([
       { name: 'edge', label: 'Edge', type: 'select', default: 'posedge', options: ['posedge', 'negedge'] },
       { name: 'initialValue', label: 'Initial value', type: 'boolean', default: false },

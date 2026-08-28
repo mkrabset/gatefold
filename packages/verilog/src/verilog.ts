@@ -395,6 +395,7 @@ class Generator {
         const prim = primitiveOf('dff')
         const clkId = prim.clockPortId?.() ?? 'in:1'
         const rstId = prim.resetPortId?.() ?? 'in:2'
+        const complementId = prim.complementPortId?.() ?? null
         const dPort = inputPorts(idef).find((p) => p.id !== clkId && p.id !== rstId)
         const clkPort = idef.ports.find((p) => p.id === clkId)
         const rstPort = idef.ports.find((p) => p.id === rstId)
@@ -422,9 +423,12 @@ class Generator {
         } else {
           stmts.push(`always @(${effEdge} ${clk}) ${q} <= ${qv(dSig)};`)
         }
-        // Derived outputs (e.g. the inverted `!Q`): continuous assignments from Q.
+        // Derived outputs (e.g. the internally-complemented `!Q`): continuous assignments
+        // from Q. A pin is inverted when its own bubble, its internal complement, and Q's
+        // bubble differ — i.e. an odd number of inversions.
         for (const p of outputPorts(idef).slice(1)) {
-          const invertFromQ = (p.inverted === true) !== qInverted
+          const complement = p.id === complementId
+          const invertFromQ = (p.inverted === true) !== complement !== qInverted
           stmts.push(`assign ${net(p.id)} = ${invertFromQ ? `~(${q})` : q};`)
         }
         return

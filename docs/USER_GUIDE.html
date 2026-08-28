@@ -1066,10 +1066,12 @@ cleanup.</p>
 <li>
 <p>A D flip-flop. On the configured <strong>Edge</strong> of <code>CLK</code>, <code>Q</code> takes the value
 of <code>D</code> (after a clk-to-q delay); between edges <code>Q</code> holds. <code>!Q</code> is always
-the complement of <code>Q</code> (drawn with a negation bubble). When <code>RST</code> is
-asserted (high by default, low with <em>Active-high reset</em> off), <code>Q</code> is
-forced <strong>asynchronously</strong> to the <strong>Initial value</strong>, overriding the clock. On
-power-on <code>Q</code> starts at the <strong>Initial value</strong>.</p>
+the complement of <code>Q</code>.</p>
+</li>
+<li>
+<p>When <code>RST</code> is asserted (high by default, low with <em>Active-high reset</em>
+off), <code>Q</code> is forced <strong>asynchronously</strong> to the <strong>Initial value</strong>, overriding
+the clock. On power-on <code>Q</code> starts at the <strong>Initial value</strong>.</p>
 </li>
 </ul>
 </div>
@@ -1411,7 +1413,7 @@ nested LEDS/7-SEG (not exported).</p>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-08-29 00:27:07 +0200
+Last updated 2026-08-29 00:51:45 +0200
 </div>
 </div>
 <script>

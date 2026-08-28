@@ -21,11 +21,11 @@ authoritative — update this when a term's meaning changes.
 - **DFF** — a D flip-flop primitive (`D`, `CLK`, `RST` → `Q`, `!Q`). A *stateful* primitive the
   simulator evaluates on clock edges rather than via `transfer`: on the configured `edge`
   (`posedge`/`negedge`) `Q` samples `D` (clk-to-q delay), and an asserted `RST` (`resetActiveHigh`
-  selects polarity) forces `Q` asynchronously to its `initialValue`. `!Q` is the inverted
-  `Q` (an output terminal with `inverted: true`, so it renders a bubble and exports as an
-  `assign !Q = ~Q;`). This is the primitive the future Verilog exporter maps 1:1 to
-  `always @(posedge clk) q <= d` (with a reset branch), so sequential circuits export as real
-  FPGA registers rather than feedback gate structures.
+  selects polarity) forces `Q` asynchronously to its `initialValue`. `!Q` is the complement of
+  `Q`, inverted internally (its output carries `~Q` without an inversion bubble). This is the
+  primitive the future Verilog exporter maps 1:1 to `always @(posedge clk) q <= d` (with a reset
+  branch), so sequential circuits export as real FPGA registers rather than feedback gate
+  structures.
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

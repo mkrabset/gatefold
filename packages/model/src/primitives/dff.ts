@@ -24,7 +24,7 @@ export class Dff extends Gate {
       { id: inputPortId(1), name: 'CLK', direction: 'input' },
       { id: inputPortId(2), name: 'RST', direction: 'input' },
       { id: outputPortId(0), name: 'Q', direction: 'output' },
-      { id: outputPortId(1), name: '!Q', direction: 'output', inverted: true },
+      { id: outputPortId(1), name: '!Q', direction: 'output' },
     ]
   }
 
@@ -42,6 +42,10 @@ export class Dff extends Gate {
 
   resetPortId(): string {
     return 'in:2'
+  }
+
+  complementPortId(): string {
+    return 'out:1'
   }
 
   showTerminalNames(): boolean {

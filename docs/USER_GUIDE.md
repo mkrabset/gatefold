@@ -202,10 +202,10 @@ its properties, and what it does.
 ### DFF
 - **Inputs:** `D`, `CLK`, `RST` · **Outputs:** 2 (`Q`, `!Q`) · Properties **Edge** (`posedge` / `negedge`, default `posedge`), **Initial value** (boolean, default off), **Active-high reset** (boolean, default on)
 - A D flip-flop. On the configured **Edge** of `CLK`, `Q` takes the value of `D` (after a
-  clk-to-q delay); between edges `Q` holds. `!Q` is always the complement of `Q` (drawn with a
-  negation bubble). When `RST` is asserted (high by default, low with *Active-high reset* off),
-  `Q` is forced **asynchronously** to the **Initial value**, overriding the clock. On power-on
-  `Q` starts at the **Initial value**.
+  clk-to-q delay); between edges `Q` holds. `!Q` is always the complement of `Q`. 
+- When `RST` is asserted (high by default, low with
+  *Active-high reset* off), `Q` is forced **asynchronously** to the **Initial value**, overriding
+  the clock. On power-on `Q` starts at the **Initial value**.
 
 ### FAN-IN
 - **Inputs:** 2+ (single-wire) · **Outputs:** 1 (`BUS`) · *inputs variable*

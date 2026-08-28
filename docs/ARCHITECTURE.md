@@ -161,7 +161,9 @@ interface Design { version: number; root: string; defs: Record<string, Component
 
 ### `editorStore` — zustand + immer + zundo
 The document and editing state:
-- `design: Design` — the current design (starts empty: built-in primitives + an empty `main`).
+- `design: Design` — the current design. Starts from the stored launch default
+  (`readDefaultState()`; see §8) when present, else empty (built-in primitives + an empty
+  `main`).
 - `navStack: string[]` — navigation path into composites; the top is the currently
   displayed definition. `navigateTo`/`navigateUp` descend/ascend.
 - `viewport: { x, y, zoom }` — world point at canvas center + zoom factor.
@@ -173,12 +175,16 @@ The document and editing state:
 - `hoverPort: PinRef | null` — the terminal under the cursor (its marker lights up red).
 - `notice: string | null` — transient rejection message (shown as a toast).
 - `pendingGroup` — names collected in the group dialog.
+- `fitToken: number` — incremented on design load (Open JSON / launch default) to request a
+  one-shot fit-to-view from the canvas; excluded from undo history by `partialize`.
 
 Actions: viewport/selection/marquee setters, navigation, the group flow, port & instance
 editing (`renamePort`, `renameInstance`, `addPort`, `removePort`, `setPortOrder`),
 connection editing (`addConnection` with single-driver rejection, `retargetConnection`,
 `removeConnection`), instance placement (`addInstance`, deep copy-on-place), and
-clipboard/editing (`deleteSelection`, `copySelection`, `paste`).
+clipboard/editing (`deleteSelection`, `copySelection`, `paste`). Loading/saving
+(`loadProject`/`saveProject`) is joined by the default-state actions `saveDefault`/`clearDefault`
+(see §8).
 
 Undo/redo is provided by the **zundo `temporal`** middleware, `partialize`d to
 `{ design }` (so viewport/selection/hover are not undoable). Drag moves are coalesced into
@@ -465,6 +471,12 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 - **File I/O** lives in the app: the toolbar's Open/Save JSON buttons and the library
   panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
   the design and resets navigation/selection and the undo history.
+- **Default state** (`apps/gatefold/src/state/defaultState.ts`) — a "default program state"
+  stored in `localStorage` under `gatefold-default-design`. `saveDefaultState` / `clearDefaultState`
+  back the toolbar's *Save as default* / *Clear default* buttons; `readDefaultState` restores it
+  on launch (the store's initial `design`). `repairDesign(json)` is the shared parse/repair
+  pipeline (parse → `withBuiltinPrimitives` → `sanitizeDesign` → lineage-`uuid` backfill →
+  `unreachableDefIds` GC) used by both `loadProject` and the launch restore.
 
 ## 8b. Verilog export (`@gatefold/verilog`)
 

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-26 (rename to Gatefold; sim-mode UX + template isolation; library export fix; SWITCHES/LEDS; DFF primitive; source/sink inversion fix; Verilog export; event-driven clock; timing lamps).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load).
 
 ## Where we are
 
@@ -11,7 +11,32 @@ event-driven simulator** (combinational + gate-built latches/flip-flops, buses, 
 components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
-## Simulation (this session)
+## Latest (this session)
+
+- **Default program state in `localStorage`** — two new toolbar buttons (next to Save JSON /
+  Export Verilog): **Save as default** (bookmark icon) stores the current design under the
+  `localStorage` key `gatefold-default-design`; **Clear default** (trash icon) removes it. On
+  launch the editor initializes from that stored state when present, giving an automatic start
+  state. New module `apps/gatefold/src/state/defaultState.ts`:
+  - `DEFAULT_STATE_KEY`, `readDefaultState()` / `saveDefaultState(design)` /
+    `clearDefaultState()`, all guarded for environments without `localStorage`.
+  - `repairDesign(json)` — the shared parse/repair pipeline (parse → `withBuiltinPrimitives` →
+    `sanitizeDesign` → lineage-`uuid` backfill → `unreachableDefIds` GC). Now used by both the
+    launch-default restore and `loadProject`, deduplicating the parse/sanitize/migrate logic
+    that was previously inlined in `loadProject`.
+  - `editorStore` gains `saveDefault`/`clearDefault` actions (with toast notices) and
+    initializes `design: readDefaultState() ?? createDemoDesign()`.
+  - Tests: `apps/gatefold/src/state/defaultState.test.ts` (round-trip, clear, malformed JSON,
+    non-design JSON, uuid backfill/orphan GC, and the store actions).
+- **Auto-fit on load** — after **Open JSON** and after restoring the launch default, the canvas
+  centers and zooms the root sheet to fit the viewport, reusing the enter-component
+  `defContentsBounds` + `fitViewport` path. The store holds a `fitToken` counter (incremented in
+  `loadProject`; seeded `1` when a launch default is restored) so the canvas can perform a
+  one-shot fit without the store needing canvas dimensions. A new `useEffect` in `Canvas.tsx`
+  watches `fitToken` (tracking the last handled value in a ref) and fits exactly once per load;
+  empty designs keep the default `{x:400, y:250, zoom:1}` viewport.
+
+## Simulation (previous session)
 
 - **`@gatefold/sim` package** — a pure, framework-free engine (`packages/sim`) that depends
   only on `@gatefold/model`. Never mutates the `Design`; holds a flattened netlist + signal
@@ -58,7 +83,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   gated JK, **master-slave JK edge-triggering**, oscillator → `x`, buses, clock, clock-edge
   stepping, and port-group/composite signal resolution.
 
-## Latest (this session)
+## Latest (previous session)
 
 - **Refactoring pass — code deduplication** (no behavior changes; `typecheck`/`test`/`lint`
   all green):
@@ -160,7 +185,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   The toolbar shows a green/yellow/red **lamp** (with tooltips) whenever there is exactly one clock.
   Tests: no-breach / half / full chains of buffers, zero/multiple clocks, `resetTiming`.
 
-## Latest (previous session)
+## Earlier (previous session)
 
 - **Removed `switch` and `led` primitives** — superseded by `switch-array`/`led-array`. Their
   kinds were dropped from `PrimitiveKind`/`LIBRARY_KINDS` and the `switch.ts`/`led.ts` classes
@@ -253,7 +278,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `defaultLanes` feeds `sourceValues`/`setLane`/`laneValue`), and the renderer colors the circles
   on in design mode when it is true.
 
-## Earlier (previous session)
+## Earlier (kept as historical log)
 
 - **Lineage `uuid`** — `ComponentDef.uuid?: string` tracks a component's *origin*. A template
   and every variant copied from it share the same `uuid`; def identity stays `id`.
@@ -303,7 +328,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   lane), spread across the source marker; they converge on the cursor until the mouse enters a
   sink terminal, where they spread across that sink's marker (lane `i → i`) until release.
 
-## Earlier (kept as historical log)
+## Earlier (kept as historical log — oldest)
 
 - **Buses** — new `fan-in` / `fan-out` primitives (variable arity; bus terminal `BUS`).
 - **Width is derived, not stored** — `Port.width` was removed. `portWidth(def, port)` gives

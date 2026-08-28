@@ -33,6 +33,8 @@ Left to right:
 - **Open / Save JSON** — load or save the whole design as a `.json` file.
 - **Export Verilog** — generate synthesizable Verilog from the current design and download it as a
   `.v` file (see §8).
+- **Save as default / Clear default** — store the current design in the browser's `localStorage`
+  as the automatic launch state, or remove it so the app starts empty again.
 - **Theme toggle** — switch between dark and light.
 
 ### Sidebar (left)
@@ -78,8 +80,10 @@ Left to right:
 | Exit up one level | Escape (while over the canvas) or the ↑ button |
 
 When you **enter** a component, the canvas automatically zooms and pans to frame its
-internals; **Escape** restores the exact view you left. In simulate mode, pressing **Escape**
-at the top level leaves simulate mode; deeper, it ascends one level.
+internals; **Escape** restores the exact view you left. Opening a design (**Open JSON**) — or
+launching with a saved default — also auto-frames the top-level sheet to fit the canvas. In
+simulate mode, pressing **Escape** at the top level leaves simulate mode; deeper, it ascends one
+level.
 
 ### Wiring
 

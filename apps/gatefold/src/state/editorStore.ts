@@ -28,22 +28,20 @@ import {
   newUuid,
   outputPortDef,
   outputPorts,
-  parseDesign,
   parseLibrary,
   portGroupDirection,
   primitiveDef,
-  sanitizeDesign,
   serializeDesign,
   serializeLibrary,
   uniqueId,
   unreachableDefIds,
-  withBuiltinPrimitives,
 } from '@gatefold/model'
 import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { instanceBounds } from '../editor/geometry'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
 import { downloadText } from '../util/download'
+import { clearDefaultState, readDefaultState, repairDesign, saveDefaultState } from './defaultState'
 
 /**
  * The document and editing state, in one Zustand store (with immer for ergonomic
@@ -96,6 +94,8 @@ interface EditorState {
   notice: string | null
   navStack: string[]
   design: Design
+  /** Incremented on design load to request a one-shot fit-to-view from the canvas. */
+  fitToken: number
   pendingGroup: PendingGroup | null
   pendingDelete: string | null
   setViewport: (viewport: Viewport) => void
@@ -137,6 +137,8 @@ interface EditorState {
   applyTemplateToInstances: (templateId: string) => void
   saveProject: () => void
   loadProject: (json: string) => void
+  saveDefault: () => void
+  clearDefault: () => void
   exportLibrary: () => void
   importLibrary: (json: string) => void
   exportVerilog: () => void
@@ -281,6 +283,9 @@ export function createDemoDesign(): Design {
   return { version: 1, root: 'main', defs }
 }
 
+/** The design restored from localStorage on launch, or null when none is stored. */
+const initialDesign = readDefaultState()
+
 export const useEditorStore = create<EditorState>()(
   temporal(
     immer((set, get) => ({
@@ -292,7 +297,8 @@ export const useEditorStore = create<EditorState>()(
     hoverPort: null,
     notice: null,
     navStack: ['main'],
-    design: createDemoDesign(),
+    design: initialDesign ?? createDemoDesign(),
+    fitToken: initialDesign ? 1 : 0,
     pendingGroup: null,
     pendingDelete: null,
     setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
@@ -756,14 +762,9 @@ export const useEditorStore = create<EditorState>()(
     },
     loadProject: (json) => {
       try {
-        const parsed = sanitizeDesign(withBuiltinPrimitives(parseDesign(json)))
-        const { design, issues } = parsed
+        const { design, issues } = repairDesign(json)
         if (issues.length > 0) {
           console.warn('Design repaired on load:', issues)
-        }
-        // Migrate: give any composite def missing a lineage id a fresh one.
-        for (const def of Object.values(design.defs)) {
-          if (def.kind === 'composite' && !def.uuid) def.uuid = newUuid()
         }
         set((s) => {
           s.design = design
@@ -776,6 +777,7 @@ export const useEditorStore = create<EditorState>()(
           s.pendingGroup = null
           s.pendingDelete = null
           pruneOrphanedDefs(s.design)
+          s.fitToken += 1
           if (issues.length > 0) {
             s.notice = `Removed ${issues.length} invalid reference(s) — see console`
           }
@@ -784,6 +786,15 @@ export const useEditorStore = create<EditorState>()(
       } catch (e) {
         set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not load file'))
       }
+    },
+    saveDefault: () => {
+      const s = get()
+      if (saveDefaultState(s.design)) set((st) => void (st.notice = 'Default state saved'))
+      else set((st) => void (st.notice = 'Could not save default state'))
+    },
+    clearDefault: () => {
+      if (clearDefaultState()) set((st) => void (st.notice = 'Default state cleared'))
+      else set((st) => void (st.notice = 'Could not clear default state'))
     },
     exportLibrary: () => {
       const s = get()

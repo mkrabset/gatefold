@@ -441,6 +441,27 @@ export function Canvas() {
     }
   }, [])
 
+  // After a design load (Open JSON or the stored launch default), center and zoom the
+  // root sheet's contents to fit the viewport. Driven by `fitToken`, which increments on
+  // each load; we track the last handled token so it fits exactly once per load.
+  const lastFitToken = useRef(-1)
+  useEffect(() => {
+    const fit = () => {
+      const state = useEditorStore.getState()
+      if (state.fitToken === lastFitToken.current) return
+      lastFitToken.current = state.fitToken
+      const rootDef = state.design.defs[state.design.root]
+      if (!rootDef) return
+      const bounds = defContentsBounds(state.design, rootDef)
+      const wrap = wrapRef.current
+      if (bounds && wrap) {
+        state.setViewport(fitViewport(bounds, wrap.clientWidth, wrap.clientHeight))
+      }
+    }
+    fit()
+    return useEditorStore.subscribe(fit)
+  }, [])
+
   // Accept drops from the component library and create an instance at the drop point.
   const handleDragOver = (e: React.DragEvent) => {
     if (useSimStore.getState().mode === 'simulate') return

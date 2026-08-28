@@ -70,6 +70,18 @@ const GroupIcon = () => (
   </svg>
 )
 
+const BookmarkIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4.5 2.5h7v11l-3.5-2.5-3.5 2.5z" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M2.5 4h11M6 4V2.5h4V4M4 4l.5 9.5h7L12 4M6.5 6.5v4.5M9.5 6.5v4.5" />
+  </svg>
+)
+
 export function Toolbar() {
   const navigateUp = useEditorStore((s) => s.navigateUp)
   const navStack = useEditorStore((s) => s.navStack)
@@ -81,6 +93,8 @@ export function Toolbar() {
   const saveProject = useEditorStore((s) => s.saveProject)
   const loadProject = useEditorStore((s) => s.loadProject)
   const exportVerilog = useEditorStore((s) => s.exportVerilog)
+  const saveDefault = useEditorStore((s) => s.saveDefault)
+  const clearDefault = useEditorStore((s) => s.clearDefault)
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
@@ -207,6 +221,15 @@ export function Toolbar() {
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M4 3h8M4 3v2M4 3l-1 2M12 3v2M12 3l1 2M3 13h10M4 8h8M6 8v5M10 8v5" />
           </svg>
+        </IconButton>
+      </div>
+
+      <div className="tb-group">
+        <IconButton title="Save as default" onClick={saveDefault}>
+          <BookmarkIcon />
+        </IconButton>
+        <IconButton title="Clear default" onClick={clearDefault}>
+          <TrashIcon />
         </IconButton>
       </div>
 

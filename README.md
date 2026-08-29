@@ -4,8 +4,7 @@ A graphical designer and simulator for logic circuitry, running in the browser.
 Build circuits out of logic gates and buses, group them into reusable components,
 and simulate them — including clocked, sequential behavior built from gates.
 
-> **Status: early pre-alpha.** The features listed below reflect what works today;
-> see `PLAN.md` for the roadmap.
+Demo [here](https://mkrabset.github.io/pages/?focus=gatefold). 
 
 ---
 

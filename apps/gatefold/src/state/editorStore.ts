@@ -41,6 +41,7 @@ import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { instanceBounds } from '../editor/geometry'
 import { applyTemplate, scopeDefIds } from '../editor/apply'
 import { downloadText } from '../util/download'
+import { encodeDesignLink } from '../util/link'
 import { clearDefaultState, readDefaultState, repairDesign, saveDefaultState } from './defaultState'
 
 /**
@@ -139,6 +140,7 @@ interface EditorState {
   loadProject: (json: string) => void
   saveDefault: () => void
   clearDefault: () => void
+  copyLink: () => Promise<void>
   exportLibrary: () => void
   importLibrary: (json: string) => void
   exportVerilog: () => void
@@ -795,6 +797,15 @@ export const useEditorStore = create<EditorState>()(
     clearDefault: () => {
       if (clearDefaultState()) set((st) => void (st.notice = 'Default state cleared'))
       else set((st) => void (st.notice = 'Could not clear default state'))
+    },
+    copyLink: async () => {
+      try {
+        const url = await encodeDesignLink(get().design)
+        await navigator.clipboard.writeText(url)
+        set((st) => void (st.notice = 'Link copied'))
+      } catch {
+        set((st) => void (st.notice = 'Could not copy link'))
+      }
     },
     exportLibrary: () => {
       const s = get()

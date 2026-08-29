@@ -82,6 +82,14 @@ const TrashIcon = () => (
   </svg>
 )
 
+const LinkIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M6.5 9.5 9.5 6.5" />
+    <path d="M7 11 4.5 13.5a2.5 2.5 0 0 1-3.5-3.5L3.5 7.5a2.5 2.5 0 0 1 3.5 0" />
+    <path d="M9 5l2.5-2.5a2.5 2.5 0 0 1 3.5 3.5L12.5 8.5a2.5 2.5 0 0 1-3.5 0" />
+  </svg>
+)
+
 export function Toolbar() {
   const navigateUp = useEditorStore((s) => s.navigateUp)
   const navStack = useEditorStore((s) => s.navStack)
@@ -95,6 +103,7 @@ export function Toolbar() {
   const exportVerilog = useEditorStore((s) => s.exportVerilog)
   const saveDefault = useEditorStore((s) => s.saveDefault)
   const clearDefault = useEditorStore((s) => s.clearDefault)
+  const copyLink = useEditorStore((s) => s.copyLink)
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
@@ -221,6 +230,9 @@ export function Toolbar() {
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M4 3h8M4 3v2M4 3l-1 2M12 3v2M12 3l1 2M3 13h10M4 8h8M6 8v5M10 8v5" />
           </svg>
+        </IconButton>
+        <IconButton title="Copy link" onClick={copyLink}>
+          <LinkIcon />
         </IconButton>
       </div>
 

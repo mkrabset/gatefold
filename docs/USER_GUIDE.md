@@ -35,6 +35,8 @@ Left to right:
   `.v` file (see §8).
 - **Save as default / Clear default** — store the current design in the browser's `localStorage`
   as the automatic launch state, or remove it so the app starts empty again.
+- **Copy link** — copy a shareable URL to the clipboard: the design is gzipped and base64-encoded
+  into a `?d=` query parameter, and opening that URL restores the design on launch (see §9).
 - **Theme toggle** — switch between dark and light.
 
 ### Sidebar (left)
@@ -340,3 +342,13 @@ The export reports issues by severity:
 - **Info** (console only): nested SWITCHES (fixed initial value) and nested LEDS/7-SEG (not exported).
 
 The same generator is available as a CLI: `pnpm --filter @gatefold/verilog cli <design.json> [out.v]`.
+
+---
+
+## 9. Sharing a link
+
+The **Copy link** toolbar button copies a URL that encodes the whole design: it is serialized to
+JSON, gzipped, then base64-encoded (URL-safe) into a `?d=` query parameter. Pasting that URL into
+a browser opens Gatefold with that design loaded — it takes precedence over any saved default
+state. If the parameter is missing or corrupt, the app falls back to the normal launch path
+(localStorage default, then an empty design).

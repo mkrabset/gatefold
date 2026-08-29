@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` inverted output).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param).
 
 ## Where we are
 
@@ -44,6 +44,15 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   only the first DFF output as `reg` and emits the complemented sibling as `assign !Q = ~Q;`
   (XOR-inversion against `Q`). Tests updated/added in `primitives.test.ts`, `engine.test.ts`, and
   `verilog.test.ts`.
+- **"Copy to link" sharing** — a new toolbar **Copy link** button serializes the design, gzips it
+  (native `CompressionStream`), base64url-encodes it, and writes a `${origin}${pathname}?d=…` URL
+  to the clipboard (`navigator.clipboard`, "Link copied" toast). On startup, `main.tsx`'s async
+  bootstrap decodes a present `?d=` param (`decodeDesignLink` → gunzip → JSON) and loads it via
+  `loadProject`, taking precedence over the localStorage default; a missing/corrupt param falls
+  back to the normal path. New `apps/gatefold/src/util/link.ts` (gzip/base64url/`encodeDesignLink`/
+  `decodeDesignLink`); `editorStore` gains `copyLink()`. Tests in `util/link.test.ts` (base64url
+  round-trip, missing/corrupt param, and a gzip round-trip — the latter gated on `CompressionStream`
+  availability).
 
 ## Simulation (previous session)
 

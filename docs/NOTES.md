@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing; clock frequency + sim-speed canvas overlays).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm).
 
 ## Where we are
 
@@ -78,20 +78,29 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   keeps the original green body + amber lit segments; light uses a light-green body and a darker
   amber for contrast.
 - **Simulation speed (time-slice pacing)** — `run()` no longer advances exactly one clock edge per
-  16 ms tick; it now advances a fixed slice of simulated time (`16 000 000 ps × timeScale`) and then
-  settles. New `timeScale` in `simStore` (default `0.001`, `1` = real-time) + a "Simulation speed"
-  number input in `SimSettingsDialog` (`setTimeScale`, session-only). This makes `run()` independent
-  of the clock frequency and gives the intuitive property that **increasing a CLOCK's period slows
-  its visible toggle rate** (a period longer than the slice just fires on a later tick). Dropped the
-  old `RUN_STEP`/`nextClockEdgeDelta()` fallback in `run()`; `step()`'s clock-edge mode still uses
-  `nextClockEdgeDelta()`. Very fast clocks × high speed can exceed the engine's `MAX_EVENTS` cap and
-  lag (left as-is).
+  16 ms tick; it now advances a fixed slice of simulated time (`16 000 000 000 ps × timeScale`) and
+  then settles. New `timeScale` in `simStore` (default `0.001`, `1` = real-time) + a "Simulation
+  speed" number input in `SimSettingsDialog` (`setTimeScale`, session-only). This makes `run()`
+  independent of the clock frequency and gives the intuitive property that **increasing a CLOCK's
+  period slows its visible toggle rate** (a period longer than the slice just fires on a later
+  tick). Dropped the old `RUN_STEP`/`nextClockEdgeDelta()` fallback in `run()`; `step()`'s
+  clock-edge mode still uses `nextClockEdgeDelta()`. Very fast clocks × high speed can exceed the
+  engine's `MAX_EVENTS` cap and lag (left as-is). *(Bug fixed later: the slice constant was
+  originally `16_000_000` ps = 16 µs, off by 1000× from the intended 16 ms.)*
 - **Canvas overlays (frequency + speed)** — new `apps/gatefold/src/util/format.ts` with
   `formatFrequency` (Hz/kHz/MHz) and `formatSpeed` (`Nx faster` / `Nx slower` / `real-time`), both
   rounding to ≤ 3 decimals and stripping trailing zeros. The renderer draws a CLOCK's **frequency**
   above its body (`1e12 / period`, period defaulting to `CLOCK_DEFAULT_PERIOD`), and — while
   simulating — a **speed badge** in the top-left corner with a subtle backdrop (`SimView.speedLabel`,
   wired from `simStore.timeScale` in `Canvas.tsx`). Tests in `util/format.test.ts`.
+- **Sidebar field commits on unmount** — `CommitInput` previously committed only on blur/Enter, so
+  an edit in the sidebar's name/properties/port-rename fields was lost when focus left the field by
+  clicking the canvas (the selection clears, unmounting the field before `blur` fires). `CommitInput`
+  now tracks the typed value (via `onChange`) and flushes it in a `useEffect` cleanup on unmount
+  (only when it differs from the last committed value), so in-progress edits always commit.
+- **Group dialog Enter-to-confirm** — the Group/Save-as-template dialog body is now a `<form>` whose
+  `onSubmit` runs `confirmGroup()` (with `preventDefault`); the Create/Save button is `type="submit"`
+  and Cancel is `type="button"`, so pressing Enter in the name (or port-name) field confirms.
 
 ## Simulation (previous session)
 

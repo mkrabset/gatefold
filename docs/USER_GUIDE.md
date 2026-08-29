@@ -62,8 +62,8 @@ Left to right:
 
 ### Dialogs
 
-- **Group dialog** — name the new component and its inferred inputs/outputs.
-- **Simulation settings** — default gate delay (ps) and the step mode.
+- **Group dialog** — name the new component and its inferred inputs/outputs (press **Enter** to create).
+- **Simulation settings** — default gate delay (ps), the step mode, and the simulation speed.
 - **Delete dialog** — confirm deleting a library template.
 - **Toast** — transient messages (e.g. "Input already has a driver").
 

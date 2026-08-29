@@ -251,7 +251,8 @@ cleanup.
 
 * *Inputs:* none · *Outputs:* 1 (`CLK`)
 * A source producing a periodic *square wave*. Property *Period*
-(picoseconds, default 100 000) sets the period.
+(picoseconds, default 100 000) sets the period. Its *frequency* (Hz /
+kHz / MHz) is shown above the component.
 
 ==== DFF
 
@@ -259,8 +260,8 @@ cleanup.
 *Edge* (`posedge` / `negedge`, default `posedge`), *Initial value*
 (boolean, default off), *Active-high reset* (boolean, default on)
 * A D flip-flop. On the configured *Edge* of `CLK`, `Q` takes the value
-of `D` (after a clk-to-q delay); between edges `Q` holds. `!Q` is always
-the complement of `Q`.
+of `D` (after a clk-to-q delay); between edges `Q` holds.
+* `!Q` is always the complement of `Q`.
 * When `RST` is asserted (high by default, low with _Active-high reset_
 off), `Q` is forced *asynchronously* to the *Initial value*, overriding
 the clock. On power-on `Q` starts at the *Initial value*.
@@ -355,7 +356,8 @@ simulation continuously.
 * *Stop* — pause a running simulation.
 * *Reset* — rebuild the simulation from scratch.
 * *Space* — toggle between running and paused while simulating.
-* *Settings* — set the default gate delay (ps) and the step mode.
+* *Settings* — set the default gate delay (ps), the step mode, and the
+simulation speed.
 
 ==== Timing lamp
 
@@ -371,6 +373,23 @@ the logic).
 
 A yellow or red lamp latches on and stays until the next *Run*/*Reset*.
 Hover the lamp for a tooltip.
+
+==== Simulation speed
+
+The *Simulation speed* setting is a multiplier of simulated time per
+real time: `1` means real-time, larger values run faster, smaller values
+run slower. While running, each tick advances a fixed slice of simulated
+time, so *increasing a CLOCK’s period makes it cycle slower on screen*
+(a period longer than the slice simply fires its edge on a later tick).
+At speed `s`, a clock with period `P` ps cycles at `s × 10^12 / P` Hz.
+The default speed (`0.001`) with the built-in `100 000` ps clock is
+therefore ~10 kHz — too fast to see — so use a much larger period
+(e.g. `1 000 000 000` ps for ~1 Hz) to watch slow motion. Set the speed
+to `1` for real-time behavior (again, with a much larger clock period).
+
+While simulating, the current speed is shown as a small badge in the
+*top-left corner* of the canvas (e.g. `10x faster`, `200x slower`, or
+`real-time` at `1`).
 
 ==== How it works
 

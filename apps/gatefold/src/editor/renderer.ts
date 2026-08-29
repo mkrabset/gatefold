@@ -1,5 +1,6 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@gatefold/model'
-import {inputPorts, invertSignal, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
+import {CLOCK_DEFAULT_PERIOD, inputPorts, invertSignal, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
+import {formatFrequency} from '../util/format'
 import {
     arrayIndicatorLanes,
     busWireOffsets,
@@ -35,6 +36,8 @@ export interface SimView {
     colorOf: (instanceId: string, portId: string, lane?: number) => string | undefined
     valueOf: (instanceId: string, portId: string) => Signal | undefined
     signalOf: (instanceId: string, portId: string) => Signal[] | undefined
+    /** Formatted simulation-speed label shown as a HUD overlay. */
+    speedLabel: string
 }
 
 const GRID = 24
@@ -365,6 +368,15 @@ function drawInstance(
             ctx.textAlign = 'center'
             ctx.textBaseline = 'middle'
             ctx.fillText(def.name, s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
+        }
+        // Clock frequency above the body (the CLOCK type label is skipped).
+        if (def.primitive === 'clock') {
+            const period = typeof instance.props?.period === 'number' ? instance.props.period : CLOCK_DEFAULT_PERIOD
+            ctx.fillStyle = p.text
+            ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(formatFrequency(1e12 / period), s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
         }
         // Instance name below the gate.
         ctx.fillStyle = p.text
@@ -780,5 +792,22 @@ export function drawScene(
         ctx.setLineDash([4, 3])
         ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y)
         ctx.setLineDash([])
+    }
+
+    // Simulation HUD: the current speed, top-left with a subtle backdrop.
+    if (sim) {
+        ctx.font = '12px system-ui, sans-serif'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        const m = 12
+        const px = 10
+        const h = 24
+        const w = ctx.measureText(sim.speedLabel).width + px * 2
+        ctx.globalAlpha = 0.8
+        ctx.fillStyle = p.bg
+        ctx.fillRect(m, m, w, h)
+        ctx.globalAlpha = 1
+        ctx.fillStyle = p.text
+        ctx.fillText(sim.speedLabel, m + px, m + h / 2)
     }
 }

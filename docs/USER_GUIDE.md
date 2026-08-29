@@ -199,7 +199,7 @@ its properties, and what it does.
 ### CLOCK
 - **Inputs:** none · **Outputs:** 1 (`CLK`)
 - A source producing a periodic **square wave**. Property **Period** (picoseconds, default
-  100 000) sets the period.
+  100 000) sets the period. Its **frequency** (Hz / kHz / MHz) is shown above the component.
 
 ### DFF
 - **Inputs:** `D`, `CLK`, `RST` · **Outputs:** 2 (`Q`, `!Q`) · Properties **Edge** (`posedge` / `negedge`, default `posedge`), **Initial value** (boolean, default off), **Active-high reset** (boolean, default on)
@@ -299,6 +299,9 @@ clock with period `P` ps cycles at `s × 10^12 / P` Hz. The default speed (`0.00
 built-in `100 000` ps clock is therefore ~10 kHz — too fast to see — so use a much larger period
 (e.g. `1 000 000 000` ps for ~1 Hz) to watch slow motion. Set the speed to `1` for real-time
 behavior (again, with a much larger clock period).
+
+While simulating, the current speed is shown as a small badge in the **top-left corner** of the
+canvas (e.g. `10x faster`, `200x slower`, or `real-time` at `1`).
 
 ### How it works
 

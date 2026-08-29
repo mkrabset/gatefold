@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing; clock frequency + sim-speed canvas overlays).
 
 ## Where we are
 
@@ -86,6 +86,12 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   old `RUN_STEP`/`nextClockEdgeDelta()` fallback in `run()`; `step()`'s clock-edge mode still uses
   `nextClockEdgeDelta()`. Very fast clocks × high speed can exceed the engine's `MAX_EVENTS` cap and
   lag (left as-is).
+- **Canvas overlays (frequency + speed)** — new `apps/gatefold/src/util/format.ts` with
+  `formatFrequency` (Hz/kHz/MHz) and `formatSpeed` (`Nx faster` / `Nx slower` / `real-time`), both
+  rounding to ≤ 3 decimals and stripping trailing zeros. The renderer draws a CLOCK's **frequency**
+  above its body (`1e12 / period`, period defaulting to `CLOCK_DEFAULT_PERIOD`), and — while
+  simulating — a **speed badge** in the top-left corner with a subtle backdrop (`SimView.speedLabel`,
+  wired from `simStore.timeScale` in `Canvas.tsx`). Tests in `util/format.test.ts`.
 
 ## Simulation (previous session)
 

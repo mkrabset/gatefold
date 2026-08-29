@@ -18,7 +18,14 @@ export function GroupDialog() {
 
   return (
     <div className="dialog-overlay" onClick={cancelGroup}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+      <form
+        className="dialog"
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault()
+          confirmGroup()
+        }}
+      >
         <div className="dialog-title">{pendingGroup.promote ? 'Save as template' : 'Group into component'}</div>
         <div className="dialog-section">
           <div className="dialog-section-title">Name</div>
@@ -58,12 +65,12 @@ export function GroupDialog() {
           </>
         )}
         <div className="dialog-actions">
-          <button className="dialog-btn" onClick={cancelGroup}>Cancel</button>
-          <button className="dialog-btn primary" onClick={confirmGroup}>
+          <button type="button" className="dialog-btn" onClick={cancelGroup}>Cancel</button>
+          <button type="submit" className="dialog-btn primary">
             {pendingGroup.promote ? 'Save' : 'Create'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   )
 }

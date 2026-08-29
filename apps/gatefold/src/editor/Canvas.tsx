@@ -7,6 +7,7 @@ import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBou
 import { drawScene } from './renderer'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
+import { formatSpeed } from '../util/format'
 import type { PinRef } from '@gatefold/model'
 import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@gatefold/model'
 import type { Viewport } from '../state/editorStore'
@@ -64,7 +65,7 @@ export function Canvas() {
       })
       const simState = useSimStore.getState()
       const sim = simState.mode === 'simulate' && simState.engine
-        ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf }
+        ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf, speedLabel: formatSpeed(simState.timeScale) }
         : undefined
       drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette, sim)
     }

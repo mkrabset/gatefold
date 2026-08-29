@@ -15,7 +15,7 @@ const SIGNAL_COLORS: Record<Signal, { dark: string; light: string }> = {
 }
 
 /** A run tick advances the engine by this much simulated time (ps) per real tick. */
-const RUN_TICK_PS = 16_000_000 // 16 ms
+const RUN_TICK_PS = 16_000_000_000 // 16 ms
 
 /** Default simulation speed: slow enough that the default 100 000 ps clock is visible. */
 const DEFAULT_TIME_SCALE = 0.001

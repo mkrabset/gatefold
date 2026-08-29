@@ -487,8 +487,8 @@ function drawSevenSegBody(
     const pad = SEVEN_SEG_PAD * zoom
     const totalW = pad * 2 + positions * digitW + (positions - 1) * gap
 
-    // Green body with a border.
-    drawRoundedBox(ctx, cx - totalW / 2, cy - h / 2, totalW, h, 6, '#0d2818', '#3fb950')
+    // Seven-seg body with a border.
+    drawRoundedBox(ctx, cx - totalW / 2, cy - h / 2, totalW, h, 6, p.sevenSegFill, p.sevenSegStroke)
 
     if (lanes === null) {
         drawUndetermined(ctx, cx, cy, h, p)
@@ -508,12 +508,12 @@ function drawSevenSegBody(
         const segs = sevenSegGeometry({ x: dx, y: cy, w: digitW, h: digitH, palette: p })
 
         // Dim skeleton.
-        ctx.fillStyle = 'rgba(63, 185, 80, 0.1)'
+        ctx.fillStyle = p.sevenSegOff
         for (const poly of segs) fillPolygon(ctx, poly)
 
         const pattern = masks[d]
         if (!pattern) continue
-        ctx.fillStyle = '#fcd34d'
+        ctx.fillStyle = p.sevenSegOn
         for (let i = 0; i < 7; i++) {
             if (!pattern[i]) continue
             fillPolygon(ctx, segs[i])

@@ -366,10 +366,6 @@ export function Canvas() {
           useSimStore.getState().descend(hit.id)
         }
         state.navigateTo(hit.defId)
-        const bounds = defContentsBounds(state.design, hitDef)
-        if (bounds) {
-          state.setViewport(fitViewport(bounds, wrap.clientWidth, wrap.clientHeight))
-        }
       }
     }
 
@@ -441,18 +437,19 @@ export function Canvas() {
     }
   }, [])
 
-  // After a design load (Open JSON or the stored launch default), center and zoom the
-  // root sheet's contents to fit the viewport. Driven by `fitToken`, which increments on
-  // each load; we track the last handled token so it fits exactly once per load.
+  // After a design load or a descent into a component (canvas double-click, library
+  // template, or sidebar), center and zoom the current sheet's contents to fit the
+  // viewport. Driven by `fitToken`, which increments on each load/descent; we track the
+  // last handled token so it fits exactly once per request.
   const lastFitToken = useRef(-1)
   useEffect(() => {
     const fit = () => {
       const state = useEditorStore.getState()
       if (state.fitToken === lastFitToken.current) return
       lastFitToken.current = state.fitToken
-      const rootDef = state.design.defs[state.design.root]
-      if (!rootDef) return
-      const bounds = defContentsBounds(state.design, rootDef)
+      const currentDef = state.design.defs[currentDefId(state)]
+      if (!currentDef) return
+      const bounds = defContentsBounds(state.design, currentDef)
       const wrap = wrapRef.current
       if (bounds && wrap) {
         state.setViewport(fitViewport(bounds, wrap.clientWidth, wrap.clientHeight))

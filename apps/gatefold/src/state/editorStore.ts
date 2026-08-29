@@ -95,7 +95,7 @@ interface EditorState {
   notice: string | null
   navStack: string[]
   design: Design
-  /** Incremented on design load to request a one-shot fit-to-view from the canvas. */
+  /** Incremented on design load / descent to request a one-shot fit-to-view from the canvas. */
   fitToken: number
   pendingGroup: PendingGroup | null
   pendingDelete: string | null
@@ -336,6 +336,9 @@ export const useEditorStore = create<EditorState>()(
         s.marquee = null
         s.pendingWire = null
         s.hoverPort = null
+        // Request a fit-to-view of the newly-entered component (canvas, library, or
+        // sidebar descent alike).
+        s.fitToken += 1
       }),
     navigateUp: () =>
       set((s) => {

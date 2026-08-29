@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors).
 
 ## Where we are
 
@@ -64,6 +64,19 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   loading already regenerates built-ins and tolerates full or compact files. Tests updated in
   `serialize.test.ts` (strip/GC/rounding) and `link.test.ts` (round-trip now via
   `withBuiltinPrimitives`).
+- **Auto-fit on descent** — entering a component now auto-frames its internals from every entry
+  point (canvas double-click, sidebar tree, and library-template double-click alike), not just the
+  canvas. `navigateTo` increments `fitToken`, and the Canvas fit effect frames the *current* def
+  (top of `navStack`) instead of only the root; the manual fit in the canvas double-click handler
+  was removed. (Fixes the earlier gap where double-clicking a library template navigated without
+  fitting.)
+- **Light-mode sim background** — the light palette's `simBg` changed from dark green (`#0d2418`)
+  to a light yellow (`#fdf6d8`); dark mode keeps `#0a1f14`.
+- **Themed 7-seg colors** — the 7-seg display colors moved out of hardcoded literals in
+  `renderer.ts` into the palettes: `Palette` gained `sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/
+  `sevenSegOn` (`packages/model/src/primitives/primitive.ts`), set per theme in `palette.ts`. Dark
+  keeps the original green body + amber lit segments; light uses a light-green body and a darker
+  amber for contrast.
 
 ## Simulation (previous session)
 

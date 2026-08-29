@@ -178,8 +178,9 @@ The document and editing state:
 - `hoverPort: PinRef | null` — the terminal under the cursor (its marker lights up red).
 - `notice: string | null` — transient rejection message (shown as a toast).
 - `pendingGroup` — names collected in the group dialog.
-- `fitToken: number` — incremented on design load (Open JSON / launch default) to request a
-  one-shot fit-to-view from the canvas; excluded from undo history by `partialize`.
+- `fitToken: number` — incremented on design load (Open JSON / launch default) and on descent
+  into a component (`navigateTo`) to request a one-shot fit-to-view from the canvas; excluded
+  from undo history by `partialize`.
 
 Actions: viewport/selection/marquee setters, navigation, the group flow, port & instance
 editing (`renamePort`, `renameInstance`, `addPort`, `removePort`, `setPortOrder`),
@@ -275,9 +276,10 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   pins on the left edge. The group is movable as one unit.
 - **Probes** (`switch-array`/`led-array`/`seven-seg`): arrays draw a row of indicator circles
   (or a `?` box while a bus width is undetermined), one per lane, each aligned to its terminal/
-  bus lane; each circle fills red/amber when its lane is `1`. The 7-seg draws a green body and
-  renders one **hexagon-segment digit per 4-bit nibble** (lit amber, unlit faint green), MSD
-  leftmost, honoring its `order` property.
+  bus lane; each circle fills red/amber when its lane is `1`. The 7-seg draws a body and
+  renders one **hexagon-segment digit per 4-bit nibble** (lit vs unlit segments), MSD
+  leftmost, honoring its `order` property; its body/border/segment colors come from the palette
+  (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme.
 - **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
   (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
   small bubble per lane (aligned with each individual wire). Inversion is instance-level

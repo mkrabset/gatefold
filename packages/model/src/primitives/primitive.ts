@@ -19,6 +19,14 @@ export interface Palette {
   templateBg: string
   /** Canvas background while in simulation mode. */
   simBg: string
+  /** 7-seg display body fill color. */
+  sevenSegFill: string
+  /** 7-seg display body border color. */
+  sevenSegStroke: string
+  /** 7-seg unlit segment color (the dim skeleton). */
+  sevenSegOff: string
+  /** 7-seg lit segment color. */
+  sevenSegOn: string
 }
 
 /** The "where/how to draw" context passed to `Primitive.draw`. All screen-space. */

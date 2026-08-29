@@ -19,7 +19,11 @@ export const darkPalette: Palette = {
   selection: '#4f8cff',
   text: '#c9d1d9',
   templateBg: '#12253a',
-  simBg: '#0a1f14',
+  simBg: '#282840',
+  sevenSegFill: '#0d2818',
+  sevenSegStroke: '#3fb950',
+  sevenSegOff: 'rgba(63, 185, 80, 0.1)',
+  sevenSegOn: '#fcd34d',
 }
 
 export const lightPalette: Palette = {
@@ -35,5 +39,9 @@ export const lightPalette: Palette = {
   selection: '#2563eb',
   text: '#1f2328',
   templateBg: '#e7f2fd',
-  simBg: '#0d2418',
+  simBg: '#fdf6d8',
+  sevenSegFill: '#dff4e5',
+  sevenSegStroke: '#2f9e44',
+  sevenSegOff: 'rgba(47, 158, 68, 0.12)',
+  sevenSegOn: '#f59f00',
 }

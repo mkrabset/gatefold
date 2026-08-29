@@ -463,9 +463,12 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 
 ## 8. Serialization & library exchange
 
-- **`serialize.ts`** — `serializeDesign` / `parseDesign`. A saved design is self-contained:
-  the entire `Design` (primitive defs, port-group defs, composites, and `variant` copies) is
-  serialized verbatim. `parseDesign` validates the shape and throws on malformed input.
+- **`serialize.ts`** — `serializeDesign` / `parseDesign` / `stripBuiltinPrimitives`. A saved
+  design is *compact*, not verbatim: `serializeDesign` omits the canonical built-in primitive
+  defs (regenerated on load by `withBuiltinPrimitives`), drops unreferenced `variant` copies via
+  `unreachableDefIds` (the same reachability GC the loader runs), and rounds every `pos`
+  coordinate to 2 decimals (sub-pixel). `parseDesign` validates the shape and throws on
+  malformed input.
 - **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` /
   `parseLibrary`). Export collects the template composites and their transitive composite
   closure, deep-cloned with `variant` stripped; references to a template's `variant` copies are

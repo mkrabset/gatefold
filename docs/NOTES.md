@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded).
 
 ## Where we are
 
@@ -53,6 +53,17 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `decodeDesignLink`); `editorStore` gains `copyLink()`. Tests in `util/link.test.ts` (base64url
   round-trip, missing/corrupt param, and a gzip round-trip — the latter gated on `CompressionStream`
   availability).
+- **Compact serialization** — `serializeDesign` no longer dumps the `Design` verbatim. It now:
+  - omits the canonical built-in primitive defs via a new exported `stripBuiltinPrimitives`
+    (`kind === 'primitive' && id === primitive`), since `withBuiltinPrimitives` regenerates them on
+    load;
+  - prunes unreferenced `variant` copies with the existing `unreachableDefIds` GC (the same pass the
+    loader runs), so saves stop carrying orphans;
+  - rounds every `pos` coordinate to 2 decimals (a JSON replacer on keys `x`/`y` — sub-pixel).
+  This shrinks Save JSON, the default-state blob, and the `?d=` share link. No `version` bump:
+  loading already regenerates built-ins and tolerates full or compact files. Tests updated in
+  `serialize.test.ts` (strip/GC/rounding) and `link.test.ts` (round-trip now via
+  `withBuiltinPrimitives`).
 
 ## Simulation (previous session)
 

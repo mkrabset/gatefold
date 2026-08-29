@@ -1,13 +1,42 @@
 import type { ComponentDef, Design } from './types'
+import { unreachableDefIds } from './util'
 
 /**
- * Serialization of a whole design. A saved design is self-contained: the entire
- * `Design` (primitive defs, port-group defs, composites, and `variant` copies) is
- * serialized verbatim so a load restores the schematic exactly.
+ * Serialization of a whole design. The output is compact, not verbatim:
+ * - canonical built-in primitive defs are omitted (regenerated on load via
+ *   `withBuiltinPrimitives`);
+ * - unreferenced variant copies are dropped (the same reachability GC the loader runs);
+ * - instance `pos` coordinates are rounded to 2 decimals (sub-pixel, visually lossless).
+ * A load restores the schematic exactly.
  */
 
+/**
+ * Remove the canonical built-in primitive defs — those whose `id` equals their
+ * `primitive` kind (`primitiveDef(kind)` sets `id: kind`). Variant copies (which hold
+ * instance-local edits and always have a distinct `id`) are kept.
+ */
+export function stripBuiltinPrimitives(design: Design): Design {
+  const defs: Record<string, ComponentDef> = {}
+  for (const [id, def] of Object.entries(design.defs)) {
+    if (def.kind === 'primitive' && def.id === def.primitive) continue
+    defs[id] = def
+  }
+  return { ...design, defs }
+}
+
+/** Round instance coordinates to 2 decimals, shrinking the serialized output. */
+function roundReplacer(key: string, value: unknown): unknown {
+  if ((key === 'x' || key === 'y') && typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 100) / 100
+  }
+  return value
+}
+
 export function serializeDesign(design: Design): string {
-  return JSON.stringify(design, null, 2)
+  const stripped = stripBuiltinPrimitives(design)
+  const defs: Record<string, ComponentDef> = { ...stripped.defs }
+  for (const id of unreachableDefIds(stripped)) delete defs[id]
+  return JSON.stringify({ ...stripped, defs }, roundReplacer, 2)
 }
 
 /** Parse and validate a serialized design, throwing on malformed input. */

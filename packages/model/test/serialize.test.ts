@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Design } from '../src/types'
-import { primitiveDef } from '../src/primitives'
-import { parseDesign, sanitizeDesign, serializeDesign } from '../src/serialize'
+import { primitiveDef, withBuiltinPrimitives } from '../src/primitives'
+import { parseDesign, sanitizeDesign, serializeDesign, stripBuiltinPrimitives } from '../src/serialize'
 
 function makeDesign(): Design {
   const defs: Record<string, Design['defs'][string]> = {
@@ -23,9 +23,39 @@ function makeDesign(): Design {
 }
 
 describe('serializeDesign / parseDesign', () => {
-  it('round-trips a design verbatim', () => {
+  it('omits canonical built-in primitives but keeps the composite intact', () => {
     const design = makeDesign()
-    expect(parseDesign(serializeDesign(design))).toEqual(design)
+    const parsed = parseDesign(serializeDesign(design))
+    expect(parsed.defs['and']).toBeUndefined()
+    expect(parsed.defs['not']).toBeUndefined()
+    expect(parsed.defs['main']).toBeDefined()
+    // The composite's own contents round-trip intact.
+    expect(parsed.defs['main']).toEqual(design.defs['main'])
+    // Built-ins are regenerated on load.
+    expect(withBuiltinPrimitives(parsed).defs['and']).toEqual(primitiveDef('and'))
+  })
+
+  it('keeps referenced variant copies', () => {
+    const design = makeDesign()
+    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1', variant: true }
+    design.defs['main'].instances!.push({ id: 'a2', name: 'a2', defId: 'and~1', pos: { x: 0, y: 0 } })
+    const parsed = parseDesign(serializeDesign(design))
+    expect(parsed.defs['and~1']).toBeDefined()
+    expect(parsed.defs['and']).toBeUndefined()
+  })
+
+  it('drops unreferenced variant defs (GC on save)', () => {
+    const design = makeDesign()
+    design.defs['and~orphan'] = { ...primitiveDef('and'), id: 'and~orphan', variant: true }
+    const parsed = parseDesign(serializeDesign(design))
+    expect(parsed.defs['and~orphan']).toBeUndefined()
+  })
+
+  it('rounds instance coordinates to 2 decimals', () => {
+    const design = makeDesign()
+    design.defs['main'].instances![0].pos = { x: 1.23456789, y: -2.9999999 }
+    const parsed = parseDesign(serializeDesign(design))
+    expect(parsed.defs['main'].instances![0].pos).toEqual({ x: 1.23, y: -3 })
   })
 
   it('rejects malformed JSON', () => {
@@ -50,6 +80,18 @@ describe('serializeDesign / parseDesign', () => {
     const bad = JSON.parse(JSON.stringify(design))
     delete bad.defs['and'].kind
     expect(() => parseDesign(JSON.stringify(bad))).toThrow()
+  })
+})
+
+describe('stripBuiltinPrimitives', () => {
+  it('removes only canonical built-in primitive defs', () => {
+    const design = makeDesign()
+    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1', variant: true }
+    const stripped = stripBuiltinPrimitives(design)
+    expect(stripped.defs['and']).toBeUndefined()
+    expect(stripped.defs['not']).toBeUndefined()
+    expect(stripped.defs['and~1']).toBeDefined()
+    expect(stripped.defs['main']).toBeDefined()
   })
 })
 

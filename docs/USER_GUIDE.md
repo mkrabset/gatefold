@@ -352,3 +352,7 @@ JSON, gzipped, then base64-encoded (URL-safe) into a `?d=` query parameter. Past
 a browser opens Gatefold with that design loaded — it takes precedence over any saved default
 state. If the parameter is missing or corrupt, the app falls back to the normal launch path
 (localStorage default, then an empty design).
+
+Saved designs (JSON files, the launch default, and share links alike) are stored compactly:
+built-in primitive definitions and unreferenced copies are omitted, and component coordinates
+are rounded to two decimals — all regenerated or inconsequential on load.

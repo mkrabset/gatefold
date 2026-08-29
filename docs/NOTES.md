@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing).
 
 ## Where we are
 
@@ -77,6 +77,15 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `sevenSegOn` (`packages/model/src/primitives/primitive.ts`), set per theme in `palette.ts`. Dark
   keeps the original green body + amber lit segments; light uses a light-green body and a darker
   amber for contrast.
+- **Simulation speed (time-slice pacing)** — `run()` no longer advances exactly one clock edge per
+  16 ms tick; it now advances a fixed slice of simulated time (`16 000 000 ps × timeScale`) and then
+  settles. New `timeScale` in `simStore` (default `0.001`, `1` = real-time) + a "Simulation speed"
+  number input in `SimSettingsDialog` (`setTimeScale`, session-only). This makes `run()` independent
+  of the clock frequency and gives the intuitive property that **increasing a CLOCK's period slows
+  its visible toggle rate** (a period longer than the slice just fires on a later tick). Dropped the
+  old `RUN_STEP`/`nextClockEdgeDelta()` fallback in `run()`; `step()`'s clock-edge mode still uses
+  `nextClockEdgeDelta()`. Very fast clocks × high speed can exceed the engine's `MAX_EVENTS` cap and
+  lag (left as-is).
 
 ## Simulation (previous session)
 

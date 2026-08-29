@@ -14,8 +14,11 @@ const SIGNAL_COLORS: Record<Signal, { dark: string; light: string }> = {
   x: { dark: '#6b7280', light: '#9ca3af' },
 }
 
-/** Fallback simulated time (ps) advanced per run tick (~16 ms) when there is no clock. */
-const RUN_STEP = 1000
+/** A run tick advances the engine by this much simulated time (ps) per real tick. */
+const RUN_TICK_PS = 16_000_000 // 16 ms
+
+/** Default simulation speed: slow enough that the default 100 000 ps clock is visible. */
+const DEFAULT_TIME_SCALE = 0.001
 
 interface SimState {
   mode: SimMode
@@ -29,6 +32,8 @@ interface SimState {
   stepMode: SimConfig['stepMode']
   /** Default gate propagation delay, in picoseconds. */
   defaultDelay: number
+  /** Simulated-time per real-time multiplier (1 = real-time). */
+  timeScale: number
   settingsOpen: boolean
   toggleMode: () => void
   run: () => void
@@ -40,6 +45,7 @@ interface SimState {
   ascend: () => void
   setStepMode: (mode: SimConfig['stepMode']) => void
   setDefaultDelay: (ps: number) => void
+  setTimeScale: (scale: number) => void
   openSettings: () => void
   closeSettings: () => void
 }
@@ -78,6 +84,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     engine: null,
     stepMode: 'quiescent',
     defaultDelay: DEFAULT_CONFIG.defaultDelay,
+    timeScale: DEFAULT_TIME_SCALE,
     settingsOpen: false,
 
     toggleMode: () => {
@@ -101,10 +108,11 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       runTimer = setInterval(() => {
         const { engine } = get()
         if (!engine) return
-        // Advance to the next clock edge (so short clocks are sampled correctly);
-        // fall back to a fixed step when the design has no clock source. Then settle
-        // so the circuit is never left mid-cascade (e.g. when pausing).
-        engine.advanceTo(engine.time + (engine.nextClockEdgeDelta() ?? RUN_STEP))
+        // Advance a fixed slice of simulated time (a multiple of real time), then settle
+        // so the circuit is never left mid-cascade (e.g. when pausing). A clock slower
+        // than the slice just fires its edge on a later tick.
+        const slice = Math.max(1, Math.round(RUN_TICK_PS * get().timeScale))
+        engine.advanceTo(engine.time + slice)
         engine.settle()
         set((s) => ({ version: s.version + 1 }))
       }, 16)
@@ -153,6 +161,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       set({ defaultDelay: ps })
       set({ engine: rebuild(), version: get().version + 1 })
     },
+
+    setTimeScale: (scale) => set({ timeScale: scale }),
 
     openSettings: () => set({ settingsOpen: true }),
     closeSettings: () => set({ settingsOpen: false }),

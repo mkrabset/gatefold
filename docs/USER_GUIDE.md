@@ -275,7 +275,7 @@ components on the canvas.
 - **Stop** — pause a running simulation.
 - **Reset** — rebuild the simulation from scratch.
 - **Space** — toggle between running and paused while simulating.
-- **Settings** — set the default gate delay (ps) and the step mode.
+- **Settings** — set the default gate delay (ps), the step mode, and the simulation speed.
 
 ### Timing lamp
 
@@ -288,6 +288,17 @@ simulation controls and reports how fast the logic settles relative to that cloc
 
 A yellow or red lamp latches on and stays until the next **Run**/**Reset**. Hover the lamp for a
 tooltip.
+
+### Simulation speed
+
+The **Simulation speed** setting is a multiplier of simulated time per real time: `1` means
+real-time, larger values run faster, smaller values run slower. While running, each tick advances
+a fixed slice of simulated time, so **increasing a CLOCK's period makes it cycle slower on
+screen** (a period longer than the slice simply fires its edge on a later tick). At speed `s`, a
+clock with period `P` ps cycles at `s × 10^12 / P` Hz. The default speed (`0.001`) with the
+built-in `100 000` ps clock is therefore ~10 kHz — too fast to see — so use a much larger period
+(e.g. `1 000 000 000` ps for ~1 Hz) to watch slow motion. Set the speed to `1` for real-time
+behavior (again, with a much larger clock period).
 
 ### How it works
 

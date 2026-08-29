@@ -38,3 +38,8 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+publish.sh
+convert-userguide.sh
+resume.sh
+

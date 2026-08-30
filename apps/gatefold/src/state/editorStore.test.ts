@@ -201,6 +201,60 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(variantHa.defId).not.toBe(templateHa.defId)
   })
 
+  it('places the port groups outside the grouped components (template and variant)', () => {
+    reset()
+    const state = useEditorStore.getState()
+    // clk is at x=100, or1 at x=730 — a wide selection whose centroid ±120 placeholder
+    // would fall inside the component span.
+    state.setSelection(['clk', 'or1'])
+    state.openGroupDialog()
+    state.setGroupName('wide')
+    state.confirmGroup()
+
+    const s = useEditorStore.getState()
+    const template = Object.values(s.design.defs).find(
+      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'wide',
+    )!
+    const newInst = mainInstances()[mainInstances().length - 1]
+    const variant = s.design.defs[newInst.defId]
+
+    for (const def of [template, variant]) {
+      const inputGroup = def.instances!.find((i) => i.defId === 'input-port')
+      const outputGroup = def.instances!.find((i) => i.defId === 'output-port')
+      expect(inputGroup).toBeDefined()
+      expect(outputGroup).toBeDefined()
+      expect(inputGroup!.pos.x).toBeLessThan(100)
+      expect(outputGroup!.pos.x).toBeGreaterThan(730)
+    }
+  })
+
+  it('preserves port-group positions when grouping includes the port groups', () => {
+    reset()
+    useEditorStore.setState({ design: makePortGroupDesign(), navStack: ['main'], selectedIds: ['a', 'in', 'out'] })
+    useEditorStore.temporal.getState().clear()
+
+    const state = useEditorStore.getState()
+    state.openGroupDialog()
+    state.setGroupName('sub')
+    state.confirmGroup()
+
+    const s = useEditorStore.getState()
+    const template = Object.values(s.design.defs).find(
+      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'sub',
+    )!
+    const newInst = s.design.defs['main'].instances!.find((i) => i.name === 'sub')!
+    const variant = s.design.defs[newInst.defId]
+
+    // The parent's port groups were at (0,0) and (200,0); both the template and the
+    // grouped instance keep those exact positions (not auto-shifted).
+    for (const def of [template, variant]) {
+      const inGroup = def.instances!.find((i) => i.defId === 'input-port')!
+      const outGroup = def.instances!.find((i) => i.defId === 'output-port')!
+      expect(inGroup.pos).toEqual({ x: 0, y: 0 })
+      expect(outGroup.pos).toEqual({ x: 200, y: 0 })
+    }
+  })
+
   it('keeps template ports clean and allows inverting a variant', () => {
     reset()
     // A template's terminals cannot be inverted.
@@ -351,5 +405,37 @@ function makeTestDesign(): Design {
     ],
   }
 
+  return { version: 1, root: 'main', defs }
+}
+
+// A root with its own input/output port groups (at x=0 and x=200) wired through an AND.
+function makePortGroupDesign(): Design {
+  const defs: Record<string, ComponentDef> = {}
+  for (const spec of libraryPrimitives()) {
+    defs[spec.kind] = primitiveDef(spec.kind)
+  }
+  defs['input-port'] = inputPortDef()
+  defs['output-port'] = outputPortDef()
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [
+      { id: inputPortId(0), name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
+      { id: inputPortId(1), name: 'B', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:1' } },
+      { id: outputPortId(0), name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+    ],
+    instances: [
+      { id: 'in', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+      { id: 'a', name: 'a', defId: 'and', pos: { x: 100, y: 0 } },
+      { id: 'out', name: '', defId: 'output-port', pos: { x: 200, y: 0 } },
+    ],
+    connections: [
+      { id: 'c1', from: { instanceId: 'in', portId: 'in:0' }, to: { instanceId: 'a', portId: 'in:0' } },
+      { id: 'c2', from: { instanceId: 'in', portId: 'in:1' }, to: { instanceId: 'a', portId: 'in:1' } },
+      { id: 'c3', from: { instanceId: 'a', portId: 'out:0' }, to: { instanceId: 'out', portId: 'out:0' } },
+    ],
+  }
   return { version: 1, root: 'main', defs }
 }

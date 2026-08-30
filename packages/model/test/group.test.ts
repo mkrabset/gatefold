@@ -256,6 +256,19 @@ describe('grouping with port groups in the selection', () => {
     expect(main.connections!.some((c) => pinEq(c, iRef('in', 'in:1'), iRef(compInst.id, 'in:1')))).toBe(true)
     expect(main.connections!.some((c) => pinEq(c, iRef(compInst.id, 'out:0'), iRef('out', 'out:0')))).toBe(true)
   })
+
+  it('keeps the new port groups at the original port-group positions', () => {
+    const design = buildPortGroupDesign()
+    const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
+
+    const comp = result.defs['component']
+    const inGroup = comp.instances!.find((i) => i.defId === 'input-port')!
+    const outGroup = comp.instances!.find((i) => i.defId === 'output-port')!
+    // The parent's port groups were at (0,0) and (200,0); the new component inherits
+    // those exact positions (relative to the moved gate at (100,0)).
+    expect(inGroup.pos).toEqual({ x: 0, y: 0 })
+    expect(outGroup.pos).toEqual({ x: 200, y: 0 })
+  })
 })
 
 // A composite whose ports A/B/C (inputs) and Y (output) are wired through a 4-input

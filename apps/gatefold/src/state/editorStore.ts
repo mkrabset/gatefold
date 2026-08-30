@@ -451,6 +451,8 @@ export const useEditorStore = create<EditorState>()(
         const inferred = inferGroup(s.design, defId, s.selectedIds)
         const inputInverted = inferred.inputs.map((g) => g.inverted === true)
         const outputInverted = inferred.outputs.map((g) => g.inverted === true)
+        const inputPortIncluded = inferred.inputPortIncluded
+        const outputPortIncluded = inferred.outputPortIncluded
         // applyGroup returns a fresh design (pure); assign it wholesale and select
         // the newly created instance, which is appended last in the parent.
         s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs, name)
@@ -458,6 +460,16 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[defId]
         const last = def.instances?.[def.instances.length - 1]
         if (last) {
+          // Place the template's port groups relative to its components *before*
+          // copy-on-place, so the library template and every copy inherit correct
+          // positions. A side whose parent port group was included in the selection
+          // keeps its original position (already set by `applyGroup`); other sides are
+          // auto-placed (inputs left of the leftmost pin, outputs right of the rightmost).
+          const template = s.design.defs[last.defId]
+          for (const inst of template.instances ?? []) {
+            if (inst.defId === 'input-port' && !inputPortIncluded) inst.pos = portPlacement(template, s.design, 'input')
+            else if (inst.defId === 'output-port' && !outputPortIncluded) inst.pos = portPlacement(template, s.design, 'output')
+          }
           // Copy-on-place: deep-copy the template and its whole hierarchy into fresh
           // variants so the grouped instance is fully independent of the library template.
           const newDefId = copyDefIntoDesign(s.design, last.defId)
@@ -471,12 +483,6 @@ export const useEditorStore = create<EditorState>()(
           for (const [i, inv] of outputInverted.entries()) {
             const port = outputPorts(newDef)[i]
             if (port && inv) port.inverted = true
-          }
-          // Place the new composite's port groups relative to its components: inputs
-          // left of the leftmost input pin, outputs right of the rightmost output pin.
-          for (const inst of newDef.instances ?? []) {
-            if (inst.defId === 'input-port') inst.pos = portPlacement(newDef, s.design, 'input')
-            else if (inst.defId === 'output-port') inst.pos = portPlacement(newDef, s.design, 'output')
           }
         }
         s.selectedIds = last ? [last.id] : []

@@ -47,6 +47,10 @@ export interface InferredGroup {
   internal: Connection[]
   inputs: InferredInput[]
   outputs: InferredOutput[]
+  /** True when the parent's `input-port` instance is part of the selection. */
+  inputPortIncluded: boolean
+  /** True when the parent's `output-port` instance is part of the selection. */
+  outputPortIncluded: boolean
 }
 
 // Produce a name/id that is unique against a set of existing ones, e.g. "component",
@@ -215,6 +219,8 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
     internal,
     inputs: [...inheritedInputs, ...inputs.values(), ...exposedInputs],
     outputs: [...inheritedOutputs, ...outputs.values(), ...exposedOutputs],
+    inputPortIncluded,
+    outputPortIncluded,
   }
 }
 
@@ -266,17 +272,29 @@ export function applyGroup(
   const genConn = () => `c-${newDefId}-${++connCounter}`
 
   // One input-port instance carries all inferred inputs; one output-port instance all
-  // inferred outputs. Their pins are derived from the composite's ports.
+  // inferred outputs. Their pins are derived from the composite's ports. When the
+  // parent's own port group was included in the selection, the new group keeps its
+  // original position (so ports stay put relative to the moved components); otherwise a
+  // rough placeholder is used and the app re-places it.
   let inputGroupId: string | null = null
   let outputGroupId: string | null = null
 
+  const inputPortInst = (def.instances ?? []).find((i) => result.defs[i.defId]?.primitive === 'input-port')
+  const outputPortInst = (def.instances ?? []).find((i) => result.defs[i.defId]?.primitive === 'output-port')
+
   if (inferred.inputs.length > 0) {
     inputGroupId = `${newDefId}-in`
-    portInstances.push({ id: inputGroupId, name: '', defId: 'input-port', pos: { x: cx - 120, y: cy } })
+    const pos = inferred.inputPortIncluded && inputPortInst
+      ? { x: inputPortInst.pos.x, y: inputPortInst.pos.y }
+      : { x: cx - 120, y: cy }
+    portInstances.push({ id: inputGroupId, name: '', defId: 'input-port', pos })
   }
   if (inferred.outputs.length > 0) {
     outputGroupId = `${newDefId}-out`
-    portInstances.push({ id: outputGroupId, name: '', defId: 'output-port', pos: { x: cx + 120, y: cy } })
+    const pos = inferred.outputPortIncluded && outputPortInst
+      ? { x: outputPortInst.pos.x, y: outputPortInst.pos.y }
+      : { x: cx + 120, y: cy }
+    portInstances.push({ id: outputGroupId, name: '', defId: 'output-port', pos })
   }
 
   inferred.inputs.forEach((g, i) => {

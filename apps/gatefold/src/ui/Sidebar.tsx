@@ -3,7 +3,7 @@ import { currentDefId, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
 import type { ComponentDef, Instance, Port } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
-import { allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
+import { allowInversion, allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 
@@ -298,8 +298,9 @@ function PortsGroups({ defId }: { defId?: string }) {
   const target = defId ?? currentDefId(useEditorStore.getState())
   const current = design.defs[target]
   const renameAllowed = allowRenameTerminals(current)
-  // Templates keep clean (non-inverted) terminals; inversion is instance-level.
-  const invertAllowed = !isTemplateDef(design, current)
+  // Templates keep clean (non-inverted) terminals; inversion is instance-level. A
+  // primitive that forbids inversion (e.g. the NODE join-point) never gets checkboxes.
+  const invertAllowed = !isTemplateDef(design, current) && allowInversion(current)
 
   // A port is connected if any wire touches its pin on the port group.
   const isConnected = (port: Port): boolean => {

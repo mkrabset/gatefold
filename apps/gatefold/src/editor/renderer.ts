@@ -283,6 +283,26 @@ function drawTerminalLabels(
     }
 }
 
+/** Draw a join-point (NODE) dot: wire-colored, signal-colored in sim, red on hover. */
+function drawJoinpoint(
+    ctx: CanvasRenderingContext2D,
+    cx: number,
+    cy: number,
+    vp: Viewport,
+    p: Palette,
+    hovered: boolean,
+    sim: SimView | undefined,
+    instanceId: string,
+    portId: string,
+) {
+    const r = 4 * vp.zoom
+    const color = sim ? (sim.colorOf(instanceId, portId) ?? p.wire) : hovered ? p.pinHighlight : p.wire
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fillStyle = color
+    ctx.fill()
+}
+
 function drawInstance(
     ctx: CanvasRenderingContext2D,
     design: Design,
@@ -300,6 +320,7 @@ function drawInstance(
 ) {
     const {w, h} = instanceBodySize(design, parentDef, instance, def)
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
+    const isJoin = def.kind === 'primitive' && def.primitive === 'join-point'
 
     if (selected) {
         const b = instanceBounds(design, parentDef, instance, def, 6)
@@ -346,6 +367,8 @@ function drawInstance(
                 drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
             } else if (def.primitive === 'seven-seg') {
                 drawSevenSegBody(ctx, design, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
+            } else if (isJoin) {
+                drawJoinpoint(ctx, s.x, s.y, vp, p, !!hoverPort && hoverPort.instanceId === instance.id, sim, instance.id, outputPorts(def)[0].id)
             } else {
                 primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
                     x: s.x,
@@ -358,11 +381,11 @@ function drawInstance(
             }
         }
         // Terminal names inside the body for primitives with distinct terminals (DFF).
-        if (def.primitive && primitiveOf(def.primitive).showTerminalNames?.()) {
+        if (def.primitive && !isJoin && primitiveOf(def.primitive).showTerminalNames?.()) {
             drawTerminalLabels(ctx, design, parentDef, instance, def, cw, ch, vp, p)
         }
-        // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
-        if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
+        // Type label above the gate (NOT/CLOCK symbols are self-explanatory; a NODE is a bare dot).
+        if (def.primitive && !isJoin && def.primitive !== 'clock' && def.primitive !== 'not') {
             ctx.fillStyle = p.text
             ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
             ctx.textAlign = 'center'
@@ -378,15 +401,20 @@ function drawInstance(
             ctx.textBaseline = 'middle'
             ctx.fillText(formatFrequency(1e12 / period), s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
         }
-        // Instance name below the gate.
-        ctx.fillStyle = p.text
-        ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
+        // Instance name below the gate (a NODE dot has no labels).
+        if (!isJoin) {
+            ctx.fillStyle = p.text
+            ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
+        }
     }
 
-    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
+    // A NODE's coincident terminals have no separate pin markers (the dot is the pin).
+    if (!isJoin) {
+        drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
+    }
 }
 
 
@@ -657,6 +685,12 @@ export function drawScene(
         return portPosition(design, def, inst, instDef, ref.portId)
     }
 
+    const isJoin = (ref: PinRef): boolean => {
+        const inst = byId.get(ref.instanceId)
+        const instDef = inst && design.defs[inst.defId]
+        return !!instDef && instDef.kind === 'primitive' && instDef.primitive === 'join-point'
+    }
+
     interface Trace {
         s: { x: number; y: number }
         c1: { x: number; y: number }
@@ -674,7 +708,7 @@ export function drawScene(
         const a = resolveEndpoint(conn.from)
         const b = resolveEndpoint(conn.to)
         if (!a || !b) continue
-        const path = wirePath(a, b)
+        const path = wirePath(a, b, { fromJoin: isJoin(conn.from), toJoin: isJoin(conn.to) })
         const trace: Trace = {
             s: w2s(path.start.x, path.start.y, cw, ch, vp),
             c1: w2s(path.c1.x, path.c1.y, cw, ch, vp),
@@ -743,7 +777,7 @@ export function drawScene(
             for (const dy of offsets) {
                 const start = {x: a.x, y: a.y + dy}
                 const end = target ? {x: target.x, y: target.y + dy} : {x: pendingWire.x, y: pendingWire.y}
-                const path = wirePath(start, end)
+                const path = wirePath(start, end, { fromJoin: isJoin(pendingWire.from), toJoin: !!hoverPort && isJoin(hoverPort) })
                 const s = w2s(path.start.x, path.start.y, cw, ch, vp)
                 const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
                 const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)

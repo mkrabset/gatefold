@@ -17,6 +17,7 @@ import { SevenSeg } from './seven-seg'
 import { SwitchArray } from './switch-array'
 import { LedArray } from './led-array'
 import { Dff } from './dff'
+import { JoinPoint } from './join-point'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
@@ -44,10 +45,11 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'switch-array': new SwitchArray(),
   'led-array': new LedArray(),
   dff: new Dff(),
+  'join-point': new JoinPoint(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {
@@ -121,6 +123,13 @@ export function allowRenameTerminals(def: ComponentDef): boolean {
   if (def.kind === 'composite') return true
   if (!def.primitive) return false
   return PRIMITIVES[def.primitive].allowRenameTerminals
+}
+
+/** Whether the terminals of `def` may be inverted (the negation bubble) by the user. */
+export function allowInversion(def: ComponentDef): boolean {
+  if (def.kind === 'composite') return true
+  if (!def.primitive) return false
+  return PRIMITIVES[def.primitive].allowInversion
 }
 
 /** The suggested name for a newly-added input terminal of a primitive, or null. */

@@ -8,7 +8,7 @@ const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, port
 const inst = (id: string, defId: string): Instance => ({ id, name: id, defId, pos: { x: 0, y: 0 } })
 const conn = (id: string, from: PinRef, to: PinRef) => ({ id, from, to })
 
-const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg', 'dff'] as const
+const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg', 'dff', 'join-point'] as const
 
 function mkDesign(
   instances: ComponentDef['instances'],
@@ -49,6 +49,30 @@ describe('Simulation engine', () => {
     sim.setSwitch('b', 1)
     sim.step()
     expect(sim.signal('g', 'out:0')).toBe(1)
+  })
+
+  it('fans a single wire out through a NODE join-point', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('sw', 'switch-array'), inst('j', 'join-point'), inst('l1', 'led-array'), inst('l2', 'led-array')],
+        [
+          conn('c1', iref('sw', 'out:0'), iref('j', 'in:0')),
+          conn('c2', iref('j', 'out:0'), iref('l1', 'in:0')),
+          conn('c3', iref('j', 'out:0'), iref('l2', 'in:0')),
+        ],
+      ),
+    )
+    sim.setSwitch('sw', 1)
+    sim.step()
+    expect(sim.signal('j', 'out:0')).toBe(1)
+    expect(sim.signal('l1', 'in:0')).toBe(1)
+    expect(sim.signal('l2', 'in:0')).toBe(1)
+
+    sim.setSwitch('sw', 0)
+    sim.step()
+    expect(sim.signal('j', 'out:0')).toBe(0)
+    expect(sim.signal('l1', 'in:0')).toBe(0)
+    expect(sim.signal('l2', 'in:0')).toBe(0)
   })
 
   it('propagates unknown through an unconnected input', () => {

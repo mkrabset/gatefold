@@ -13,6 +13,11 @@ authoritative — update this when a term's meaning changes.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
   and the probe primitives 7-SEG, SWITCHES, LEDS. Not editable as a circuit.
+- **Node (join-point)** — a single-wire passthrough drawn as a filled dot whose one input
+  terminal and one output terminal coincide at the body center (`coincidentTerminals`). Multiple
+  wires exit by fan-out from its single output. Wires radiating from the dot collapse their
+  nearest bezier control point onto it; the dot is wire-colored (signal-colored in simulation,
+  red on hover).
 - **Buffer** — a primitive passing its single input through to its output unchanged; a NOT
   gate is a buffer whose output terminal is inverted.
 - **Clock** — a source primitive (no inputs, one output) that produces a periodic square

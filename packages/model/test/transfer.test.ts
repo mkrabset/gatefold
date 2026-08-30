@@ -38,6 +38,13 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(buf([['x']])).toEqual([['x']])
   })
 
+  it('NODE (join-point) passes its single input through', () => {
+    const node = primitiveOf('join-point').transfer
+    expect(node([[1]])).toEqual([[1]])
+    expect(node([[0]])).toEqual([[0]])
+    expect(node([['x']])).toEqual([['x']])
+  })
+
   it('FAN-IN bundles single-wire inputs into one bus', () => {
     expect(primitiveOf('fan-in').transfer([[1], [0], [1]])).toEqual([[1, 0, 1]])
   })

@@ -14,6 +14,7 @@ export abstract class PortGroup implements Primitive {
   readonly fixedInputs = true
   readonly fixedOutputs = true
   readonly allowRenameTerminals = false
+  readonly allowInversion = true
 
   defaultPorts(): Port[] {
     return []

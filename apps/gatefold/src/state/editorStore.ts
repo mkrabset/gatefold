@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
 import type { ComponentDef, Design, Instance, PinRef, Port, PortDirection } from '@gatefold/model'
 import {
+  allowInversion,
   allowRenameTerminals,
   applyGroup,
   arrayPorts,
@@ -500,6 +501,7 @@ export const useEditorStore = create<EditorState>()(
       set((s) => {
         const def = s.design.defs[defId ?? currentDefId(s)]
         if (isTemplateDef(s.design, def)) return
+        if (!allowInversion(def)) return
         const port = def.ports.find((p) => p.id === portId)
         if (!port) return
         if (inverted) port.inverted = true
@@ -515,6 +517,7 @@ export const useEditorStore = create<EditorState>()(
         // A port-group pin is derived from the current composite's own port.
         const ownerDef = isPortGroupDef(instDef) ? def : instDef
         if (isTemplateDef(s.design, ownerDef)) return
+        if (!allowInversion(ownerDef)) return
         const port = ownerDef.ports.find((p) => p.id === ref.portId)
         if (!port) return
         if (port.inverted) delete port.inverted

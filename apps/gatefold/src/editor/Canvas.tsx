@@ -144,12 +144,27 @@ export function Canvas() {
         return
       }
 
+      // Alt+press grabs a driven input's wire. This is how you grab a join-point's
+      // incoming wire, whose input terminal sits underneath its output terminal.
+      if (e.altKey) {
+        const sink = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
+        const conn = sink && findConnectionTo(def.connections ?? [], sink.ref)
+        if (conn) {
+          drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
+          state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
+          canvas.style.cursor = 'crosshair'
+          canvas.setPointerCapture(e.pointerId)
+          state.setHoverPort(sink.ref)
+          return
+        }
+      }
+
       // Pressing an output port always starts a wire — this takes priority over
       // selecting the component the port belongs to.
-        const port = hitTestPort(w.x, w.y, instances, state.design, def)
-      if (port && port.role === 'source') {
-        drag = { type: 'wire', from: port.ref, originalId: null, originalTo: null }
-        state.setPendingWire({ from: port.ref, x: w.x, y: w.y })
+      const source = hitTestPort(w.x, w.y, instances, state.design, def, 'source')
+      if (source) {
+        drag = { type: 'wire', from: source.ref, originalId: null, originalTo: null }
+        state.setPendingWire({ from: source.ref, x: w.x, y: w.y })
         canvas.style.cursor = 'crosshair'
         canvas.setPointerCapture(e.pointerId)
         return
@@ -157,14 +172,15 @@ export function Canvas() {
 
       // Pressing an input that already has a wire grabs that wire (to re-target or
       // delete it), instead of selecting the component.
-      if (port && port.role === 'sink') {
-        const conn = findConnectionTo(def.connections ?? [], port.ref)
+      const sink = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
+      if (sink) {
+        const conn = findConnectionTo(def.connections ?? [], sink.ref)
         if (conn) {
           drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
           state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
           canvas.style.cursor = 'crosshair'
           canvas.setPointerCapture(e.pointerId)
-          state.setHoverPort(port.ref)
+          state.setHoverPort(sink.ref)
           return
         }
       }
@@ -276,8 +292,8 @@ export function Canvas() {
           // Highlight a sink under the cursor so it's obvious when the wire can be
           // released to connect (or re-target) there.
           const def = state.design.defs[currentDefId(state)]
-          const target = hitTestPort(cur.x, cur.y, currentInstances(), state.design, def)
-          state.setHoverPort(target && target.role === 'sink' ? target.ref : null)
+          const target = hitTestPort(cur.x, cur.y, currentInstances(), state.design, def, 'sink')
+          state.setHoverPort(target ? target.ref : null)
         }
       }
     }
@@ -301,9 +317,9 @@ export function Canvas() {
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         const instances = currentInstances()
         const def = state.design.defs[currentDefId(state)]
-        const port = hitTestPort(w.x, w.y, instances, state.design, def)
+        const port = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
 
-        if (port && port.role === 'sink') {
+        if (port) {
           if (d.originalTo && pinRefEquals(port.ref, d.originalTo)) {
             // Released back onto the original target — no change.
           } else if (d.originalId) {

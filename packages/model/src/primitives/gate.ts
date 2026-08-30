@@ -97,6 +97,7 @@ export abstract class Gate implements Primitive {
   readonly fixedInputs: boolean = false
   readonly fixedOutputs: boolean = true
   readonly allowRenameTerminals: boolean = false
+  readonly allowInversion: boolean = true
 
   abstract defaultPorts(): Port[]
   abstract bodySize(): { w: number; h: number }
@@ -116,6 +117,10 @@ export abstract class Gate implements Primitive {
   }
 
   isSequential(): boolean {
+    return false
+  }
+
+  coincidentTerminals(): boolean {
     return false
   }
 

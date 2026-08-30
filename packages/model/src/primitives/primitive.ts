@@ -74,6 +74,8 @@ export interface Primitive {
   readonly fixedInputs: boolean
   readonly fixedOutputs: boolean
   readonly allowRenameTerminals: boolean
+  /** Whether the user may toggle terminal inversion (the negation bubble) on this primitive. */
+  readonly allowInversion: boolean
 
   /** The initial port set (arity may later be edited per `fixedInputs`/`fixedOutputs`). */
   defaultPorts(): Port[]
@@ -96,6 +98,9 @@ export interface Primitive {
   /** True when this primitive's terminal names should be drawn next to its pins
    *  (terminals with distinct purposes, e.g. the DFF's D/CLK/RST). */
   showTerminalNames?(): boolean
+  /** True when all of this primitive's terminals coincide at the body center (e.g. the
+   *  single-wire join-point dot), so pin placement/hit-testing/rendering special-case it. */
+  coincidentTerminals?(): boolean
   /** Which port group this is (only meaningful when `isPortGroup()`). */
   portGroupDirection(): 'input' | 'output' | null
   /** Intrinsic bus width of `port` given the full port list (`null` = neutral/adopt).

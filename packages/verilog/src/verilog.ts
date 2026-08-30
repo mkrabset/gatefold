@@ -322,7 +322,7 @@ class Generator {
       const net = (id: string): string => netOf(pin(id))
       const inv = (port: { inverted?: boolean } | undefined, s: string): string => (port?.inverted ? `~(${s})` : s)
 
-      if (k === 'and' || k === 'or' || k === 'xor' || k === 'not' || k === 'buffer') {
+      if (k === 'and' || k === 'or' || k === 'xor' || k === 'not' || k === 'buffer' || k === 'join-point') {
         const op = k === 'and' ? ' & ' : k === 'or' ? ' | ' : k === 'xor' ? ' ^ ' : null
         const inputs = inputPorts(idef)
         const output = outputPorts(idef)[0]

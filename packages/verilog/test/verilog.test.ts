@@ -50,6 +50,20 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Y = ~(A);')
   })
 
+  it('emits a NODE join-point as a passthrough assign', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), { id: 'j', name: 'j', defId: 'join-point', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('j', 'in:0') },
+        { id: 'c2', from: iref('j', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign Y = A;')
+  })
+
   it('emits a DFF with a clock source (no reset)', () => {
     const main: ComponentDef = {
       id: 'main', name: 'main', kind: 'composite',

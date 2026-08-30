@@ -112,6 +112,10 @@ export function instanceBodySize(
     const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
     return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }
+  if (def.kind === 'primitive' && def.primitive && primitiveOf(def.primitive).coincidentTerminals?.()) {
+    // A join-point's coincident terminals never inflate the body: it stays a dot.
+    return defBodySize(def)
+  }
   const base = defBodySize(def)
   const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
   const outH = sideHeight(widthsOf(design, parentDef, instance.id, outputPorts(def)))
@@ -139,6 +143,11 @@ export function portPosition(
     const { w } = sizeForPorts(widths)
     const y = instance.pos.y + sidePinOffset(widths, idx)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
+  }
+
+  // Coincident terminals (the join-point dot): every pin sits at the body center.
+  if (def.kind === 'primitive' && def.primitive && primitiveOf(def.primitive).coincidentTerminals?.()) {
+    return { x: instance.pos.x, y: instance.pos.y }
   }
 
   const { w } = instanceBodySize(design, parentDef, instance, def)
@@ -197,6 +206,8 @@ export interface PortHit {
 /**
  * Hit-test all connectable pins and return the nearest one within the hit radius.
  * The role is derived directly from pin direction (output = source, input = sink).
+ * When `prefer` is given, only pins of that role are considered (used to disambiguate
+ * a join-point's coincident input/output terminals).
  */
 export function hitTestPort(
   wx: number,
@@ -204,10 +215,12 @@ export function hitTestPort(
   instances: Instance[],
   design: Design,
   parentDef: ComponentDef,
+  prefer?: 'source' | 'sink',
 ): PortHit | null {
   let best: PortHit | null = null
   let bestDist = Infinity
   const consider = (ref: PinRef, pos: { x: number; y: number }, role: 'source' | 'sink') => {
+    if (prefer && prefer !== role) return
     // Distance to the terminal marker (a vertical segment of half-height r): anywhere
     // along the marker counts, not just its centre.
     const r = pinRadiusWorld(pinWidth(design, parentDef, ref))

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/types'
 import type { Signal } from '../src/types'
 import {
+  allowInversion,
   defaultPropsOf,
   inputPortDef,
   invertSignal,
@@ -19,8 +20,8 @@ import {
 } from '../src/primitives'
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS, DFF', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS, DFF, NODE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point'])
   })
 
   it('inverts the NOT output and leaves the buffer un-inverted', () => {
@@ -86,6 +87,20 @@ describe('model primitives', () => {
     expect(isArityFixed(primitiveDef('and'), 'output')).toBe(true)
     expect(isArityFixed(primitiveDef('fan-out'), 'input')).toBe(true)
     expect(isArityFixed(primitiveDef('fan-out'), 'output')).toBe(false)
+  })
+
+  it('defines the NODE join-point with coincident single-wire terminals', () => {
+    const node = primitiveDef('join-point')
+    expect(inputPorts(node).map((p) => p.id)).toEqual(['in:0'])
+    expect(outputPorts(node).map((p) => p.id)).toEqual(['out:0'])
+    expect(isArityFixed(node, 'input')).toBe(true)
+    expect(isArityFixed(node, 'output')).toBe(true)
+    expect(primitiveOf('join-point').coincidentTerminals?.()).toBe(true)
+    expect(allowInversion(node)).toBe(false)
+    expect(allowInversion(primitiveDef('and'))).toBe(true)
+    expect(portWidth(node, inputPorts(node)[0])).toBe(1)
+    expect(portWidth(node, outputPorts(node)[0])).toBe(1)
+    expect(defaultPropsOf('join-point')).toEqual({})
   })
 
   it('resolves one behaviour object per kind', () => {

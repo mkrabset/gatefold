@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive, inversion disabled).
 
 ## Where we are
 
@@ -101,6 +101,19 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 - **Group dialog Enter-to-confirm** — the Group/Save-as-template dialog body is now a `<form>` whose
   `onSubmit` runs `confirmGroup()` (with `preventDefault`); the Create/Save button is `type="submit"`
   and Cancel is `type="button"`, so pressing Enter in the name (or port-name) field confirms.
+- **NODE join-point primitive** — a single-wire passthrough drawn as a filled dot with its one input
+  and one output terminal coincident at the center; multiple wires exit by fan-out from the single
+  output. New `PrimitiveKind 'join-point'` + `JoinPoint` class (`coincidentTerminals()`, `transfer
+  (inputs) => [inputs[0]]`). Geometry special-cases it (`portPosition` → center, `instanceBodySize` →
+  dot); `hitTestPort` gained a `prefer?: 'source'|'sink'` param to disambiguate the coincident pins,
+  and `Canvas` uses `prefer 'sink'` on drop/hover plus an **Alt+press** grab of the incoming wire.
+  `wirePath(a, b, { fromJoin, toJoin })` collapses the nearest control point onto a join endpoint so
+  wires radiate from the dot. The renderer draws the dot (wire-colored, signal-colored in sim, red on
+  hover) with no pin markers/labels; Verilog emits `assign Y = A;`. Terminal inversion is **disabled**
+  on a NODE (both sides): `Primitive.allowInversion` (false on `JoinPoint`, default true) + a
+  `allowInversion(def)` helper gate `setPortInverted`/`togglePinInversion` and the sidebar's inversion
+  checkbox. Tests in `primitives.test.ts`, `transfer.test.ts`, `engine.test.ts`, `verilog.test.ts`,
+  `routing.test.ts`.
 
 ## Simulation (previous session)
 

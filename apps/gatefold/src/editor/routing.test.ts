@@ -21,4 +21,21 @@ describe('wirePath', () => {
     expect(p.c1.x).toBe(a.x + (b.x - a.x) / 2)
     expect(p.c2.x).toBe(b.x - (b.x - a.x) / 2)
   })
+
+  it('collapses the nearest control point onto a join-point endpoint', () => {
+    const a = { x: 0, y: 0 }
+    const b = { x: 40, y: 10 }
+
+    const fromJoin = wirePath(a, b, { fromJoin: true })
+    expect(fromJoin.c1).toEqual(a)
+    expect(fromJoin.c2).toEqual({ x: b.x - 20, y: b.y })
+
+    const toJoin = wirePath(a, b, { toJoin: true })
+    expect(toJoin.c1).toEqual({ x: a.x + 20, y: a.y })
+    expect(toJoin.c2).toEqual(b)
+
+    const both = wirePath(a, b, { fromJoin: true, toJoin: true })
+    expect(both.c1).toEqual(a)
+    expect(both.c2).toEqual(b)
+  })
 })

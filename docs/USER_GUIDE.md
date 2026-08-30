@@ -231,6 +231,14 @@ its properties, and what it does.
 - A passthrough that **fixes** the bus width. Property **Lanes** (default 8, 1–32) sets the
   width of both terminals; use it to pin a bus to a specific width regardless of its source.
 
+### NODE
+- **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)
+- A single-wire **join point**: a filled dot whose input and output terminals coincide, drawn with
+  no labels. It passes its input through unchanged, and **multiple wires exit** by fan-out from its
+  single output. Drag a wire onto the dot to feed it; press the dot to start another outgoing wire;
+  **Alt+press** grabs the incoming wire. To move it, drag the ring just around the dot (or region-select
+  it first). The dot is wire-colored, signal-colored in simulation, and red while hovered.
+
 ### 7-SEG
 - **Inputs:** 1 (`BUS`) · **Outputs:** none · Properties **Mode** (`HEX` / `DEC` / `SIGNED DEC`) and **Order** (`asc` / `desc`)
 - A multi-digit display. Its bus width must be a **multiple of 4** and **≤ 64**. The **Mode**

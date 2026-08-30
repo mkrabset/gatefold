@@ -119,6 +119,10 @@ interface Design { version: number; root: string; defs: Record<string, Component
   `PrimitiveKind` to its behaviour object; `primitiveDef(kind)` produces the serializable
   `ComponentDef`. The port primitives are not listed in the library (their pins are derived
   from the enclosing composite). The `not` gate is a `buffer` whose output port is `inverted`.
+  The **NODE join-point** (`join-point`) is a single-wire passthrough with coincident terminals:
+  its `coincidentTerminals()` drives special geometry (`portPosition` returns the body center,
+  `instanceBodySize` stays a dot), `hitTestPort`'s `prefer` role disambiguates press (source) vs
+  drop (sink), and the router collapses a wire's nearest control point onto the dot.
 - **Buses**: a terminal's *width* (wire count) is derived, never stored. `portWidth` reports
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,

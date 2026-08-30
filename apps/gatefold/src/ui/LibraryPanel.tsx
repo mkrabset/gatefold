@@ -4,6 +4,7 @@ import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
 import { useUiStore } from '../state/uiStore'
 import { darkPalette, lightPalette } from '../editor/palette'
+import { PRIMITIVE_ICONS } from '../icons'
 
 /**
  * Right panel: a palette of placeable primitives plus the user's composite
@@ -75,7 +76,7 @@ export function LibraryPanel({ width }: { width: number }) {
             onClick={() => setActive(p.kind)}
             title={`Drag to place ${p.label}`}
           >
-            <span className="lib-glyph">{p.glyph}</span>
+            <img className="lib-icon" src={PRIMITIVE_ICONS[p.kind]} alt={p.label} draggable={false} />
             <span className="lib-label">{p.label}</span>
           </button>
         ))}

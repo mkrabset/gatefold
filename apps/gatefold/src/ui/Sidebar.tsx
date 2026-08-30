@@ -4,6 +4,7 @@ import { useSimStore } from '../state/simStore'
 import type { ComponentDef, Instance, Port } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
 import { allowInversion, allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
+import { PRIMITIVE_ICONS } from '../icons'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
 
@@ -17,6 +18,7 @@ interface TreeItemProps {
   label: string
   depth: number
   icon?: string
+  iconSrc?: string
   kind?: string
   selected: boolean
   expandable?: boolean
@@ -42,7 +44,11 @@ function TreeItem(props: TreeItemProps) {
       ) : (
         <span className="tree-chevron placeholder" />
       )}
-      {props.icon && <span className="tree-icon">{props.icon}</span>}
+      {props.iconSrc ? (
+        <img className="tree-icon-img" src={props.iconSrc} alt="" draggable={false} />
+      ) : props.icon ? (
+        <span className="tree-icon">{props.icon}</span>
+      ) : null}
       <span className="tree-label">{props.label}</span>
       {props.kind && <span className="tree-kind">{props.kind}</span>}
     </div>
@@ -65,13 +71,15 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
         const childDef = design.defs[inst.defId]
         const isComposite = childDef?.kind === 'composite'
         const isExpanded = expanded[inst.id] ?? false
-        const icon = childDef?.primitive ? primitiveOf(childDef.primitive).glyph : '▣'
+        const iconSrc = childDef?.primitive ? PRIMITIVE_ICONS[childDef.primitive] : undefined
+        const icon = childDef?.primitive ? undefined : '▣'
         return (
           <div key={inst.id}>
             <TreeItem
               label={inst.name}
               depth={depth}
               icon={icon}
+              iconSrc={iconSrc}
               kind={childDef?.primitive ? childDef.primitive : 'composite'}
               selected={selectedIds.includes(inst.id)}
               expandable={isComposite}

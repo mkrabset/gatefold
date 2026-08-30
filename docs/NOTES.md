@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive, inversion disabled).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge).
 
 ## Where we are
 
@@ -114,6 +114,27 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `allowInversion(def)` helper gate `setPortInverted`/`togglePinInversion` and the sidebar's inversion
   checkbox. Tests in `primitives.test.ts`, `transfer.test.ts`, `engine.test.ts`, `verilog.test.ts`,
   `routing.test.ts`.
+- **Wire-crossing search** — new `apps/gatefold/src/editor/wireSearch.ts` with `findWireAtLine(design,
+  parentDef, a, b)`: reconstructs each connection's rendered bezier (single wires, and per-lane beziers
+  for buses), flattens each cubic (de Casteljau subdivision) and intersects it with the query segment,
+  returning `{ connection, point }` only when exactly one single-wire connection is crossed
+  (ambiguous / bus / degenerate → null). Tests in `wireSearch.test.ts`.
+- **Drop a NODE onto a wire** — dragging a NODE from the library onto a single wire now splits it:
+  `findJoinpointWire` (two 45° diagonals through the drop point, `JOINPOINT_PICK_HALF = 16`) picks the
+  wire, and a new `editorStore.insertJoinPointAt(connectionId, pos)` action replaces the connection
+  with `from → node.in:0` and `node.out:0 → to` (undoable, copy-on-place). The library drag shows the
+  NODE as a filled-circle drag image sized to the dropped dot (radius `4·zoom`). Tests in
+  `wireSearch.test.ts` and `editorStore.test.ts`.
+- **Verilog source→sink bridge** — fixed a generator bug where a switch wired straight to an LED (a
+  module input and output sharing one net) produced an empty module with disconnected ports. Net naming
+  now names a net after its driver side (source / composite input) and emits an
+  `assign <output> = <net>;` for every module-output pin (sink / composite output) whose name differs —
+  so `switch → LED` emits `assign LEDS_BUS = SWITCHES_BUS;` (and a gate fanning out to two sinks also
+  bridges the second). Test in `verilog.test.ts`.
+- **Ctrl/Cmd+drag cut line** — a new gesture: hold Ctrl (or Cmd) and drag to draw an imaginary dashed
+  line (a transient `cutLine` store state rendered by `drawScene`); on release `findWireAtLine` runs on
+  that line and, on a hit, `insertJoinPointAt` inserts a NODE at the crossing point (`hit.point`),
+  slicing the wire. New `cut` variant in the Canvas `Drag` union.
 
 ## Simulation (previous session)
 

@@ -64,6 +64,22 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Y = A;')
   })
 
+  it('bridges a source wired straight to a sink with an assign', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'sw', name: 'SWITCHES', defId: 'switch-array', pos: { x: 0, y: 0 } },
+        { id: 'led', name: 'LEDS', defId: 'led-array', pos: { x: 0, y: 0 } },
+      ],
+      connections: [{ id: 'c1', from: iref('sw', 'out:0'), to: iref('led', 'in:0') }],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('input SWITCHES_BUS')
+    expect(source).toContain('output LEDS_BUS')
+    expect(source).toContain('assign LEDS_BUS = SWITCHES_BUS;')
+  })
+
   it('emits a DFF with a clock source (no reset)', () => {
     const main: ComponentDef = {
       id: 'main', name: 'main', kind: 'composite',

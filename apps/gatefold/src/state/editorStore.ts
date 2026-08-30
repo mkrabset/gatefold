@@ -85,6 +85,12 @@ export interface PendingWire {
   originalId?: string
 }
 
+/** An imaginary cut line (Ctrl/Cmd+drag) used to slice a wire with a new NODE. */
+export interface CutLine {
+  start: { x: number; y: number }
+  end: { x: number; y: number }
+}
+
 interface EditorState {
   viewport: Viewport
   /** Saved viewport per nav-stack depth (parallel to `navStack`), for restore on escape. */
@@ -92,6 +98,7 @@ interface EditorState {
   selectedIds: string[]
   marquee: Rect | null
   pendingWire: PendingWire | null
+  cutLine: CutLine | null
   hoverPort: PinRef | null
   notice: string | null
   navStack: string[]
@@ -106,6 +113,7 @@ interface EditorState {
   setInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
   setMarquee: (rect: Rect | null) => void
   setPendingWire: (wire: PendingWire | null) => void
+  setCutLine: (line: CutLine | null) => void
   setHoverPort: (hover: PinRef | null) => void
   setNotice: (message: string) => void
   clearNotice: () => void
@@ -298,6 +306,7 @@ export const useEditorStore = create<EditorState>()(
       selectedIds: [],
       marquee: null,
     pendingWire: null,
+    cutLine: null,
     hoverPort: null,
     notice: null,
     navStack: ['main'],
@@ -325,6 +334,7 @@ export const useEditorStore = create<EditorState>()(
       }),
     setMarquee: (rect) => set((s) => void (s.marquee = rect)),
     setPendingWire: (wire) => set((s) => void (s.pendingWire = wire)),
+    setCutLine: (line) => set((s) => void (s.cutLine = line)),
     setHoverPort: (hover) => set((s) => void (s.hoverPort = hover)),
     setNotice: (message) => set((s) => void (s.notice = message)),
     clearNotice: () => set((s) => void (s.notice = null)),

@@ -241,15 +241,30 @@ class Generator {
 
     const netNameOfPin = new Map<string, string>()
     const netWidthByName = new Map<string, number>()
+    // Module output(s) sharing a net that is also a module input (or otherwise named
+    // differently) need a bridging `assign <output> = <net>;` — e.g. a switch wired
+    // straight to an LED, or a gate output fanning out to two sinks.
+    const bridges: string[] = []
     for (const members of rootMembers.values()) {
+      // Input-side port (drives the net): a composite input port or a source pin.
       let name: string | null = null
       let width = 1
       for (const m of members) {
-        if (outputGroup && m.instanceId === outputGroup.id) { name = outputPortNames.get(m.portId)!; width = outputPortWidths.get(m.portId)!; break }
+        if (inputGroup && m.instanceId === inputGroup.id) { name = inputPortNames.get(m.portId)!; width = inputPortWidths.get(m.portId)!; break }
       }
-      if (name === null) for (const m of members) { const s = sinkPorts.get(pinKey(m)); if (s) { name = s.name; width = s.width; break } }
-      if (name === null) for (const m of members) { if (inputGroup && m.instanceId === inputGroup.id) { name = inputPortNames.get(m.portId)!; width = inputPortWidths.get(m.portId)!; break } }
       if (name === null) for (const m of members) { const s = sourcePorts.get(pinKey(m)); if (s) { name = s.name; width = s.width; break } }
+
+      // Output-side port(s) (read the net): a composite output port or a sink pin.
+      const outputs: { name: string; width: number }[] = []
+      for (const m of members) {
+        if (outputGroup && m.instanceId === outputGroup.id) {
+          outputs.push({ name: outputPortNames.get(m.portId)!, width: outputPortWidths.get(m.portId)! })
+        }
+      }
+      for (const m of members) { const s = sinkPorts.get(pinKey(m)); if (s) outputs.push({ name: s.name, width: s.width }) }
+
+      if (name === null && outputs.length > 0) { name = outputs[0].name; width = outputs[0].width }
+
       if (name === null) {
         for (const m of members) {
           const inst = byId.get(m.instanceId)
@@ -265,6 +280,10 @@ class Generator {
       if (name === null) { name = uniqueName('z', used); width = 1 }
       for (const m of members) netNameOfPin.set(pinKey(m), name)
       netWidthByName.set(name, width)
+
+      for (const o of outputs) {
+        if (o.name !== name) bridges.push(`assign ${o.name} = ${name};`)
+      }
     }
 
     // Floating-input warnings.
@@ -316,6 +335,7 @@ class Generator {
     }
 
     const stmts: string[] = []
+    stmts.push(...bridges)
     const emitPrimitive = (inst: Instance, idef: ComponentDef): void => {
       const k = idef.primitive!
       const pin = (id: string): PinRef => ({ instanceId: inst.id, portId: id })

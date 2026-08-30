@@ -5,7 +5,7 @@ import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds } from './geometry'
 import { drawScene } from './renderer'
-import { findJoinpointWire } from './wireSearch'
+import { findJoinpointWire, findWireAtLine } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
@@ -31,6 +31,7 @@ type Drag =
   | { type: 'marquee'; startX: number; startY: number; startWorld: { x: number; y: number } }
   | { type: 'shiftClick'; id: string; startX: number; startY: number; vp: Viewport }
   | { type: 'wire'; from: PinRef; originalId: string | null; originalTo: PinRef | null }
+  | { type: 'cut'; startWorld: { x: number; y: number } }
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
@@ -68,7 +69,7 @@ export function Canvas() {
       const sim = simState.mode === 'simulate' && simState.engine
         ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf, speedLabel: formatSpeed(simState.timeScale) }
         : undefined
-      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.hoverPort, palette, sim)
+      drawScene(ctx, cw, ch, state.design, state.viewport, state.selectedIds, currentDefId(state), editingTemplate, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
     }
 
     const resize = () => {
@@ -141,6 +142,16 @@ export function Canvas() {
           drag = { type: 'pan', startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
           canvas.style.cursor = 'grabbing'
         }
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
+
+      // Ctrl/Cmd+drag draws an imaginary cut line; releasing it slices a wire with a
+      // new NODE at the crossing point.
+      if (e.ctrlKey || e.metaKey) {
+        drag = { type: 'cut', startWorld: { x: w.x, y: w.y } }
+        state.setCutLine({ start: { x: w.x, y: w.y }, end: { x: w.x, y: w.y } })
+        canvas.style.cursor = 'crosshair'
         canvas.setPointerCapture(e.pointerId)
         return
       }
@@ -286,6 +297,12 @@ export function Canvas() {
           state.setSelection(selected)
           return
         }
+        case 'cut': {
+          const rect = wrap.getBoundingClientRect()
+          const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+          state.setCutLine({ start: d.startWorld, end: { x: cur.x, y: cur.y } })
+          return
+        }
         case 'wire': {
           const rect = wrap.getBoundingClientRect()
           const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
@@ -311,6 +328,17 @@ export function Canvas() {
         // The final position was already applied by the last pointermove; just end
         // the coalescing so subsequent changes record normally.
         endMoveTransaction()
+      }
+      if (d?.type === 'cut') {
+        const state = useEditorStore.getState()
+        const rect = wrap.getBoundingClientRect()
+        const end = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+        state.setCutLine(null)
+        const def = state.design.defs[currentDefId(state)]
+        const hit = findWireAtLine(state.design, def, d.startWorld, { x: end.x, y: end.y })
+        if (hit) {
+          state.insertJoinPointAt(hit.connection.id, hit.point)
+        }
       }
       if (d?.type === 'wire') {
         const state = useEditorStore.getState()
@@ -422,6 +450,9 @@ export function Canvas() {
     const onPointerCancel = () => {
       if (drag?.type === 'move') {
         endMoveTransaction()
+      }
+      if (drag?.type === 'cut') {
+        useEditorStore.getState().setCutLine(null)
       }
       drag = null
       canvas.style.cursor = 'default'

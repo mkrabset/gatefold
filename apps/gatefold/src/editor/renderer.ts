@@ -22,7 +22,7 @@ import {
 import {wirePath} from './routing'
 import {canvasVectorContext} from './canvasVector'
 import {w2s} from './viewport'
-import type {PendingWire, Rect, Viewport} from '../state/editorStore'
+import type {CutLine, PendingWire, Rect, Viewport} from '../state/editorStore'
 
 /**
  * Canvas renderer. `drawScene` is a pure-ish function of the current design,
@@ -636,6 +636,7 @@ export function drawScene(
     editingTemplate: boolean,
     marquee: Rect | null,
     pendingWire: PendingWire | null,
+    cutLine: CutLine | null,
     hoverPort: PinRef | null,
     p: Palette,
     sim?: SimView,
@@ -789,6 +790,20 @@ export function drawScene(
             }
             ctx.setLineDash([])
         }
+    }
+
+    // Imaginary cut line (Ctrl/Cmd+drag): a dashed straight line under the instances.
+    if (cutLine) {
+        const a = w2s(cutLine.start.x, cutLine.start.y, cw, ch, vp)
+        const b = w2s(cutLine.end.x, cutLine.end.y, cw, ch, vp)
+        ctx.strokeStyle = p.selection
+        ctx.lineWidth = WIRE_WIDTH * vp.zoom
+        ctx.setLineDash([5, 4])
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.lineTo(b.x, b.y)
+        ctx.stroke()
+        ctx.setLineDash([])
     }
 
     for (const inst of instances) {

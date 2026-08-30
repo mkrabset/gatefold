@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { libraryPrimitives, isTemplateDef } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
+import { useUiStore } from '../state/uiStore'
+import { darkPalette, lightPalette } from '../editor/palette'
 
 /**
  * Right panel: a palette of placeable primitives plus the user's composite
@@ -9,6 +11,18 @@ import { useSimStore } from '../state/simStore'
  * double-click a composite card to edit its template; import/export the custom
  * component library as JSON.
  */
+
+/** A filled-circle drag image, sized to match the dropped NODE dot (`radius = 4·zoom`). */
+function joinpointDragImage(diameter: number, color: string): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = diameter
+  const ctx = canvas.getContext('2d')!
+  ctx.beginPath()
+  ctx.arc(diameter / 2, diameter / 2, diameter / 2, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+  return canvas
+}
 
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
@@ -42,7 +56,22 @@ export function LibraryPanel({ width }: { width: number }) {
             key={p.kind}
             className={`lib-card${active === p.kind ? ' active' : ''}`}
             draggable={!simulating}
-            onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', p.kind)}
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/x-gatefold-def', p.kind)
+              if (p.kind === 'join-point') {
+                // Show the NODE as the filled dot it becomes on drop, sized to the
+                // current zoom (radius 4 world units → 4·zoom screen px).
+                const zoom = useEditorStore.getState().viewport.zoom
+                const diameter = Math.max(2, Math.ceil(8 * zoom))
+                const theme = useUiStore.getState().theme
+                const img = joinpointDragImage(diameter, (theme === 'dark' ? darkPalette : lightPalette).wire)
+                img.style.position = 'fixed'
+                img.style.left = img.style.top = '-9999px'
+                document.body.appendChild(img)
+                e.dataTransfer.setDragImage(img, diameter / 2, diameter / 2)
+                setTimeout(() => img.remove(), 0)
+              }
+            }}
             onClick={() => setActive(p.kind)}
             title={`Drag to place ${p.label}`}
           >

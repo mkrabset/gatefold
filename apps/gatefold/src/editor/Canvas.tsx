@@ -5,6 +5,7 @@ import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds } from './geometry'
 import { drawScene } from './renderer'
+import { findJoinpointWire } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
@@ -492,6 +493,15 @@ export function Canvas() {
     const rect = wrapRef.current!.getBoundingClientRect()
     const wx = state.viewport.x + (e.clientX - rect.left - rect.width / 2) / state.viewport.zoom
     const wy = state.viewport.y + (e.clientY - rect.top - rect.height / 2) / state.viewport.zoom
+    // Dropping a NODE onto an existing single wire splits the wire at the drop point.
+    if (defId === 'join-point') {
+      const def = state.design.defs[currentDefId(state)]
+      const hit = findJoinpointWire(state.design, def, { x: wx, y: wy })
+      if (hit) {
+        state.insertJoinPointAt(hit.connection.id, { x: wx, y: wy })
+        return
+      }
+    }
     state.addInstance(defId, { x: wx, y: wy })
   }
 

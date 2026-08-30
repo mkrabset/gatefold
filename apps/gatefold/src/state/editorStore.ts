@@ -131,6 +131,7 @@ interface EditorState {
   setPortOrder: (direction: PortDirection, ids: string[], defId?: string) => void
   addInstance: (defId: string, pos: { x: number; y: number }) => void
   addConnection: (from: PinRef, to: PinRef) => void
+  insertJoinPointAt: (connectionId: string, pos: { x: number; y: number }) => void
   retargetConnection: (id: string, to: PinRef) => void
   removeConnection: (id: string) => void
   deleteSelection: () => void
@@ -681,6 +682,30 @@ export const useEditorStore = create<EditorState>()(
         let i = def.connections.length + 1
         while (ids.has(`c${i}`)) i++
         def.connections.push({ id: `c${i}`, from, to })
+      }),
+    insertJoinPointAt: (connectionId, pos) =>
+      set((s) => {
+        const def = s.design.defs[currentDefId(s)]
+        const conns = def.connections ?? []
+        const conn = conns.find((c) => c.id === connectionId)
+        if (!conn) return
+        const srcDef = s.design.defs['join-point']
+        if (!srcDef) return
+        if (!def.instances) def.instances = []
+        // Add the join-point (copy-on-place), then re-route the original wire through it.
+        const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), srcDef.name)
+        const newDefId = copyDefIntoDesign(s.design, 'join-point')
+        def.instances.push({ id, name: srcDef.name, defId: newDefId, pos: { x: pos.x, y: pos.y } })
+        def.connections = conns.filter((c) => c.id !== connectionId)
+        const nextConnId = () => {
+          const ids = new Set(def.connections!.map((c) => c.id))
+          let n = def.connections!.length + 1
+          while (ids.has(`c${n}`)) n++
+          return `c${n}`
+        }
+        def.connections.push({ id: nextConnId(), from: conn.from, to: { instanceId: id, portId: 'in:0' } })
+        def.connections.push({ id: nextConnId(), from: { instanceId: id, portId: 'out:0' }, to: conn.to })
+        s.selectedIds = [id]
       }),
     retargetConnection: (id, to) =>
       set((s) => {

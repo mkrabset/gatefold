@@ -231,6 +231,38 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.getState().togglePinInversion({ instanceId: 'ha1', portId: 'in:0' })
     expect(port().inverted).toBeUndefined()
   })
+
+  it('splits a wire and inserts a join-point', () => {
+    reset()
+    // c1 = clk.out:0 → inv1.in:0.
+    useEditorStore.getState().insertJoinPointAt('c1', { x: 200, y: 150 })
+
+    const s = useEditorStore.getState()
+    const main = s.design.defs['main']
+    const conns = main.connections!
+
+    // The original connection is gone.
+    expect(conns.some((c) => c.id === 'c1')).toBe(false)
+
+    // A join-point instance was added and selected.
+    const jp = main.instances!.find((i) => s.design.defs[i.defId].primitive === 'join-point')
+    expect(jp).toBeDefined()
+    expect(s.selectedIds).toEqual([jp!.id])
+
+    // Two new connections route through the join-point's in:0 / out:0.
+    const inConn = conns.find((c) => c.to.instanceId === jp!.id && c.to.portId === 'in:0')
+    const outConn = conns.find((c) => c.from.instanceId === jp!.id && c.from.portId === 'out:0')
+    expect(inConn).toBeDefined()
+    expect(outConn).toBeDefined()
+    expect(inConn!.from).toEqual({ instanceId: 'clk', portId: 'out:0' })
+    expect(outConn!.to).toEqual({ instanceId: 'inv1', portId: 'in:0' })
+
+    // Undo restores the original single wire and removes the join-point.
+    useEditorStore.temporal.getState().undo()
+    const restored = useEditorStore.getState().design.defs['main']
+    expect(restored.connections!.some((c) => c.id === 'c1')).toBe(true)
+    expect(restored.instances!.some((i) => i.id === jp!.id)).toBe(false)
+  })
 })
 
 // A design with a 5-input fan-in and an unconnected bus-split.

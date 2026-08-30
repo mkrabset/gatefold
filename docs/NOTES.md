@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement).
 
 ## Where we are
 
@@ -135,6 +135,18 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   line (a transient `cutLine` store state rendered by `drawScene`); on release `findWireAtLine` runs on
   that line and, on a hit, `insertJoinPointAt` inserts a NODE at the crossing point (`hit.point`),
   slicing the wire. New `cut` variant in the Canvas `Drag` union.
+- **Grouping port placement** — fixed where a newly-created composite's input/output port groups land:
+  - `confirmGroup` now places the **template's** port groups (via `portPlacement`) *before*
+    copy-on-place, so the library template, the grouped variant, and any instance later dragged from the
+    template all get correct positions — previously only the freshly-grouped *variant* was re-placed,
+    leaving the template (and future copies) at the `centroid ± 120` placeholder (which, for wide
+    selections, sat "towards the centre" on top of components).
+  - When the parent's `input-port`/`output-port` instances are **included in the selection**,
+    `inferGroup` now exposes `inputPortIncluded`/`outputPortIncluded` and `applyGroup` places the new
+    composite's port groups at the **original positions**, and `confirmGroup` skips re-placement for those
+    sides — so ports keep their exact pre-group positions relative to the components.
+  Tests in `group.test.ts` (original positions) and `editorStore.test.ts` (wide-group auto-placement and
+  inherited-position preservation).
 
 ## Simulation (previous session)
 

@@ -342,7 +342,6 @@ export function applyGroup(
   }
 
   const remaining = def.instances?.filter((i) => !movable.has(i.id)) ?? []
-  const instName = uniqueId(new Set(remaining.map((i) => i.name)), finalName)
   const instId = uniqueId(new Set(remaining.map((i) => i.id)), `${finalName}-i`)
 
   // Re-wire the parent: each external input net now drives the new instance's input
@@ -374,7 +373,7 @@ export function applyGroup(
     return !movable.has(c.from.instanceId) && !movable.has(c.to.instanceId)
   })
 
-  def.instances = [...remaining, { id: instId, name: instName, defId: newDefId, pos: { x: cx, y: cy } }]
+  def.instances = [...remaining, { id: instId, name: '', defId: newDefId, pos: { x: cx, y: cy } }]
   def.connections = [...keptConnections, ...external]
 
   return result

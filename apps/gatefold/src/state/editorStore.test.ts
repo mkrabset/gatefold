@@ -103,7 +103,7 @@ describe('editorStore undo/redo + clipboard', () => {
     reset()
     useEditorStore.getState().addInstance('clock', { x: 0, y: 0 })
     const placed = mainInstances()[mainInstances().length - 1]
-    expect(placed.props).toEqual({ period: 100_000 })
+    expect(placed.props).toEqual({ period: 10_000_000 })
   })
 
   it('sets an instance property and undoes it', () => {
@@ -242,7 +242,7 @@ describe('editorStore undo/redo + clipboard', () => {
     const template = Object.values(s.design.defs).find(
       (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'sub',
     )!
-    const newInst = s.design.defs['main'].instances!.find((i) => i.name === 'sub')!
+    const newInst = s.design.defs['main'].instances!.find((i) => s.design.defs[i.defId]?.name === 'sub')!
     const variant = s.design.defs[newInst.defId]
 
     // The parent's port groups were at (0,0) and (200,0); both the template and the

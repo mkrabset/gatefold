@@ -111,9 +111,9 @@ describe('model primitives', () => {
 
   it('declares the clock period property with unit and default', () => {
     expect(primitiveOf('clock').properties()).toEqual([
-      { name: 'period', label: 'Period', type: 'number', default: 100_000, unit: 'ps', min: 1 },
+      { name: 'period', label: 'Period', type: 'number', default: 10_000_000, unit: 'ps', min: 1 },
     ])
-    expect(defaultPropsOf('clock')).toEqual({ period: 100_000 })
+    expect(defaultPropsOf('clock')).toEqual({ period: 10_000_000 })
   })
 
   it('declares the bus lanes property and fixes the terminal width to it', () => {

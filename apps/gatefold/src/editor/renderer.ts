@@ -364,10 +364,13 @@ function drawInstance(
         const t = s.y - (h / 2) * vp.zoom
         drawRoundedBox(ctx, l, t, w * vp.zoom, h * vp.zoom, 6 * vp.zoom, p.compositeFill, p.gateStroke)
         ctx.fillStyle = p.text
-        ctx.font = `${12 * vp.zoom}px system-ui, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(instance.name, s.x, s.y)
+        // Type name inside the body; the instance name stays below the body.
+        ctx.font = `${11 * vp.zoom}px system-ui, sans-serif`
+        ctx.fillText(def.name, s.x, s.y)
+        ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+        ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
 
         ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
         ctx.fillStyle = p.text

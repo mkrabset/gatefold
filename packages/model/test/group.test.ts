@@ -111,9 +111,9 @@ describe('applyGroup', () => {
     const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'], 'adder')
     expect(result.defs['adder']).toBeDefined()
     expect(result.defs['adder'].name).toBe('adder')
-    // the parent instance is named after the component
+    // the parent instance is created with an empty default name, referencing the new def.
     const main = result.defs['main']
-    expect(main.instances!.some((i) => i.defId === 'adder~adder-i' || i.name === 'adder')).toBe(true)
+    expect(main.instances!.some((i) => i.defId === 'adder' && i.name === '')).toBe(true)
   })
 
   it('keeps connections that do not touch the selection untouched', () => {

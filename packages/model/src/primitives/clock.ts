@@ -5,7 +5,7 @@ import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
 /** Default clock period (ps) when an instance has no explicit `period` property. */
-export const CLOCK_DEFAULT_PERIOD = 100_000
+export const CLOCK_DEFAULT_PERIOD = 10_000_000
 
 export class Clock extends Gate {
   readonly kind = 'clock' as const

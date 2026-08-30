@@ -303,6 +303,38 @@ function drawJoinpoint(
     ctx.fill()
 }
 
+/** Halo behind a join-point dot: a background ring separating it from crossing wires. */
+function drawJoinpointHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number, vp: Viewport, bg: string) {
+    ctx.beginPath()
+    ctx.arc(cx, cy, 4 * vp.zoom + HALO_MARGIN, 0, Math.PI * 2)
+    ctx.fillStyle = bg
+    ctx.fill()
+}
+
+/** Draw a join-point (NODE): its selection outline and its dot. */
+function drawJoinpointNode(
+    ctx: CanvasRenderingContext2D,
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    cw: number,
+    ch: number,
+    vp: Viewport,
+    selected: boolean,
+    p: Palette,
+    hovered: boolean,
+    sim: SimView | undefined,
+) {
+    const def = design.defs[instance.defId]
+    const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
+    if (selected) {
+        const b = instanceBounds(design, parentDef, instance, def, 6)
+        const tl = w2s(b.x, b.y, cw, ch, vp)
+        strokeDashedRect(ctx, tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, p.selection)
+    }
+    drawJoinpoint(ctx, s.x, s.y, vp, p, hovered, sim, instance.id, outputPorts(def)[0].id)
+}
+
 function drawInstance(
     ctx: CanvasRenderingContext2D,
     design: Design,
@@ -320,7 +352,6 @@ function drawInstance(
 ) {
     const {w, h} = instanceBodySize(design, parentDef, instance, def)
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
-    const isJoin = def.kind === 'primitive' && def.primitive === 'join-point'
 
     if (selected) {
         const b = instanceBounds(design, parentDef, instance, def, 6)
@@ -367,8 +398,6 @@ function drawInstance(
                 drawArrayBody(ctx, design, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
             } else if (def.primitive === 'seven-seg') {
                 drawSevenSegBody(ctx, design, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
-            } else if (isJoin) {
-                drawJoinpoint(ctx, s.x, s.y, vp, p, !!hoverPort && hoverPort.instanceId === instance.id, sim, instance.id, outputPorts(def)[0].id)
             } else {
                 primitiveOf(def.primitive).draw(canvasVectorContext(ctx), {
                     x: s.x,
@@ -381,11 +410,11 @@ function drawInstance(
             }
         }
         // Terminal names inside the body for primitives with distinct terminals (DFF).
-        if (def.primitive && !isJoin && primitiveOf(def.primitive).showTerminalNames?.()) {
+        if (def.primitive && primitiveOf(def.primitive).showTerminalNames?.()) {
             drawTerminalLabels(ctx, design, parentDef, instance, def, cw, ch, vp, p)
         }
-        // Type label above the gate (NOT/CLOCK symbols are self-explanatory; a NODE is a bare dot).
-        if (def.primitive && !isJoin && def.primitive !== 'clock' && def.primitive !== 'not') {
+        // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
+        if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
             ctx.fillStyle = p.text
             ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
             ctx.textAlign = 'center'
@@ -401,20 +430,15 @@ function drawInstance(
             ctx.textBaseline = 'middle'
             ctx.fillText(formatFrequency(1e12 / period), s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
         }
-        // Instance name below the gate (a NODE dot has no labels).
-        if (!isJoin) {
-            ctx.fillStyle = p.text
-            ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
-        }
+        // Instance name below the gate.
+        ctx.fillStyle = p.text
+        ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
     }
 
-    // A NODE's coincident terminals have no separate pin markers (the dot is the pin).
-    if (!isJoin) {
-        drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
-    }
+    drawPorts(ctx, design, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
 }
 
 
@@ -702,6 +726,31 @@ export function drawScene(
         from: PinRef
     }
 
+    // Union-find over pins: connections share a net, and a join-point joins its input
+    // and output so its connected wires render as one continuous net.
+    const parent = new Map<string, string>()
+    const find = (x: string): string => {
+        const p = parent.get(x)
+        if (p === undefined) { parent.set(x, x); return x }
+        if (p !== x) parent.set(x, find(p))
+        return parent.get(x)!
+    }
+    const union = (a: string, b: string) => {
+        const ra = find(a)
+        const rb = find(b)
+        if (ra !== rb) parent.set(ra, rb)
+    }
+    for (const c of def.connections ?? []) union(pinKey(c.from), pinKey(c.to))
+
+    const joinPoints: Instance[] = []
+    for (const inst of instances) {
+        const idef = design.defs[inst.defId]
+        if (idef?.primitive === 'join-point') {
+            union(pinKey({instanceId: inst.id, portId: 'in:0'}), pinKey({instanceId: inst.id, portId: 'out:0'}))
+            joinPoints.push(inst)
+        }
+    }
+
     const groups = new Map<string, Trace[]>()
     for (const conn of def.connections ?? []) {
         // Hide a connection that is being re-targeted (its preview replaces it).
@@ -719,15 +768,30 @@ export function drawScene(
             undetermined: isNeutralPin(design, def, conn.from),
             from: conn.from,
         }
-        // Group by source so fan-out wires render as one bundle (all halos, then all
-        // lines) rather than cutting into each other at their shared terminal.
-        const key = pinKey(conn.from)
+        // Group by net (through join-points) so fan-out wires — and the join-points
+        // they pass through — render as one bundle (all halos, then all lines/dots).
+        const key = find(pinKey(conn.from))
         const group = groups.get(key)
         if (group) group.push(trace)
         else groups.set(key, [trace])
     }
 
-    for (const traces of groups.values()) {
+    // Associate each join-point with its net (group key), or leave it unconnected.
+    const joinPointsByGroup = new Map<string, Instance[]>()
+    const unconnectedJoinPoints: Instance[] = []
+    for (const jp of joinPoints) {
+        const key = find(pinKey({instanceId: jp.id, portId: 'out:0'}))
+        if (groups.has(key)) {
+            const arr = joinPointsByGroup.get(key)
+            if (arr) arr.push(jp)
+            else joinPointsByGroup.set(key, [jp])
+        } else {
+            unconnectedJoinPoints.push(jp)
+        }
+    }
+
+    for (const [key, traces] of groups) {
+        const dots = joinPointsByGroup.get(key) ?? []
         if (traces[0].undetermined) {
             // Width not yet determined: a thin dashed single wire.
             for (const t of traces) {
@@ -759,8 +823,24 @@ export function drawScene(
                 })
             }
         }
+        // Halos first (wires, then dots), then lines, then dots — so a dot separates
+        // from crossing wires while its own wires run cleanly into it.
         for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, bg, WIRE_WIDTH * vp.zoom + HALO_MARGIN * 2)
+        for (const jp of dots) {
+            const s = w2s(jp.pos.x, jp.pos.y, cw, ch, vp)
+            drawJoinpointHalo(ctx, s.x, s.y, vp, bg)
+        }
         for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, w.color, WIRE_WIDTH * vp.zoom)
+        for (const jp of dots) {
+            drawJoinpointNode(ctx, design, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
+        }
+    }
+
+    // Unconnected join-points (no wires) still get a halo + dot.
+    for (const jp of unconnectedJoinPoints) {
+        const s = w2s(jp.pos.x, jp.pos.y, cw, ch, vp)
+        drawJoinpointHalo(ctx, s.x, s.y, vp, bg)
+        drawJoinpointNode(ctx, design, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
     }
 
     // Preview of a wire currently being drawn (dashed, accent color). A bus drag draws
@@ -809,6 +889,8 @@ export function drawScene(
     for (const inst of instances) {
         const instDef = design.defs[inst.defId]
         if (!instDef) continue
+        // Join-points are rendered with their net in the wire pass above.
+        if (instDef.primitive === 'join-point') continue
         if (isPortGroupDef(instDef)) {
             drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
         } else {

@@ -20,7 +20,7 @@ export class Buffer extends Gate {
   }
 
   bodySize(): { w: number; h: number } {
-    return { w: 48, h: 44 }
+    return { w: 28.8, h: 26.4 }
   }
 
   transfer(inputs: Signal[][]): Signal[][] {

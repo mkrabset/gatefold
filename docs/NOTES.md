@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement; Shift+drag-terminal moves component).
+Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement; Shift+drag-terminal moves component; join-point halo + net bunching; smaller BUFFER/NOT triangle).
 
 ## Where we are
 
@@ -152,6 +152,15 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   Shift-pan that used to happen when hovering a marker. Makes it easy to grab tiny/coincident-terminal
   components (like the NODE dot). Extracted a `startMoveDrag` helper in `Canvas.tsx` shared by this and
   the normal body-press move; Shift+click on a marker now *selects* (rather than toggling) the component.
+- **Join-point halo + net bunching (rendering)** — join-points now render *as part of their wire net*,
+  with a halo. `renderer.ts` builds a union-find over `pinKey`s (union each connection's endpoints + each
+  join-point's `in:0`/`out:0`) and groups wires by `find(pinKey(conn.from))`; each group renders in the
+  order **line halos → dot halos → lines → dots**, so connected wires run cleanly into every dot (no gap)
+  while crossing wires get a halo gap — and any number of join-points per net works. Join-points moved out
+  of the instances loop into the group pass (new `drawJoinpointHalo`/`drawJoinpointNode` helpers, reusing
+  `drawJoinpoint`); unconnected dots still get halo + dot. `drawInstance`'s join-point branch removed.
+- **Smaller BUFFER/NOT triangle** — `Buffer.bodySize()` reduced from `{w:48,h:44}` to `{w:28.8,h:26.4}`
+  (60%); `NotGate` inherits it.
 
 ## Simulation (previous session)
 

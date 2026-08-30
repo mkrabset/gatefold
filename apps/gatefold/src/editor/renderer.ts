@@ -367,10 +367,7 @@ function drawInstance(
         ctx.font = `${12 * vp.zoom}px system-ui, sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        // The instance name is the unique identifier; the type is shown above the box.
         ctx.fillText(instance.name, s.x, s.y)
-        ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
-        ctx.fillText(def.name, s.x, s.y - (h / 2) * vp.zoom - 8 * vp.zoom)
 
         ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
         ctx.fillStyle = p.text
@@ -413,13 +410,22 @@ function drawInstance(
         if (def.primitive && primitiveOf(def.primitive).showTerminalNames?.()) {
             drawTerminalLabels(ctx, design, parentDef, instance, def, cw, ch, vp, p)
         }
-        // Type label above the gate (NOT/CLOCK symbols are self-explanatory).
-        if (def.primitive && def.primitive !== 'clock' && def.primitive !== 'not') {
-            ctx.fillStyle = p.text
-            ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
-            ctx.textAlign = 'center'
-            ctx.textBaseline = 'middle'
-            ctx.fillText(def.name, s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
+        // Type label: AND/OR/XOR write it inside the body, the arrays keep it above,
+        // every other primitive omits it.
+        if (def.primitive) {
+            if (def.primitive === 'and' || def.primitive === 'or' || def.primitive === 'xor') {
+                ctx.fillStyle = p.text
+                ctx.font = `${11 * vp.zoom}px system-ui, sans-serif`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(def.name, s.x, s.y)
+            } else if (def.primitive === 'switch-array' || def.primitive === 'led-array') {
+                ctx.fillStyle = p.text
+                ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText(def.name, s.x, s.y - h * vp.zoom * 0.5 - 8 * vp.zoom)
+            }
         }
         // Clock frequency above the body (the CLOCK type label is skipped).
         if (def.primitive === 'clock') {

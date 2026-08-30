@@ -670,8 +670,9 @@ export const useEditorStore = create<EditorState>()(
         const def = s.design.defs[currentDefId(s)]
         const srcDef = s.design.defs[defId]
         if (!def.instances) def.instances = []
-        const name = srcDef.name
-        const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), name)
+        // Default instance name is empty, except for CLOCK/DFF which keep their label.
+        const name = srcDef.kind === 'primitive' && (srcDef.primitive === 'clock' || srcDef.primitive === 'dff') ? srcDef.name : ''
+        const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), srcDef.name)
         // Deep copy-on-place: the instance gets its own variant def *and* a copy of
         // its whole internal hierarchy, independent of the library template.
         const newDefId = copyDefIntoDesign(s.design, defId)
@@ -711,7 +712,7 @@ export const useEditorStore = create<EditorState>()(
         // Add the join-point (copy-on-place), then re-route the original wire through it.
         const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), srcDef.name)
         const newDefId = copyDefIntoDesign(s.design, 'join-point')
-        def.instances.push({ id, name: srcDef.name, defId: newDefId, pos: { x: pos.x, y: pos.y } })
+        def.instances.push({ id, name: '', defId: newDefId, pos: { x: pos.x, y: pos.y } })
         def.connections = conns.filter((c) => c.id !== connectionId)
         const nextConnId = () => {
           const ids = new Set(def.connections!.map((c) => c.id))

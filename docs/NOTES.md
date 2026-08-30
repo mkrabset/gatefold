@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-28 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement; Shift+drag-terminal moves component; join-point halo + net bunching; smaller BUFFER/NOT triangle).
+Last updated: 2026-08-30 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement; Shift+drag-terminal moves component; join-point halo + net bunching; smaller BUFFER/NOT triangle; PNG primitive icons in library + sidebar tree; brighter library cards; gate type labels inside body + empty default instance names).
 
 ## Where we are
 
@@ -161,6 +161,25 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   `drawJoinpoint`); unconnected dots still get halo + dot. `drawInstance`'s join-point branch removed.
 - **Smaller BUFFER/NOT triangle** — `Buffer.bodySize()` reduced from `{w:48,h:44}` to `{w:28.8,h:26.4}`
   (60%); `NotGate` inherits it.
+- **PNG primitive icons** — the top-level `icons/` folder (16 PNGs, one per placeable primitive) moved
+  into the app as `apps/gatefold/src/icons/` and a new `icons/index.ts` maps each `PrimitiveKind` to its
+  bundled image (`PRIMITIVE_ICONS`, port groups → `undefined`). The library panel's primitive cards now
+  render an `<img class="lib-icon">` instead of the text `Primitive.glyph`, and the left sidebar's
+  component tree uses the same icons for primitive instances (`TreeItem` gained an `iconSrc` prop;
+  composites/port groups keep the `▣` text glyph). Icons are sized in CSS (`height`, `width:auto`) so
+  cards/tree rows don't grow: `.lib-icon` (29px) and `.tree-icon-img` (17px); `draggable={false}` on the
+  images so they don't fight the card's drag-to-place.
+- **Brighter library cards** — new `--card` CSS variable (dark `#3a4452`, light `#ffffff`) backs
+  `.lib-card`, brighter than `--panel-2` so the icons' black contour lines read against the background.
+- **Gate/component label cleanup** — `renderer.ts` no longer draws the type name *above* instances
+  except the arrays: AND/OR/XOR now write their type label *inside* the gate body (centered, `11·zoom`),
+  `switch-array`/`led-array` keep their label above the body, and every other primitive — plus
+  composites (whose `def.name` above the box was dropped) — omits the type label. The instance name is
+  still drawn below (primitives) or centered (composites), so CLOCK keeps its frequency label above and
+  the DFF keeps its in-body terminal names.
+- **Empty default instance names** — `addInstance` (library drop) now names new instances `''` instead
+  of the def name, except `clock` and `dff` (which keep their label); `insertJoinPointAt` also names the
+  inserted NODE `''`. Instance `id`s still derive from the def name, so uniqueness is unaffected.
 
 ## Simulation (previous session)
 

@@ -76,6 +76,7 @@ Left to right:
 | Select | Click a component |
 | Multi-select | Marquee (drag empty space), or Shift + click to toggle |
 | Move | Drag a component (moves the whole selection) |
+| Move by its terminal | Shift + drag on a terminal marker moves the owning component (and the whole selection if it's part of it) |
 | Pan | Shift + drag (or Shift + drag anywhere in simulate mode) |
 | Zoom | Mouse wheel, anchored at the cursor |
 | Enter a component | Double-click it |

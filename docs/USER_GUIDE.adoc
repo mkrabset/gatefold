@@ -98,6 +98,9 @@ toggle
 
 |Move |Drag a component (moves the whole selection)
 
+|Move by its terminal |Shift {plus} drag on a terminal marker moves the
+owning component (and the whole selection if it’s part of it)
+
 |Pan |Shift {plus} drag (or Shift {plus} drag anywhere in simulate mode)
 
 |Zoom |Mouse wheel, anchored at the cursor

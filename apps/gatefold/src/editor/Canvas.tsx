@@ -105,6 +105,21 @@ export function Canvas() {
       return state.design.defs[currentDefId(state)].instances ?? []
     }
 
+    // Start a move drag for the instance `instId` (moving the whole selection when it is
+    // already part of it), coalesced into a single undo step.
+    const startMoveDrag = (e: PointerEvent, instId: string) => {
+      const state = useEditorStore.getState()
+      const selected = state.selectedIds.includes(instId)
+      const ids = selected ? state.selectedIds : [instId]
+      const byId = new Map(currentInstances().map((i) => [i.id, i]))
+      const origins = ids.map((id) => ({ ...byId.get(id)!.pos }))
+      if (!selected) state.setSelection([instId])
+      beginMoveTransaction()
+      drag = { type: 'move', ids, startX: e.clientX, startY: e.clientY, origins }
+      canvas.style.cursor = 'grabbing'
+      canvas.setPointerCapture(e.pointerId)
+    }
+
     const onPointerDown = (e: PointerEvent) => {
       const state = useEditorStore.getState()
       const rect = wrap.getBoundingClientRect()
@@ -136,6 +151,13 @@ export function Canvas() {
       }
 
       if (e.shiftKey) {
+        // Shift+drag on a terminal marker moves the owning component (instead of panning).
+        const port = hitTestPort(w.x, w.y, instances, state.design, def)
+        const markerInst = port && instances.find((i) => i.id === port.ref.instanceId)
+        if (markerInst) {
+          startMoveDrag(e, markerInst.id)
+          return
+        }
         if (hit) {
           drag = { type: 'shiftClick', id: hit.id, startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
         } else {
@@ -198,18 +220,7 @@ export function Canvas() {
       }
 
       if (hit) {
-        const selected = state.selectedIds.includes(hit.id)
-        const ids = selected ? state.selectedIds : [hit.id]
-        const byId = new Map(instances.map((i) => [i.id, i]))
-        const origins = ids.map((id) => ({ ...byId.get(id)!.pos }))
-        if (!selected) {
-          state.setSelection([hit.id])
-        }
-        // Coalesce the whole drag into a single undo step.
-        beginMoveTransaction()
-        drag = { type: 'move', ids, startX: e.clientX, startY: e.clientY, origins }
-        canvas.style.cursor = 'grabbing'
-        canvas.setPointerCapture(e.pointerId)
+        startMoveDrag(e, hit.id)
       } else {
         state.setSelection([])
         drag = { type: 'marquee', startX: e.clientX, startY: e.clientY, startWorld: w }

@@ -91,7 +91,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
 }
 
 export function Sidebar({ width }: { width: number }) {
-  const [showTree, setShowTree] = useState(true)
+  const [showTree, setShowTree] = useState(false)
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
   const selectedIds = useEditorStore((s) => s.selectedIds)

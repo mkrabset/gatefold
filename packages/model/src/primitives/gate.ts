@@ -65,6 +65,46 @@ export function drawBusTrapezoidLeft(ctx: VectorContext, opts: DrawOptions, neck
   fillAndStroke(ctx, opts.palette)
 }
 
+/** One bus on the left forking into two buses on the right (bus-split): a single neck
+ *  splitting into two tapered arms separated by a centre gap. */
+export function drawBusSplit(ctx: VectorContext, opts: DrawOptions, neckMin: number, portId: string): void {
+  const { l, r, t, b, cy } = gateBounds(opts)
+  const neck = Math.max(neckMin, opts.pinRadius?.(portId) ?? 0)
+  const gap = 8
+  ctx.beginPath()
+  ctx.moveTo(l, cy - neck)
+  ctx.lineTo(r, t)
+  ctx.lineTo(r, cy - gap)
+  ctx.lineTo(l, cy)
+  ctx.closePath()
+  ctx.moveTo(l, cy)
+  ctx.lineTo(r, cy + gap)
+  ctx.lineTo(r, b)
+  ctx.lineTo(l, cy + neck)
+  ctx.closePath()
+  fillAndStroke(ctx, opts.palette)
+}
+
+/** Two buses on the left merging into one bus on the right (bus-merge): the mirror of
+ *  `drawBusSplit`, forking toward the left. */
+export function drawBusMerge(ctx: VectorContext, opts: DrawOptions, neckMin: number, portId: string): void {
+  const { l, r, t, b, cy } = gateBounds(opts)
+  const neck = Math.max(neckMin, opts.pinRadius?.(portId) ?? 0)
+  const gap = 8
+  ctx.beginPath()
+  ctx.moveTo(r, cy - neck)
+  ctx.lineTo(l, t)
+  ctx.lineTo(l, cy - gap)
+  ctx.lineTo(r, cy)
+  ctx.closePath()
+  ctx.moveTo(r, cy)
+  ctx.lineTo(l, cy + gap)
+  ctx.lineTo(l, b)
+  ctx.lineTo(r, cy + neck)
+  ctx.closePath()
+  fillAndStroke(ctx, opts.palette)
+}
+
 /**
  * Width derivation for the 2:1 bus relation (bus-split / bus-merge): the `doublePortId`
  * pin is twice the width of each of the two `halfPortIds` pins.

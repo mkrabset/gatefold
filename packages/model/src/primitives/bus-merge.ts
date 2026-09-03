@@ -1,6 +1,6 @@
 import type { Port, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
-import { deriveBusWidth, drawBusTrapezoidRight, Gate } from './gate'
+import { deriveBusWidth, drawBusMerge, Gate } from './gate'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -40,6 +40,6 @@ export class BusMerge extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    drawBusTrapezoidRight(ctx, opts, 12, 'out:0')
+    drawBusMerge(ctx, opts, 12, 'out:0')
   }
 }

@@ -1,6 +1,6 @@
 import type { Port, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
-import { deriveBusWidth, drawBusTrapezoidLeft, Gate } from './gate'
+import { deriveBusWidth, drawBusSplit, Gate } from './gate'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -42,6 +42,6 @@ export class BusSplit extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    drawBusTrapezoidLeft(ctx, opts, 12, 'in:0')
+    drawBusSplit(ctx, opts, 12, 'in:0')
   }
 }

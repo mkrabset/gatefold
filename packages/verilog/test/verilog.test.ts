@@ -193,6 +193,63 @@ describe('exportVerilog', () => {
     expect(source).toContain('.Y(')
   })
 
+  it('applies inversion to a composite instance input terminal', () => {
+    const sub: ComponentDef = {
+      id: 'sub', name: 'sub', kind: 'composite',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'pi', pinId: 'in:0' }, inverted: true },
+        input('in:1', 'B'),
+        output('out:0', 'Y'),
+      ],
+      instances: [pgIn(), { id: 'g', name: 'g', defId: 'and', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('g', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('g', 'in:1') },
+        { id: 'c3', from: iref('g', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'X'), input('in:1', 'Y'), output('out:0', 'Z')],
+      instances: [pgIn(), { id: 's', name: 's', defId: 'sub', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('s', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('s', 'in:1') },
+        { id: 'c3', from: iref('s', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main, { sub }))
+    expect(source).toContain('assign s_A_inv = ~X;')
+    expect(source).toContain('.A(s_A_inv)')
+  })
+
+  it('applies inversion to a composite instance output terminal', () => {
+    const sub: ComponentDef = {
+      id: 'sub', name: 'sub', kind: 'composite',
+      ports: [
+        input('in:0', 'A'),
+        { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'po', pinId: 'out:0' }, inverted: true },
+      ],
+      instances: [pgIn(), { id: 'b', name: 'b', defId: 'buffer', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'X'), output('out:0', 'Z')],
+      instances: [pgIn(), { id: 's', name: 's', defId: 'sub', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('s', 'in:0') },
+        { id: 'c2', from: iref('s', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main, { sub }))
+    expect(source).toContain('.Y(s_Y_inv)')
+    expect(source).toContain('assign Z = ~s_Y_inv;')
+  })
+
   it('sanitizes identifiers and avoids keywords', () => {
     const main: ComponentDef = {
       id: 'main', name: 'main', kind: 'composite',

@@ -474,7 +474,7 @@ function drawPortGroup(
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
     const widthFor = (port: Port) => pinWidth(design, parentDef, {instanceId: instance.id, portId: port.id})
-    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id, sim)
+    drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id, sim, false)
 }
 
 /** Core port-group drawing, given the pins, their position, and a width resolver. */
@@ -493,6 +493,7 @@ function drawPortGroupBox(
     hoverPort: PinRef | null,
     instanceId: string,
     sim?: SimView,
+    allowInversion = true,
 ) {
     const widths = ports.map(widthFor)
     const {w, h} = sizeForPorts(widths)
@@ -514,7 +515,7 @@ function drawPortGroupBox(
         const s = w2s(x, y, cw, ch, vp)
         const hovered = !!hoverPort && hoverPort.instanceId === instanceId && hoverPort.portId === port.id
         const signalColor = sim?.colorOf(instanceId, port.id)
-        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, port.inverted ?? false, !isInput, vp, p, bg, hovered, signalColor)
+        drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, allowInversion ? port.inverted ?? false : false, !isInput, vp, p, bg, hovered, signalColor)
         const offset = PIN_LABEL_GAP * vp.zoom
         ctx.fillStyle = p.text
         if (isInput) {

@@ -460,9 +460,23 @@ class Generator {
       const childModule = this.defToModule.get(childDef.id)!
       const childPorts = this.computePortNames(childDef.id)
       const iname = uniqueName(inst.name || 'u', used)
-      const conns = childDef.ports.map(
-        (p) => `    .${childPorts.get(p.id)}(${netOf({ instanceId: inst.id, portId: p.id })})`,
-      )
+      const conns: string[] = []
+      for (const p of childDef.ports) {
+        const portName = childPorts.get(p.id)!
+        const net = netOf({ instanceId: inst.id, portId: p.id })
+        if (p.inverted !== true) {
+          conns.push(`    .${portName}(${net})`)
+          continue
+        }
+        // Inverted instance terminal: bridge the parent net to the child port through a
+        // temp net, since a Verilog module port can't take an expression directly.
+        const w = pinWidth(design, def, { instanceId: inst.id, portId: p.id })
+        const tmp = uniqueName(`${iname}_${portName}_inv`, used)
+        conns.push(`    .${portName}(${tmp})`)
+        decls.push(w > 1 ? `wire [${w - 1}:0] ${tmp};` : `wire ${tmp};`)
+        if (p.direction === 'input') stmts.push(`assign ${tmp} = ~${net};`)
+        else stmts.push(`assign ${net} = ~${tmp};`)
+      }
       stmts.push(`${childModule} ${iname} (\n${conns.join(',\n')}\n  );`)
     }
 

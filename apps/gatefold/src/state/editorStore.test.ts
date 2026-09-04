@@ -270,20 +270,40 @@ describe('editorStore undo/redo + clipboard', () => {
 
   it('keeps template ports clean and allows inverting a variant', () => {
     reset()
-    // A template's terminals cannot be inverted.
+    // A template's terminals cannot be inverted (even via an explicit defId).
     useEditorStore.setState({ navStack: ['half-adder'] })
     const tPort = () => useEditorStore.getState().design.defs['half-adder'].ports.find((p) => p.id === 'in:0')!
-    useEditorStore.getState().setPortInverted('in:0', true)
+    useEditorStore.getState().setPortInverted('in:0', true, 'half-adder')
     expect(tPort().inverted).toBeUndefined()
 
-    // An instance-local variant can be inverted.
+    // An instance-local variant can be inverted from outside (via its defId).
     const ha1 = mainInstances().find((i) => i.id === 'ha1')!
-    useEditorStore.setState({ navStack: [ha1.defId] })
     const vPort = () => useEditorStore.getState().design.defs[ha1.defId].ports.find((p) => p.id === 'in:0')!
-    useEditorStore.getState().setPortInverted('in:0', true)
+    useEditorStore.getState().setPortInverted('in:0', true, ha1.defId)
     expect(vPort().inverted).toBe(true)
-    useEditorStore.getState().setPortInverted('in:0', false)
+    useEditorStore.getState().setPortInverted('in:0', false, ha1.defId)
     expect(vPort().inverted).toBeUndefined()
+  })
+
+  it('does not invert the scope\'s own ports (the input/output port groups)', () => {
+    reset()
+    useEditorStore.setState({ design: makePortGroupDesign(), navStack: ['main'], selectedIds: [] })
+    useEditorStore.temporal.getState().clear()
+
+    const main = () => useEditorStore.getState().design.defs['main'] as CompositeDef
+    // The scope-editor path (no defId) must not invert the composite's own ports.
+    useEditorStore.getState().setPortInverted('in:0', true)
+    expect(main().ports.find((p) => p.id === 'in:0')!.inverted).toBeUndefined()
+  })
+
+  it('does not invert a port-group pin', () => {
+    reset()
+    useEditorStore.setState({ design: makePortGroupDesign(), navStack: ['main'], selectedIds: [] })
+    useEditorStore.temporal.getState().clear()
+
+    const main = () => useEditorStore.getState().design.defs['main'] as CompositeDef
+    useEditorStore.getState().togglePinInversion({ instanceId: 'in', portId: 'in:0' })
+    expect(main().ports.find((p) => p.id === 'in:0')!.inverted).toBeUndefined()
   })
 
   it('toggles pin inversion on the hovered pin', () => {

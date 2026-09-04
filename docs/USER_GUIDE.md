@@ -129,6 +129,11 @@ while hovering the terminal, or with the checkbox in the ports editor. Inversion
 instance-level: a library template's terminals stay clean, and inversion lives on the placed
 instance.
 
+Inversion is **external-only**: it applies to a component *instance's* terminals (as seen from
+the sheet it is placed on), never to a component's *own* terminals from the inside. The current
+scope's input/output port groups cannot be inverted and never show a bubble — to invert a
+composite's terminal, select the composite instance on the parent sheet and invert it there.
+
 ### Copy-on-place and templates
 
 When you place or group a component, Gatefold deep-copies its definition (a **variant**), so

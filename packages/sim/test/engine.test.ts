@@ -486,6 +486,85 @@ describe('Simulation engine', () => {
     expect(sim.signal('comp', 'out:0')).toBe(1)
   })
 
+  it('inverts a composite input terminal at the boundary', () => {
+    // AND(inv(sw), sw): the inverted input makes the AND always see one low input.
+    const comp: ComponentDef = {
+      id: 'comp',
+      name: 'comp',
+      kind: 'composite',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:0' }, inverted: true },
+        { id: 'in:1', name: 'B', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:1' } },
+        { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'co', pinId: 'out:0' } },
+      ],
+      instances: [
+        { id: 'ci', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+        { id: 'g', name: 'g', defId: 'and', pos: { x: 60, y: 0 } },
+        { id: 'co', name: '', defId: 'output-port', pos: { x: 120, y: 0 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('ci', 'in:0'), to: iref('g', 'in:0') },
+        { id: 'c2', from: iref('ci', 'in:1'), to: iref('g', 'in:1') },
+        { id: 'c3', from: iref('g', 'out:0'), to: iref('co', 'out:0') },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [inst('sw', 'switch-array'), inst('comp', 'comp')],
+        [
+          conn('w1', iref('sw', 'out:0'), iref('comp', 'in:0')),
+          conn('w2', iref('sw', 'out:0'), iref('comp', 'in:1')),
+        ],
+        { comp },
+      ),
+    )
+
+    // The boundary pin reads the raw (external) value; the internal port-group pin reads
+    // the inverted value; the AND output is always low.
+    expect(sim.signal('comp', 'in:0')).toBe(0)
+    expect(sim.signal('comp.ci', 'in:0')).toBe(1)
+    expect(sim.signal('comp', 'out:0')).toBe(0)
+
+    sim.setSwitch('sw', 1)
+    sim.step()
+    expect(sim.signal('comp', 'in:0')).toBe(1)
+    expect(sim.signal('comp.ci', 'in:0')).toBe(0)
+    expect(sim.signal('comp', 'out:0')).toBe(0)
+  })
+
+  it('inverts a composite output terminal at the boundary', () => {
+    const comp: ComponentDef = {
+      id: 'comp',
+      name: 'comp',
+      kind: 'composite',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'ci', pinId: 'in:0' } },
+        { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'co', pinId: 'out:0' }, inverted: true },
+      ],
+      instances: [
+        { id: 'ci', name: '', defId: 'input-port', pos: { x: 0, y: 0 } },
+        { id: 'b', name: 'b', defId: 'buffer', pos: { x: 60, y: 0 } },
+        { id: 'co', name: '', defId: 'output-port', pos: { x: 120, y: 0 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('ci', 'in:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('co', 'out:0') },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign([inst('sw', 'switch-array'), inst('comp', 'comp')], [conn('w', iref('sw', 'out:0'), iref('comp', 'in:0'))], { comp }),
+    )
+
+    // Switch off: internal buffer output is 0, the inverted boundary output is 1.
+    expect(sim.signal('comp.co', 'out:0')).toBe(0)
+    expect(sim.signal('comp', 'out:0')).toBe(1)
+
+    sim.setSwitch('sw', 1)
+    sim.step()
+    expect(sim.signal('comp.co', 'out:0')).toBe(1)
+    expect(sim.signal('comp', 'out:0')).toBe(0)
+  })
+
   it('toggles individual lanes of a switch-array in WIRE mode', () => {
     const sa: ComponentDef = {
       id: 'sa',

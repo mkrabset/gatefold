@@ -64,6 +64,9 @@ authoritative — update this when a term's meaning changes.
 - **Inverted terminal** — a port whose `inverted` flag is set, rendered as a hollow ring
   just outside the pin (a logic negation bubble). Instance-level: templates keep clean
   (non-inverted) ports, and inversion lives on variants (preserved when a template is applied).
+  Inversion is **external-only**: a component's own terminals as seen from *inside* (the
+  `input-port`/`output-port` port groups) are never invertable and never show a bubble — you
+  invert a terminal on a placed instance, never on the scope's own ports.
 - **Terminal / pin** — a connectable endpoint on an *instance*. (We use "port" for the
   declaration and "pin/terminal" for the concrete endpoint; often interchangeable.)
 - **Terminal marker** — the vertical stroke drawn along a component's edge for a pin; its

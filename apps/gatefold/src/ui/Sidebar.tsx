@@ -311,9 +311,11 @@ function PortsGroups({ defId }: { defId?: string }) {
   const target = defId ?? navStack[navStack.length - 1]
   const current = design.defs[target]
   const renameAllowed = allowRenameTerminals(current)
-  // Templates keep clean (non-inverted) terminals; inversion is instance-level. A
-  // primitive that forbids inversion (e.g. the NODE join-point) never gets checkboxes.
-  const invertAllowed = !isTemplateDef(design, current) && allowInversion(current)
+  // Templates keep clean (non-inverted) terminals; inversion is instance-level. The
+  // scope's own terminals (the input/output port groups, edited without a defId) are
+  // never invertable — only a selected instance's terminals (defId set) get checkboxes,
+  // and a primitive that forbids inversion (e.g. the NODE join-point) never does either.
+  const invertAllowed = defId !== undefined && !isTemplateDef(design, current) && allowInversion(current)
 
   const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => {
     const fixed = isArityFixed(current, direction)

@@ -51,6 +51,8 @@ export function flatten(design: Design): Netlist {
   const uf = new UnionFind()
   const leaves: Leaf[] = []
   const allPins = new Set<string>()
+  /** Inverted composite terminals, resolved into synthesized inverters after nets are assigned. */
+  const inverters: { source: string; target: string }[] = []
 
   const join = (path: string, id: string): string => joinInstancePath(path, id)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
@@ -74,7 +76,15 @@ export function flatten(design: Design): Netlist {
       const ik = pinKey(join(path, p.terminal.instanceId), p.terminal.pinId)
       allPins.add(bk)
       allPins.add(ik)
-      uf.union(bk, ik)
+      if (p.inverted === true) {
+        // Inverted composite terminal: the boundary pin and the internal port-group pin
+        // are separate nets joined by a synthesized inverter (an input inverts on the way
+        // in, an output on the way out). Deferred until after nets are assigned.
+        if (p.direction === 'input') inverters.push({ source: bk, target: ik })
+        else inverters.push({ source: ik, target: bk })
+      } else {
+        uf.union(bk, ik)
+      }
     }
 
     for (const inst of def.instances ?? []) {
@@ -125,6 +135,21 @@ export function flatten(design: Design): Netlist {
       }
     }
     instances.push({ id: leaf.id, kind, props: leaf.inst.props, inputs, outputs })
+  }
+
+  // Synthesized inverters for inverted composite terminals: a buffer whose output is
+  // inverted (a NOT), evaluated with the configured gate delay.
+  let invCounter = 0
+  for (const inv of inverters) {
+    const sourceNet = netIdOf(inv.source)
+    const targetNet = netIdOf(inv.target)
+    driven[targetNet] = true
+    instances.push({
+      id: `$inv${invCounter++}`,
+      kind: 'buffer',
+      inputs: [{ portId: 'in:0', net: sourceNet, inverted: false }],
+      outputs: [{ portId: 'out:0', net: targetNet, inverted: true }],
+    })
   }
 
   // Resolve the net for every pin (leaf primitives, port groups, and composite pins),

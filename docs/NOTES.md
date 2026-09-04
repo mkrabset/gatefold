@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-04 (code-quality remediation pass: `ComponentDef` discriminated union + typed `Instance.props`/`PropertySpec`; `as`/`!` cast cleanup; narrow model/sim barrels; dedup of `invertSignal`/`isTemplateDef`/union-find/`collectClosure`/`nextConnectionId`/`withBuiltinPrimitives`/`periodOf`; `editorStore.resetNavigation` action + Toolbar timing `useShallow` selector + Sidebar reactive `navStack` selector; connected-port-removal rule moved to the store; TSDoc for core types + algorithm comments; glossary terms for `?d=`/`timeScale`/timing lamp/default state/PNG icons/cut line; new helper + validation + Verilog-branch tests).
+Last updated: 2026-09-04 (composite-terminal inversion now works in both the simulator and Verilog export: inverted instance terminals were previously ignored at composite boundaries).
 
 ## Where we are
 
@@ -12,6 +12,40 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Composite-terminal inversion (sim + Verilog)** — inverting a *composite instance's*
+  terminal (e.g. `i` on a placed `MyAndGate`) was silently ignored during simulation: the
+  simulator's `netlist.ts` dissolved the composite boundary via union-find and never applied
+  `Port.inverted` (it only honored the flag on leaf primitive pins). The Verilog exporter had
+  the same gap (`emitCompositeInstance` connected child ports straight to parent nets).
+  - **Sim** (`packages/sim/src/netlist.ts`): an inverted composite terminal now keeps its
+    boundary pin and internal port-group pin as **separate nets**, joined by a synthesized
+    inverter — a `buffer` flat instance whose output is `inverted` (a NOT), so an inverted
+    input inverts on the way in and an inverted output on the way out. It reuses the existing
+    gate evaluation path, so it runs with the **configured gate delay**; `driven[]` marks the
+    target net as driven. A boundary pin now reads the raw external value while its internal
+    port-group pin reads the inverted value.
+  - **Verilog** (`packages/verilog/src/verilog.ts`): `emitCompositeInstance` emits a temp
+    net + `assign` per inverted terminal (Verilog ports can't take an expression): an inverted
+    input gets `assign tmp = ~net;` then `.port(tmp)`, an inverted output `.port(tmp)` then
+    `assign net = ~tmp;` (width-aware).
+  - Tests in `packages/sim/test/engine.test.ts` (composite input/output inversion, boundary
+    vs internal pin values) and `packages/verilog/test/verilog.test.ts` (input/output inversion
+    bridges).
+
+- **Port groups are never invertable** — a composite's own terminals, as seen *inside* (the
+  `input-port`/`output-port` port groups), can no longer be inverted, and they never render an
+  inversion bubble. The `editorStore.togglePinInversion` action now early-returns when the
+  hovered pin belongs to a port group, `setPortInverted` now requires an explicit `defId`
+  (so it only ever targets a placed instance's terminals), the sidebar's scope ports editor
+  drops the inversion checkbox (`invertAllowed` requires `defId`), and the renderer suppresses
+  the bubble on port-group pins (`drawPortGroupBox` gained an `allowInversion` flag, passed
+  `false` for composite port groups while the primitive "internal circuitry" placeholder keeps
+  it). Inversion is now **external-only**: you invert a terminal on a placed instance, never on
+  the scope's own ports. Grouping/apply propagation of existing external inversion is unchanged.
+  Tests added in `editorStore.test.ts`; glossary/user-guide updated.
+
+## Latest (previous session)
 
 - **Type-model hardening (format-compatible)** — a code-quality pass, no behavior or file
   format change (verified: serialized JSON stays byte-identical; `Design.version` unchanged):
@@ -57,7 +91,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   editor-store single-driver + re-target rejection, and Verilog XOR/bus-split/DFF-polarity
   (negedge, `initialValue`, active-low reset).
 
-## Latest (previous session)
+## Earlier (previous session)
 
 - **Default program state in `localStorage`** — two new toolbar buttons (next to Save JSON /
   Export Verilog): **Save as default** (bookmark icon) stores the current design under the

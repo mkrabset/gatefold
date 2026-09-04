@@ -515,7 +515,11 @@ export const useEditorStore = create<EditorState>()(
       }),
     setPortInverted: (portId, inverted, defId) =>
       set((s) => {
-        const def = s.design.defs[defId ?? currentDefId(s)]
+        // Without an explicit defId this targets the current scope's own ports — the
+        // input/output port groups — which are never invertable. Only a placed
+        // instance's terminals (defId passed) may be inverted.
+        if (defId === undefined) return
+        const def = s.design.defs[defId]
         if (isTemplateDef(s.design, def)) return
         if (!allowInversion(def)) return
         const port = def.ports.find((p) => p.id === portId)
@@ -531,11 +535,12 @@ export const useEditorStore = create<EditorState>()(
         if (!inst) return
         const instDef = s.design.defs[inst.defId]
         if (!instDef) return
-        // A port-group pin is derived from the current composite's own port.
-        const ownerDef = isPortGroupDef(instDef) ? def : instDef
-        if (isTemplateDef(s.design, ownerDef)) return
-        if (!allowInversion(ownerDef)) return
-        const port = ownerDef.ports.find((p) => p.id === ref.portId)
+        // The current scope's own terminals (the input/output port groups) are never
+        // invertable — inversion is external-only, applied to a placed instance.
+        if (isPortGroupDef(instDef)) return
+        if (isTemplateDef(s.design, instDef)) return
+        if (!allowInversion(instDef)) return
+        const port = instDef.ports.find((p) => p.id === ref.portId)
         if (!port) return
         if (port.inverted) delete port.inverted
         else port.inverted = true

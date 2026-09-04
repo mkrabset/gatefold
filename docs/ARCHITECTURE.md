@@ -425,8 +425,14 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
 - **`netlist.ts`** — flattens the hierarchy through `Port.terminal` into leaf primitive
   instances + nets. A union-find unions connection endpoints and the composite-boundary ↔
   port-group pins; port-group and composite-boundary pins are dissolved into the same net.
+  An **inverted composite terminal** is not dissolved: its boundary pin and internal
+  port-group pin become separate nets joined by a synthesized inverter (a `buffer` flat
+  instance whose output is `inverted`, i.e. a NOT), so an inverted input inverts on the way
+  in and an inverted output on the way out — evaluated with the configured gate delay.
   Produces `instances`, `netWidths`, `driven[]`, and a **`pinNet`** map (every flattened pin
-  key → net), so signals can be looked up for leaf, port-group, and composite pins alike.
+  key → net), so signals can be looked up for leaf, port-group, and composite pins alike
+  (a boundary pin reads the raw external value; its internal port-group pin reads the
+  inverted value).
 - **`engine.ts`** — event-driven evaluation with **inertial** gate delays:
   - a min-heap of timed events; an input change schedules a gate's output at `now + delay`;
     versioned events supersede pending outputs (inertial).

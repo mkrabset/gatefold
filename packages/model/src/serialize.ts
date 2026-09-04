@@ -32,6 +32,7 @@ function roundReplacer(key: string, value: unknown): unknown {
   return value
 }
 
+/** Serialize a design to compact JSON (built-ins stripped, orphans GC'd, coords rounded). */
 export function serializeDesign(design: Design): string {
   const stripped = stripBuiltinPrimitives(design)
   const defs: Record<string, ComponentDef> = { ...stripped.defs }
@@ -107,6 +108,8 @@ export function isComponentDef(v: unknown): v is ComponentDef {
   if (typeof v.id !== 'string') return false
   if (v.kind !== 'primitive' && v.kind !== 'composite') return false
   if (!Array.isArray(v.ports)) return false
+  // A primitive def must name its primitive kind (the discriminated-union guarantee).
+  if (v.kind === 'primitive' && typeof v.primitive !== 'string') return false
   return true
 }
 

@@ -1,7 +1,7 @@
 import type { ComponentDef, Connection, Design, Instance, PinRef, Port } from './types'
 import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals } from './types'
 import { uniqueId, newUuid } from './util'
-import { isPortGroupDef } from './primitives'
+import { isPortGroupDef, portGroupDirection } from './primitives'
 
 /**
  * Pure "group into composite" logic.
@@ -53,9 +53,6 @@ export interface InferredGroup {
   outputPortIncluded: boolean
 }
 
-// Produce a name/id that is unique against a set of existing ones, e.g. "component",
-// "component-2", "component-3"…
-
 // The transformation below clones the design so `applyGroup` stays a pure function
 // (no mutation of its input). These helpers do a manual deep clone of the model.
 function clonePinRef(ref: PinRef): PinRef {
@@ -64,9 +61,11 @@ function clonePinRef(ref: PinRef): PinRef {
 
 /** Deep-clone a single component definition. */
 export function cloneDef(def: ComponentDef): ComponentDef {
+  const ports = def.ports.map((p) => ({ ...p, terminal: p.terminal ? { ...p.terminal } : undefined }))
+  if (def.kind === 'primitive') return { ...def, ports }
   return {
     ...def,
-    ports: def.ports.map((p) => ({ ...p, terminal: p.terminal ? { ...p.terminal } : undefined })),
+    ports,
     instances: def.instances?.map((i) => ({
       ...i,
       pos: { ...i.pos },
@@ -96,6 +95,12 @@ function portGroupInstPredicate(instances: Instance[], defs: Record<string, Comp
   }
 }
 
+/** The port-group direction of the def referenced by `instanceId`, or null. */
+function portGroupOf(defs: Record<string, ComponentDef>, instanceId: string): 'input' | 'output' | null {
+  const idef = defs[instanceId]
+  return idef ? portGroupDirection(idef) : null
+}
+
 /**
  * Classify the connections of `defId` relative to the selected instances and infer the
  * composite's input/output ports from the wires crossing the selection boundary, plus
@@ -108,13 +113,16 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
   const internal: Connection[] = []
   const inputs = new Map<string, InferredInput>()
   const outputs = new Map<string, InferredOutput>()
+  if (!def || def.kind !== 'composite') {
+    return { internal, inputs: [], outputs: [], inputPortIncluded: false, outputPortIncluded: false }
+  }
 
   const isPortGroupInst = portGroupInstPredicate(def.instances ?? [], design.defs)
 
   // If the parent's input-port / output-port instance is included, the new component
   // inherits the parent's interface (count + names) instead of inferring it from wiring.
-  const inputPortInst = (def.instances ?? []).find((i) => design.defs[i.defId]?.primitive === 'input-port')
-  const outputPortInst = (def.instances ?? []).find((i) => design.defs[i.defId]?.primitive === 'output-port')
+  const inputPortInst = (def.instances ?? []).find((i) => portGroupOf(design.defs, i.defId) === 'input')
+  const outputPortInst = (def.instances ?? []).find((i) => portGroupOf(design.defs, i.defId) === 'output')
   const inputPortIncluded = !!inputPortInst && selected.has(inputPortInst.id)
   const outputPortIncluded = !!outputPortInst && selected.has(outputPortInst.id)
 
@@ -131,7 +139,7 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
     } else if (toSel) {
       // When the input-port is included, its pins are handled by the inherited-input
       // derivation below; only other external sources become crossing inputs here.
-      if (inputPortIncluded && c.from.instanceId === inputPortInst!.id) continue
+      if (inputPortIncluded && inputPortInst && c.from.instanceId === inputPortInst.id) continue
       // An external source feeding a selected input pin. Group by the source net so
       // several pins driven by the same net collapse into a single input port.
       const key = pinKey(c.from)
@@ -141,7 +149,7 @@ export function inferGroup(design: Design, defId: string, instanceIds: string[])
     } else if (fromSel) {
       // When the output-port is included, its pins are handled by the inherited-output
       // derivation below.
-      if (outputPortIncluded && c.to.instanceId === outputPortInst!.id) continue
+      if (outputPortIncluded && outputPortInst && c.to.instanceId === outputPortInst.id) continue
       const key = pinKey(c.from)
       const entry = outputs.get(key) ?? { source: { instanceId: c.from.instanceId, portId: c.from.portId }, targets: [] }
       entry.targets.push(clonePinRef(c.to))
@@ -244,6 +252,7 @@ export function applyGroup(
 
   const result = cloneDesign(design)
   const def = result.defs[defId]
+  if (!def || def.kind !== 'composite') throw new Error('group: parent is not a composite')
 
   // Port-group instances are not moved into the new component — they stay in the
   // parent and define the interface instead.
@@ -276,21 +285,19 @@ export function applyGroup(
   // parent's own port group was included in the selection, the new group keeps its
   // original position (so ports stay put relative to the moved components); otherwise a
   // rough placeholder is used and the app re-places it.
-  let inputGroupId: string | null = null
-  let outputGroupId: string | null = null
+  const inputGroupId = inferred.inputs.length > 0 ? `${newDefId}-in` : null
+  const outputGroupId = inferred.outputs.length > 0 ? `${newDefId}-out` : null
 
-  const inputPortInst = (def.instances ?? []).find((i) => result.defs[i.defId]?.primitive === 'input-port')
-  const outputPortInst = (def.instances ?? []).find((i) => result.defs[i.defId]?.primitive === 'output-port')
+  const inputPortInst = (def.instances ?? []).find((i) => portGroupOf(result.defs, i.defId) === 'input')
+  const outputPortInst = (def.instances ?? []).find((i) => portGroupOf(result.defs, i.defId) === 'output')
 
-  if (inferred.inputs.length > 0) {
-    inputGroupId = `${newDefId}-in`
+  if (inputGroupId) {
     const pos = inferred.inputPortIncluded && inputPortInst
       ? { x: inputPortInst.pos.x, y: inputPortInst.pos.y }
       : { x: cx - 120, y: cy }
     portInstances.push({ id: inputGroupId, name: '', defId: 'input-port', pos })
   }
-  if (inferred.outputs.length > 0) {
-    outputGroupId = `${newDefId}-out`
+  if (outputGroupId) {
     const pos = inferred.outputPortIncluded && outputPortInst
       ? { x: outputPortInst.pos.x, y: outputPortInst.pos.y }
       : { x: cx + 120, y: cy }
@@ -299,16 +306,17 @@ export function applyGroup(
 
   inferred.inputs.forEach((g, i) => {
     const name = inputNames[i] || `in${i + 1}`
+    const groupId = inputGroupId ?? `${newDefId}-in`
     ports.push({
       id: inputPortId(i),
       name,
       direction: 'input',
-      terminal: { instanceId: inputGroupId!, pinId: inputPortId(i) },
+      terminal: { instanceId: groupId, pinId: inputPortId(i) },
     })
     for (const t of g.targets) {
       connections.push({
         id: genConn(),
-        from: { instanceId: inputGroupId!, portId: inputPortId(i) },
+        from: { instanceId: groupId, portId: inputPortId(i) },
         to: { instanceId: t.instanceId, portId: t.portId },
       })
     }
@@ -316,17 +324,18 @@ export function applyGroup(
 
   inferred.outputs.forEach((g, i) => {
     const name = outputNames[i] || `out${i + 1}`
+    const groupId = outputGroupId ?? `${newDefId}-out`
     ports.push({
       id: outputPortId(i),
       name,
       direction: 'output',
-      terminal: { instanceId: outputGroupId!, pinId: outputPortId(i) },
+      terminal: { instanceId: groupId, pinId: outputPortId(i) },
     })
     if (g.source) {
       connections.push({
         id: genConn(),
         from: { instanceId: g.source.instanceId, portId: g.source.portId },
-        to: { instanceId: outputGroupId!, portId: outputPortId(i) },
+        to: { instanceId: groupId, portId: outputPortId(i) },
       })
     }
   })

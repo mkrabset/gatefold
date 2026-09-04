@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Instance, PinRef } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Instance, PinRef } from '@gatefold/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { Simulation } from '../src/engine'
 import { DEFAULT_CONFIG } from '../src/config'
@@ -11,8 +11,8 @@ const conn = (id: string, from: PinRef, to: PinRef) => ({ id, from, to })
 const LIBRARY = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'switch-array', 'led-array', 'seven-seg', 'dff', 'join-point'] as const
 
 function mkDesign(
-  instances: ComponentDef['instances'],
-  connections: ComponentDef['connections'],
+  instances: CompositeDef['instances'],
+  connections: CompositeDef['connections'],
   extraDefs: Record<string, ComponentDef> = {},
 ): Design {
   const defs: Record<string, ComponentDef> = {}
@@ -27,7 +27,7 @@ function mkDesign(
 /** A single clock (period 1000 ps) driving a chain of `n` buffers (n×100 ps path delay). */
 function timingDesign(n: number): Design {
   const instances: Instance[] = [{ id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } }]
-  const connections: ComponentDef['connections'] = []
+  const connections: CompositeDef['connections'] = []
   let prev: PinRef = iref('clk', 'out:0')
   for (let i = 0; i < n; i++) {
     instances.push(inst(`b${i}`, 'buffer'))

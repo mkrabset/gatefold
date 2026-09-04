@@ -7,8 +7,10 @@
  * here is plain data with no UI or framework dependencies.
  */
 
+/** 3-state logic value: `0` low, `1` high, `'x'` unknown/floating. */
 export type Signal = 0 | 1 | 'x'
 
+/** Which edge of a component a terminal sits on: inputs flow in, outputs flow out. */
 export type PortDirection = 'input' | 'output'
 
 /**
@@ -28,6 +30,7 @@ export interface Port {
   inverted?: boolean
 }
 
+/** The discriminant for the built-in primitive registry: one kind per `Primitive` class. */
 export type PrimitiveKind =
   | 'and'
   | 'or'
@@ -48,11 +51,27 @@ export type PrimitiveKind =
   | 'dff'
   | 'join-point'
 
-export interface ComponentDef {
+/** A per-instance custom property value (JSON-scalar only, so props round-trip verbatim). */
+export type PropertyValue = number | string | boolean
+
+/** A built-in component definition (a serializable reference to its primitive kind). */
+export interface PrimitiveDef {
   id: string
   name: string
-  kind: 'primitive' | 'composite'
-  primitive?: PrimitiveKind
+  kind: 'primitive'
+  primitive: PrimitiveKind
+  ports: Port[]
+  /** True when this def is an instance-local fork (hidden from the library). */
+  variant?: boolean
+  /** Lineage id: shared by a template and every variant copied from it. */
+  uuid?: string
+}
+
+/** A user-defined composite definition: a graph of instances wired by connections. */
+export interface CompositeDef {
+  id: string
+  name: string
+  kind: 'composite'
   ports: Port[]
   instances?: Instance[]
   connections?: Connection[]
@@ -62,13 +81,19 @@ export interface ComponentDef {
   uuid?: string
 }
 
+/**
+ * A component definition: a *type* (primitive or composite). Instances reference a
+ * definition by `id`; the `kind` discriminates which arm is present.
+ */
+export type ComponentDef = PrimitiveDef | CompositeDef
+
 export interface Instance {
   id: string
   name: string
   defId: string
   pos: { x: number; y: number }
   /** Per-instance custom property values (keys match the primitive's `properties()`). */
-  props?: Record<string, unknown>
+  props?: Record<string, PropertyValue>
 }
 
 /**
@@ -84,19 +109,24 @@ export interface Connection {
   to: PinRef
 }
 
+/** The whole document: a registry of component definitions plus the root sheet id. */
 export interface Design {
   version: number
   root: string
   defs: Record<string, ComponentDef>
 }
 
+/** The id of the `index`-th input terminal (`in:0`, `in:1`, …). */
 export const inputPortId = (index: number) => `in:${index}`
+/** The id of the `index`-th output terminal (`out:0`, `out:1`, …). */
 export const outputPortId = (index: number) => `out:${index}`
 
+/** A definition's input ports (in declared order). */
 export function inputPorts(def: ComponentDef): Port[] {
   return def.ports.filter((p) => p.direction === 'input')
 }
 
+/** A definition's output ports (in declared order). */
 export function outputPorts(def: ComponentDef): Port[] {
   return def.ports.filter((p) => p.direction === 'output')
 }
@@ -124,6 +154,14 @@ export function pinRefEquals(a: PinRef, b: PinRef): boolean {
   return a.instanceId === b.instanceId && a.portId === b.portId
 }
 
+/** Produce the next free connection id (`c1`, `c2`, …), skipping any collisions. */
+export function nextConnectionId(connections: Connection[]): string {
+  const ids = new Set(connections.map((c) => c.id))
+  let i = connections.length + 1
+  while (ids.has(`c${i}`)) i++
+  return `c${i}`
+}
+
 /** Canonical string key for a connection endpoint (instance + port). */
 export function pinKey(ref: PinRef): string {
   return `${ref.instanceId}:${ref.portId}`
@@ -140,10 +178,11 @@ export function findConnectionTo(connections: Connection[], to: PinRef): Connect
 
 /**
  * Every (composite def, instance) pair across the design whose instance references
- * `defId`, in def-then-instance order.
+ * `defId`, in def-then-instance order. Only composites contain instances, so each
+ * returned def is a composite.
  */
-export function instancesReferencing(design: Design, defId: string): { def: ComponentDef; instance: Instance }[] {
-  const refs: { def: ComponentDef; instance: Instance }[] = []
+export function instancesReferencing(design: Design, defId: string): { def: CompositeDef; instance: Instance }[] {
+  const refs: { def: CompositeDef; instance: Instance }[] = []
   for (const def of Object.values(design.defs)) {
     if (def.kind !== 'composite') continue
     for (const inst of def.instances ?? []) {

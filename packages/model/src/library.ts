@@ -1,4 +1,5 @@
-import type { ComponentDef, Design } from './types'
+import type { ComponentDef, Design, PrimitiveDef } from './types'
+import { isTemplateDef } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isComponentDef, isRecord } from './serialize'
 import { newUuid, remapInstanceDefs, uniqueId } from './util'
@@ -17,7 +18,7 @@ export interface LibraryFile {
   components: ComponentDef[]
 }
 
-const isPrimitiveDef = (def: ComponentDef | undefined): boolean => !!def && def.kind === 'primitive'
+const isPrimitiveDef = (def: ComponentDef | undefined): def is PrimitiveDef => !!def && def.kind === 'primitive'
 
 /**
  * Collect the library's template composites (and their composite def closure) for export,
@@ -27,9 +28,7 @@ const isPrimitiveDef = (def: ComponentDef | undefined): boolean => !!def && def.
  * `variant` primitive copies) are normalized to their built-in id so imports always resolve.
  */
 export function exportLibrary(design: Design): LibraryFile {
-  const templates = Object.values(design.defs).filter(
-    (d) => d.kind === 'composite' && d.id !== design.root && d.variant !== true,
-  )
+  const templates = Object.values(design.defs).filter((d) => isTemplateDef(design, d))
 
   // Map each template's lineage uuid to its id, so a variant copy can be collapsed back to
   // the template it was copied from.
@@ -67,10 +66,11 @@ export function exportLibrary(design: Design): LibraryFile {
   for (const id of exportIds) {
     const def = cloneDef(design.defs[id])
     delete def.variant
+    if (def.kind !== 'composite') continue
     for (const inst of def.instances ?? []) {
       const ref = design.defs[inst.defId]
       if (!ref) continue
-      if (isPrimitiveDef(ref) && ref.primitive) {
+      if (isPrimitiveDef(ref)) {
         inst.defId = ref.primitive
       } else if (ref.kind === 'composite') {
         const tid = templateIdOf(ref.id)

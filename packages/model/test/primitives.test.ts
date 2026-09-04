@@ -3,18 +3,23 @@ import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/types
 import type { Signal } from '../src/types'
 import {
   allowInversion,
+  arrayDirection,
+  CLOCK_DEFAULT_PERIOD,
   defaultPropsOf,
   inputPortDef,
   invertSignal,
   isArityFixed,
+  isArrayDef,
   isPortGroupDef,
   libraryPrimitives,
   outputPortDef,
+  periodOf,
   portWidth,
   primitiveDef,
   primitiveOf,
   sevenSegDigit,
   sevenSegDigits,
+  sevenSegModeOf,
   sevenSegPositionCount,
   withBuiltinPrimitives,
 } from '../src/primitives'
@@ -22,6 +27,30 @@ import {
 describe('model primitives', () => {
   it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS, DFF, NODE', () => {
     expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point'])
+  })
+
+  it('recognizes the array primitives and their terminal direction', () => {
+    expect(isArrayDef(primitiveDef('switch-array'))).toBe(true)
+    expect(isArrayDef(primitiveDef('led-array'))).toBe(true)
+    expect(isArrayDef(primitiveDef('and'))).toBe(false)
+    expect(isArrayDef(undefined)).toBe(false)
+    expect(arrayDirection(primitiveDef('switch-array'))).toBe('output')
+    expect(arrayDirection(primitiveDef('led-array'))).toBe('input')
+  })
+
+  it('resolves a 7-seg mode property, defaulting to HEX', () => {
+    expect(sevenSegModeOf(undefined)).toBe('HEX')
+    expect(sevenSegModeOf({})).toBe('HEX')
+    expect(sevenSegModeOf({ mode: 'DEC' })).toBe('DEC')
+    expect(sevenSegModeOf({ mode: 'SIGNED DEC' })).toBe('SIGNED DEC')
+    expect(sevenSegModeOf({ mode: 'garbage' })).toBe('HEX')
+  })
+
+  it('resolves a clock period property, defaulting to the built-in period', () => {
+    expect(periodOf(undefined)).toBe(CLOCK_DEFAULT_PERIOD)
+    expect(periodOf({})).toBe(CLOCK_DEFAULT_PERIOD)
+    expect(periodOf({ period: 2500 })).toBe(2500)
+    expect(periodOf({ period: 'fast' })).toBe(CLOCK_DEFAULT_PERIOD)
   })
 
   it('inverts the NOT output and leaves the buffer un-inverted', () => {

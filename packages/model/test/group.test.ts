@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Connection, Design, Instance, PinRef } from '../src/types'
+import type { ComponentDef, CompositeDef, Connection, Design, Instance, PinRef } from '../src/types'
 import { inputPorts, outputPorts } from '../src/types'
 import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { applyGroup, inferGroup } from '../src/group'
@@ -67,8 +67,8 @@ describe('applyGroup', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'])
 
-    const main = result.defs['main']
-    const compDef = result.defs['component']
+    const main = result.defs['main'] as CompositeDef
+    const compDef = result.defs['component'] as CompositeDef
 
     expect(compDef).toBeDefined()
     expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
@@ -112,7 +112,7 @@ describe('applyGroup', () => {
     expect(result.defs['adder']).toBeDefined()
     expect(result.defs['adder'].name).toBe('adder')
     // the parent instance is created with an empty default name, referencing the new def.
-    const main = result.defs['main']
+    const main = result.defs['main'] as CompositeDef
     expect(main.instances!.some((i) => i.defId === 'adder' && i.name === '')).toBe(true)
   })
 
@@ -120,7 +120,7 @@ describe('applyGroup', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1'], ['X1', 'X2'], ['Y'])
 
-    const main = result.defs['main']
+    const main = result.defs['main'] as CompositeDef
     // srcA -> and1 (untouched by grouping xor1) must remain.
     expect(main.connections!.some((c) => c.from.instanceId === 'srcA' && c.to.instanceId === 'and1')).toBe(true)
     expect(main.instances!.some((i) => i.id === 'xor1')).toBe(false)
@@ -168,8 +168,8 @@ describe('applyGroup — exposed (floating) pins', () => {
     const design = buildFloatingPinsDesign()
     const result = applyGroup(design, 'main', ['and1'], ['A', 'B'], ['Y'])
 
-    const main = result.defs['main']
-    const compDef = result.defs['component']
+    const main = result.defs['main'] as CompositeDef
+    const compDef = result.defs['component'] as CompositeDef
 
     expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
     expect(outputPorts(compDef).map((p) => p.name)).toEqual(['Y'])
@@ -238,8 +238,8 @@ describe('grouping with port groups in the selection', () => {
     const design = buildPortGroupDesign()
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
 
-    const main = result.defs['main']
-    const comp = result.defs['component']
+    const main = result.defs['main'] as CompositeDef
+    const comp = result.defs['component'] as CompositeDef
 
     // The new component holds the gate + its own port groups, not the parent's.
     expect(comp.instances!.map((i) => i.id).sort()).toEqual(['a', 'component-in', 'component-out'].sort())
@@ -261,7 +261,7 @@ describe('grouping with port groups in the selection', () => {
     const design = buildPortGroupDesign()
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
 
-    const comp = result.defs['component']
+    const comp = result.defs['component'] as CompositeDef
     const inGroup = comp.instances!.find((i) => i.defId === 'input-port')!
     const outGroup = comp.instances!.find((i) => i.defId === 'output-port')!
     // The parent's port groups were at (0,0) and (200,0); the new component inherits
@@ -352,8 +352,8 @@ describe('grouping with the parent port groups included', () => {
     const design = buildInheritedInterfaceDesign()
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B', 'C', 'EXTRA'], ['Y'])
 
-    const main = result.defs['main']
-    const comp = result.defs['component']
+    const main = result.defs['main'] as CompositeDef
+    const comp = result.defs['component'] as CompositeDef
 
     expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B', 'C', 'EXTRA'])
     expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])

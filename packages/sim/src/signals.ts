@@ -1,9 +1,7 @@
-import type { Signal } from '@gatefold/model'
+import { invertSignal, type Signal } from '@gatefold/model'
 
-/** 3-state NOT of a single bit. */
-export function invert(s: Signal): Signal {
-  return s === 'x' ? 'x' : s === 0 ? 1 : 0
-}
+/** 3-state NOT of a single bit (the canonical model implementation). */
+export const invert = invertSignal
 
 /** Bit-wise 3-state NOT over a bit-vector. */
 export function invertVector(v: Signal[]): Signal[] {

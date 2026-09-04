@@ -1,4 +1,4 @@
-import type { Port, PrimitiveKind, Signal } from '../types'
+import type { Port, PrimitiveKind, PropertyValue, Signal } from '../types'
 import type { VectorContext } from './vector'
 
 /** Canvas color palette (plain strings — keeps the model framework-free). */
@@ -45,22 +45,13 @@ export interface DrawOptions {
 /**
  * A custom property declared by a primitive: its schema and default value. Drives the
  * properties panel and, later, the simulator. The default is defined here, in the class.
+ * The `type` discriminates which fields are present (e.g. `select` requires `options`).
  */
-export interface PropertySpec {
-  /** Machine key used in `Instance.props` (e.g. `period`). */
-  name: string
-  /** Display label (e.g. `Period`). */
-  label: string
-  type: 'number' | 'string' | 'boolean' | 'select'
-  default: number | string | boolean
-  /** Display unit, e.g. `ms`. */
-  unit?: string
-  min?: number
-  max?: number
-  step?: number
-  /** Choices for type `'select'`. */
-  options?: string[]
-}
+export type PropertySpec =
+  | { name: string; label: string; type: 'number'; default: number; unit?: string; min?: number; max?: number; step?: number }
+  | { name: string; label: string; type: 'string'; default: string }
+  | { name: string; label: string; type: 'boolean'; default: boolean }
+  | { name: string; label: string; type: 'select'; default: string; options: string[] }
 
 /**
  * The behaviour of a built-in component. One class per primitive kind; the kind is the
@@ -105,7 +96,7 @@ export interface Primitive {
   portGroupDirection(): 'input' | 'output' | null
   /** Intrinsic bus width of `port` given the full port list (`null` = neutral/adopt).
    *  `props` is the instance's property record, for width driven by a property. */
-  intrinsicWidth(ports: Port[], port: Port, props?: Record<string, unknown>): number | null
+  intrinsicWidth(ports: Port[], port: Port, props?: Record<string, PropertyValue>): number | null
 
   /** Relation-based width: given determined sibling widths (portId → width), return
    *  this pin's width or null (undetermined). May return a non-integer to flag an

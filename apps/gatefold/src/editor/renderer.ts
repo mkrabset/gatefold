@@ -1,5 +1,5 @@
-import type {ComponentDef, Design, Instance, Palette, PinRef, Port, SevenSegMode, Signal} from '@gatefold/model'
-import {CLOCK_DEFAULT_PERIOD, inputPorts, invertSignal, isPortGroupDef, outputPorts, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegPositionCount} from '@gatefold/model'
+import type {ComponentDef, Design, Instance, Palette, PinRef, Port, PrimitiveDef, Signal} from '@gatefold/model'
+import {inputPorts, invertSignal, isPortGroupDef, outputPorts, periodOf, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, UnionFind} from '@gatefold/model'
 import {formatFrequency} from '../util/format'
 import {
     arrayIndicatorLanes,
@@ -432,7 +432,7 @@ function drawInstance(
         }
         // Clock frequency above the body (the CLOCK type label is skipped).
         if (def.primitive === 'clock') {
-            const period = typeof instance.props?.period === 'number' ? instance.props.period : CLOCK_DEFAULT_PERIOD
+            const period = periodOf(instance.props)
             ctx.fillStyle = p.text
             ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
             ctx.textAlign = 'center'
@@ -542,7 +542,7 @@ function drawSevenSegBody(
     design: Design,
     parentDef: ComponentDef,
     instance: Instance,
-    def: ComponentDef,
+    def: PrimitiveDef,
     cx: number,
     cy: number,
     h: number,
@@ -551,7 +551,7 @@ function drawSevenSegBody(
     sim?: SimView,
 ) {
     const lanes = sevenSegLaneCount(design, parentDef, instance, def)
-    const mode = (instance.props?.mode as SevenSegMode | undefined) ?? 'HEX'
+    const mode = sevenSegModeOf(instance.props)
     const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const zoom = vp.zoom
     const digitW = SEVEN_SEG_DIGIT_W * zoom
@@ -600,7 +600,7 @@ function drawArrayBody(
     design: Design,
     parentDef: ComponentDef,
     instance: Instance,
-    def: ComponentDef,
+    def: PrimitiveDef,
     cx: number,
     cy: number,
     w: number,
@@ -737,25 +737,14 @@ export function drawScene(
 
     // Union-find over pins: connections share a net, and a join-point joins its input
     // and output so its connected wires render as one continuous net.
-    const parent = new Map<string, string>()
-    const find = (x: string): string => {
-        const p = parent.get(x)
-        if (p === undefined) { parent.set(x, x); return x }
-        if (p !== x) parent.set(x, find(p))
-        return parent.get(x)!
-    }
-    const union = (a: string, b: string) => {
-        const ra = find(a)
-        const rb = find(b)
-        if (ra !== rb) parent.set(ra, rb)
-    }
-    for (const c of def.connections ?? []) union(pinKey(c.from), pinKey(c.to))
+    const uf = new UnionFind()
+    for (const c of def.connections ?? []) uf.union(pinKey(c.from), pinKey(c.to))
 
     const joinPoints: Instance[] = []
     for (const inst of instances) {
         const idef = design.defs[inst.defId]
-        if (idef?.primitive === 'join-point') {
-            union(pinKey({instanceId: inst.id, portId: 'in:0'}), pinKey({instanceId: inst.id, portId: 'out:0'}))
+        if (idef?.kind === 'primitive' && idef.primitive === 'join-point') {
+            uf.union(pinKey({instanceId: inst.id, portId: 'in:0'}), pinKey({instanceId: inst.id, portId: 'out:0'}))
             joinPoints.push(inst)
         }
     }
@@ -779,7 +768,7 @@ export function drawScene(
         }
         // Group by net (through join-points) so fan-out wires — and the join-points
         // they pass through — render as one bundle (all halos, then all lines/dots).
-        const key = find(pinKey(conn.from))
+        const key = uf.find(pinKey(conn.from))
         const group = groups.get(key)
         if (group) group.push(trace)
         else groups.set(key, [trace])
@@ -789,7 +778,7 @@ export function drawScene(
     const joinPointsByGroup = new Map<string, Instance[]>()
     const unconnectedJoinPoints: Instance[] = []
     for (const jp of joinPoints) {
-        const key = find(pinKey({instanceId: jp.id, portId: 'out:0'}))
+        const key = uf.find(pinKey({instanceId: jp.id, portId: 'out:0'}))
         if (groups.has(key)) {
             const arr = joinPointsByGroup.get(key)
             if (arr) arr.push(jp)
@@ -899,7 +888,7 @@ export function drawScene(
         const instDef = design.defs[inst.defId]
         if (!instDef) continue
         // Join-points are rendered with their net in the wire pass above.
-        if (instDef.primitive === 'join-point') continue
+        if (instDef.kind === 'primitive' && instDef.primitive === 'join-point') continue
         if (isPortGroupDef(instDef)) {
             drawPortGroup(ctx, design, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
         } else {

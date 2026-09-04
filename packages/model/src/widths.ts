@@ -1,4 +1,4 @@
-import type { ComponentDef, Design, PinRef, Port } from './types'
+import type { ComponentDef, CompositeDef, Design, PinRef, Port } from './types'
 import { pinKey } from './types'
 import { primitiveOf } from './primitives'
 
@@ -19,6 +19,9 @@ export interface SheetWidths {
 
 const cache = new WeakMap<Design, Map<string, SheetWidths>>()
 
+// A sentinel cached before `computeSheet` runs. Mutually- or self-referential
+// composites re-enter `solveWidths` mid-resolution; the sentinel marks the def as
+// "already being solved" so the recursion terminates instead of looping forever.
 const IN_PROGRESS: SheetWidths = { widths: new Map(), invalid: false }
 
 function solveWidths(design: Design, defId: string): SheetWidths {
@@ -42,6 +45,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
   let invalid = false
   let reason: 'conflict' | 'non-integer' | 'constraint' | undefined
   let message: string | undefined
+  if (!def || def.kind !== 'composite') return { widths, invalid: false }
 
   const set = (ref: PinRef, value: number) => {
     const key = pinKey(ref)
@@ -63,7 +67,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
   for (const inst of def.instances ?? []) {
     const idef = design.defs[inst.defId]
     if (!idef) continue
-    if (idef.kind === 'primitive' && idef.primitive) {
+    if (idef.kind === 'primitive') {
       const prim = primitiveOf(idef.primitive)
       if (prim.deriveWidth) continue // relation primitive: resolved during propagation
       for (const port of idef.ports) {
@@ -71,7 +75,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
         if (w === null) continue // neutral (adopts the connected width)
         set({ instanceId: inst.id, portId: port.id }, w === 0 ? 1 : w)
       }
-    } else if (idef.kind === 'composite') {
+    } else {
       for (const port of idef.ports) {
         if (!port.terminal) continue
         const child = solveWidths(design, idef.id)
@@ -103,7 +107,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
     }
     for (const inst of def.instances ?? []) {
       const idef = design.defs[inst.defId]
-      if (!idef || idef.kind !== 'primitive' || !idef.primitive) continue
+      if (!idef || idef.kind !== 'primitive') continue
       const prim = primitiveOf(idef.primitive)
       if (!prim.deriveWidth) continue
       for (const port of idef.ports) {
@@ -127,7 +131,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
   // Apply per-primitive width constraints (e.g. 7-seg must be a multiple of 4).
   for (const inst of def.instances ?? []) {
     const idef = design.defs[inst.defId]
-    if (!idef || idef.kind !== 'primitive' || !idef.primitive) continue
+    if (!idef || idef.kind !== 'primitive') continue
     const prim = primitiveOf(idef.primitive)
     if (!prim.widthError) continue
     for (const port of idef.ports) {
@@ -162,10 +166,11 @@ export function resolvedPinWidth(design: Design, parentDef: ComponentDef, ref: P
 
 /** Hover hint for a relation pin whose width is undetermined, or null. */
 export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: PinRef): string | null {
+  if (parentDef.kind !== 'composite') return null
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return null
   const def = design.defs[inst.defId]
-  if (!def || def.kind !== 'primitive' || !def.primitive) return null
+  if (!def || def.kind !== 'primitive') return null
   const prim = primitiveOf(def.primitive)
   if (!prim.undeterminedHint) return null
   const port: Port | undefined = def.ports.find((p) => p.id === ref.portId)
@@ -177,8 +182,8 @@ export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: P
  * Return an error message if connecting `from` → `to` in `def` would make the sheet
  * invalid, or null if the connection is valid.
  */
-export function connectionError(design: Design, def: ComponentDef, from: PinRef, to: PinRef): string | null {
-  const testDef: ComponentDef = { ...def, connections: [...(def.connections ?? []), { id: '__test__', from, to }] }
+export function connectionError(design: Design, def: CompositeDef, from: PinRef, to: PinRef): string | null {
+  const testDef: CompositeDef = { ...def, connections: [...(def.connections ?? []), { id: '__test__', from, to }] }
   const testDesign: Design = { ...design, defs: { ...design.defs, [def.id]: testDef } }
   const result = solveWidths(testDesign, def.id)
   if (!result.invalid) return null

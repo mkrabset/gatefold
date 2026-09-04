@@ -1,4 +1,4 @@
-import type { ComponentDef, Design, Port, PortDirection, PrimitiveKind } from '../types'
+import type { ComponentDef, Design, Port, PortDirection, PrimitiveKind, PropertyValue } from '../types'
 import type { Primitive } from './primitive'
 import { AndGate } from './and'
 import { OrGate } from './or'
@@ -21,10 +21,10 @@ import { JoinPoint } from './join-point'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
-export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits } from './seven-seg'
+export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits, sevenSegModeOf } from './seven-seg'
 export type { SevenSegMode } from './seven-seg'
-export { arrayPorts } from './array'
-export { CLOCK_DEFAULT_PERIOD } from './clock'
+export { arrayPorts, isArrayDef, arrayDirection } from './array'
+export { CLOCK_DEFAULT_PERIOD, periodOf } from './clock'
 export { invertSignal } from './logic'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
@@ -62,7 +62,7 @@ export function libraryPrimitives(): Primitive[] {
 }
 
 /** Fold a primitive's property schema into a `{ name: default }` record. */
-export function defaultPropsOf(kind: PrimitiveKind): Record<string, unknown> {
+export function defaultPropsOf(kind: PrimitiveKind): Record<string, PropertyValue> {
   return Object.fromEntries(PRIMITIVES[kind].properties().map((p) => [p.name, p.default]))
 }
 
@@ -78,10 +78,6 @@ export function inputPortDef(): ComponentDef {
 
 export function outputPortDef(): ComponentDef {
   return primitiveDef('output-port')
-}
-
-export function portPrimitiveDef(direction: PortDirection): ComponentDef {
-  return direction === 'input' ? inputPortDef() : outputPortDef()
 }
 
 /**
@@ -101,19 +97,18 @@ export function withBuiltinPrimitives(design: Design): Design {
 
 /** True for the internal input-port/output-port primitive defs. */
 export function isPortGroupDef(def: ComponentDef): boolean {
-  return def.kind === 'primitive' && !!def.primitive && PRIMITIVES[def.primitive].isPortGroup()
+  return def.kind === 'primitive' && PRIMITIVES[def.primitive].isPortGroup()
 }
 
 /** The port group direction of `def`, or null when it is not a port group. */
 export function portGroupDirection(def: ComponentDef): 'input' | 'output' | null {
-  if (!isPortGroupDef(def)) return null
-  return PRIMITIVES[def.primitive!].portGroupDirection()
+  if (def.kind !== 'primitive' || !PRIMITIVES[def.primitive].isPortGroup()) return null
+  return PRIMITIVES[def.primitive].portGroupDirection()
 }
 
 /** Whether the arity of `def` in the given direction is fixed. */
 export function isArityFixed(def: ComponentDef, direction: PortDirection): boolean {
   if (def.kind === 'composite') return false
-  if (!def.primitive) return true
   const p = PRIMITIVES[def.primitive]
   return direction === 'input' ? p.fixedInputs : p.fixedOutputs
 }
@@ -121,32 +116,29 @@ export function isArityFixed(def: ComponentDef, direction: PortDirection): boole
 /** Whether the terminals of `def` can be renamed by the user. */
 export function allowRenameTerminals(def: ComponentDef): boolean {
   if (def.kind === 'composite') return true
-  if (!def.primitive) return false
   return PRIMITIVES[def.primitive].allowRenameTerminals
 }
 
 /** Whether the terminals of `def` may be inverted (the negation bubble) by the user. */
 export function allowInversion(def: ComponentDef): boolean {
   if (def.kind === 'composite') return true
-  if (!def.primitive) return false
   return PRIMITIVES[def.primitive].allowInversion
 }
 
 /** The suggested name for a newly-added input terminal of a primitive, or null. */
 export function nextPrimitiveInputName(def: ComponentDef): string | null {
-  if (def.kind !== 'primitive' || !def.primitive) return null
+  if (def.kind !== 'primitive') return null
   return PRIMITIVES[def.primitive].nextInputName(def.ports)
 }
 
 /** The intrinsic width (number of wires) of a terminal (fan-in/fan-out bus = arity). */
 export function portWidth(def: ComponentDef, port: Port): number {
-  if (def.kind !== 'primitive' || !def.primitive) return 1
+  if (def.kind !== 'primitive') return 1
   return PRIMITIVES[def.primitive].intrinsicWidth(def.ports, port) ?? 1
 }
 
 /** Whether a definition can be "entered" for editing. */
 export function isNavigableDef(def: ComponentDef): boolean {
   if (def.kind === 'composite') return true
-  if (!def.primitive) return false
   return PRIMITIVES[def.primitive].isNavigable()
 }

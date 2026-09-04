@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
@@ -29,7 +29,7 @@ export class Bus extends Gate {
     ]
   }
 
-  intrinsicWidth(_ports: Port[], _port: Port, props?: Record<string, unknown>): number {
+  intrinsicWidth(_ports: Port[], _port: Port, props?: Record<string, PropertyValue>): number {
     const lanes = typeof props?.lanes === 'number' ? props.lanes : 8
     return Math.max(1, Math.floor(lanes))
   }

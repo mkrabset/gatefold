@@ -9,7 +9,7 @@ import { findJoinpointWire, findWireAtLine } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
-import type { PinRef } from '@gatefold/model'
+import type { Instance, PinRef } from '@gatefold/model'
 import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@gatefold/model'
 import type { Viewport } from '../state/editorStore'
 
@@ -100,9 +100,16 @@ export function Canvas() {
       return s2w(sx, sy, rect.width, rect.height, viewport)
     }
 
-    const currentInstances = () => {
+    const currentInstances = (): Instance[] => {
       const state = useEditorStore.getState()
-      return state.design.defs[currentDefId(state)].instances ?? []
+      const def = state.design.defs[currentDefId(state)]
+      return def?.kind === 'composite' ? def.instances ?? [] : []
+    }
+
+    const currentConnections = () => {
+      const state = useEditorStore.getState()
+      const def = state.design.defs[currentDefId(state)]
+      return def?.kind === 'composite' ? def.connections ?? [] : []
     }
 
     // Start a move drag for the instance `instId` (moving the whole selection when it is
@@ -140,7 +147,7 @@ export function Canvas() {
         // Toggle a switch-array lane by clicking its indicator circle (not its marker).
         for (const inst of [...instances].reverse()) {
           const instDef = state.design.defs[inst.defId]
-          if (!instDef || instDef.primitive !== 'switch-array') continue
+          if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
           const lane = hitArrayIndicator(w.x, w.y, state.design, def, inst, instDef, state.viewport.zoom)
           if (lane !== null) {
             useSimStore.getState().toggleSwitch(inst.id, lane)
@@ -182,7 +189,7 @@ export function Canvas() {
       // incoming wire, whose input terminal sits underneath its output terminal.
       if (e.altKey) {
         const sink = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
-        const conn = sink && findConnectionTo(def.connections ?? [], sink.ref)
+        const conn = sink && findConnectionTo(currentConnections(), sink.ref)
         if (conn) {
           drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
           state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
@@ -208,7 +215,7 @@ export function Canvas() {
       // delete it), instead of selecting the component.
       const sink = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
       if (sink) {
-        const conn = findConnectionTo(def.connections ?? [], sink.ref)
+        const conn = findConnectionTo(currentConnections(), sink.ref)
         if (conn) {
           drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
           state.setPendingWire({ from: conn.from, x: w.x, y: w.y, originalId: conn.id })
@@ -410,7 +417,7 @@ export function Canvas() {
       if (useSimStore.getState().mode === 'simulate') {
         for (const inst of [...instances].reverse()) {
           const instDef = state.design.defs[inst.defId]
-          if (!instDef || instDef.primitive !== 'switch-array') continue
+          if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
           if (hitArrayIndicator(w.x, w.y, state.design, def, inst, instDef, state.viewport.zoom) !== null) {
             return
           }

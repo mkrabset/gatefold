@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PinRef, Port, SevenSegMode } from '@gatefold/model'
-import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
+import type { ComponentDef, Design, Instance, PinRef, Port } from '@gatefold/model'
+import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 
@@ -106,7 +106,7 @@ export function instanceBodySize(
   }
   if (def.kind === 'primitive' && def.primitive === 'seven-seg') {
     const lanes = sevenSegLaneCount(design, parentDef, instance, def)
-    const mode = (instance.props?.mode as SevenSegMode | undefined) ?? 'HEX'
+    const mode = sevenSegModeOf(instance.props)
     const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const w = 2 * SEVEN_SEG_PAD + positions * SEVEN_SEG_DIGIT_W + (positions - 1) * SEVEN_SEG_GAP
     const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
@@ -320,6 +320,7 @@ export function hitArrayIndicator(
 
 /** World-space bounding box of everything inside a composite def, or null when empty. */
 export function defContentsBounds(design: Design, def: ComponentDef): Bounds | null {
+  if (def.kind !== 'composite') return null
   const insts = def.instances ?? []
   let minX = Infinity
   let minY = Infinity

@@ -1,4 +1,5 @@
 import type { ComponentDef, Connection, Design, Instance } from './types'
+import { nextConnectionId } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isPortGroupDef } from './primitives'
 import { collectClosure, remapInstanceDefs, uniqueId } from './util'
@@ -52,6 +53,7 @@ export function copyDefSubgraph(
 /** Snapshot the selected instances (and their def closure) into a clipboard. */
 export function captureClipboard(design: Design, defId: string, instanceIds: string[]): Clipboard | null {
   const def = design.defs[defId]
+  if (!def || def.kind !== 'composite') return null
   // Port-group instances (a composite's input/output terminal rectangles) are never
   // copied — they are derived from the enclosing composite's ports.
   const selected = (def.instances ?? []).filter((i) => {
@@ -92,7 +94,7 @@ export function instantiateClipboard(
 ): { design: Design; newIds: string[] } {
   const result = cloneDesign(design)
   const def = result.defs[defId]
-  if (!def) return { design: result, newIds: [] }
+  if (!def || def.kind !== 'composite') return { design: result, newIds: [] }
 
   const rootIds = clipboard.instances.map((i) => i.defId)
   const { defs, idMap } = copyDefSubgraph(clipboard.defs, rootIds, new Set(Object.keys(result.defs)))
@@ -122,20 +124,12 @@ export function instantiateClipboard(
   // the freshly-assigned instance ids.
   if (clipboard.connections.length > 0) {
     if (!def.connections) def.connections = []
-    const usedConnIds = new Set(def.connections.map((c) => c.id))
-    let counter = def.connections.length + 1
-    const genConnId = () => {
-      let id = `c${counter++}`
-      while (usedConnIds.has(id)) id = `c${counter++}`
-      usedConnIds.add(id)
-      return id
-    }
     for (const c of clipboard.connections) {
       const from = instIdMap.get(c.from.instanceId)
       const to = instIdMap.get(c.to.instanceId)
       if (!from || !to) continue
       def.connections.push({
-        id: genConnId(),
+        id: nextConnectionId(def.connections),
         from: { instanceId: from, portId: c.from.portId },
         to: { instanceId: to, portId: c.to.portId },
       })

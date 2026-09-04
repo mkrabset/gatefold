@@ -1,5 +1,5 @@
 import type { Design, Signal } from '@gatefold/model'
-import { primitiveOf, CLOCK_DEFAULT_PERIOD } from '@gatefold/model'
+import { primitiveOf, periodOf } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
 import { clockValue, equalVectors, invert, invertVector } from './signals'
@@ -208,7 +208,7 @@ export class Simulation {
 
   /** Seed an event-driven clock source: set its power-on value and schedule its first edge. */
   private addClock(inst: FlatInstance): void {
-    const period = typeof inst.props?.period === 'number' ? inst.props.period : CLOCK_DEFAULT_PERIOD
+    const period = periodOf(inst.props)
     const half = period / 2
     const out = inst.outputs[0]
     const initial = clockValue(period, 0)
@@ -293,6 +293,8 @@ export class Simulation {
     const prim = primitiveOf(inst.kind)
     const clkInput = inst.inputs.find((ip) => ip.portId === prim.clockPortId?.()) ?? inst.inputs[0]
     const rstInput = inst.inputs.find((ip) => ip.portId === prim.resetPortId?.()) ?? null
+    // `D` is the input that is neither the clock nor the reset (a DFF's only remaining
+    // input), falling back to the first input for primitives without dedicated ids.
     const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
     const outputs = inst.outputs
     const complementId = prim.complementPortId?.() ?? null

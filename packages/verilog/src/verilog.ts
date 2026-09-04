@@ -1,4 +1,4 @@
-import type { ComponentDef, Design, Instance, PinRef } from '@gatefold/model'
+import type { CompositeDef, Design, Instance, PinRef, PrimitiveDef } from '@gatefold/model'
 import {
   findConnectionTo,
   inputPorts,
@@ -8,6 +8,7 @@ import {
   pinWidth,
   primitiveOf,
   sanitizeDesign,
+  UnionFind,
   withBuiltinPrimitives,
 } from '@gatefold/model'
 
@@ -36,6 +37,8 @@ const KEYWORDS = new Set([
   'tri', 'unsigned', 'while', 'wire', 'wand', 'wor', 'xnor', 'xor',
 ])
 
+/** Turn a user-supplied name into a legal Verilog identifier: replace illegal characters,
+ *  fall back to `net` when empty, prefix a leading digit, and append `_` to reserved words. */
 function sanitizeIdentifier(raw: string): string {
   let s = raw.replace(/[^A-Za-z0-9_$]/g, '_')
   if (!s) s = 'net'
@@ -44,6 +47,7 @@ function sanitizeIdentifier(raw: string): string {
   return s
 }
 
+/** Sanitize `base`, then dedup against `used` by appending `_2`, `_3`, … */
 function uniqueName(base: string, used: Set<string>): string {
   const b = sanitizeIdentifier(base)
   let name = b
@@ -92,7 +96,9 @@ class Generator {
     }
     const parts: string[] = []
     for (const id of order) {
-      parts.push(this.emitModule(this.design.defs[id], id === this.design.root))
+      const def = this.design.defs[id]
+      if (!def || def.kind !== 'composite') continue
+      parts.push(this.emitModule(def, id === this.design.root))
     }
     return parts.join('\n\n') + '\n'
   }
@@ -130,14 +136,18 @@ class Generator {
     return map
   }
 
-  private emitModule(def: ComponentDef, isRoot: boolean): string {
+  private emitModule(def: CompositeDef, isRoot: boolean): string {
     const design = this.design
     const instances = def.instances ?? []
     const connections = def.connections ?? []
     const byId = new Map(instances.map((i) => [i.id, i]))
 
-    const inputGroup = instances.find((i) => design.defs[i.defId]?.primitive === 'input-port')
-    const outputGroup = instances.find((i) => design.defs[i.defId]?.primitive === 'output-port')
+    const isPortGroupInst = (inst: Instance, dir: 'input' | 'output'): boolean => {
+      const idef = design.defs[inst.defId]
+      return !!idef && idef.kind === 'primitive' && idef.primitive === (dir === 'input' ? 'input-port' : 'output-port')
+    }
+    const inputGroup = instances.find((i) => isPortGroupInst(i, 'input'))
+    const outputGroup = instances.find((i) => isPortGroupInst(i, 'output'))
 
     const portNameMap = this.computePortNames(def.id)
 
@@ -147,7 +157,7 @@ class Generator {
     const sinks: Instance[] = []
     for (const inst of instances) {
       const idef = design.defs[inst.defId]
-      if (!idef || idef.kind !== 'primitive' || !idef.primitive) continue
+      if (!idef || idef.kind !== 'primitive') continue
       if (idef.primitive === 'clock') {
         if (isRoot) sources.push(inst)
         else this.error(`clock source "${inst.name}" nested in composite "${def.name}" is not exported`)
@@ -206,20 +216,9 @@ class Generator {
       }
     }
 
-    // Resolve nets with a local union-find over connection endpoints.
-    const parent = new Map<string, string>()
-    const find = (x: string): string => {
-      const p = parent.get(x)
-      if (p === undefined) { parent.set(x, x); return x }
-      if (p !== x) parent.set(x, find(p))
-      return parent.get(x)!
-    }
-    const union = (a: string, b: string) => {
-      const ra = find(a)
-      const rb = find(b)
-      if (ra !== rb) parent.set(ra, rb)
-    }
-    for (const c of connections) union(pinKey(c.from), pinKey(c.to))
+    // Resolve nets with a union-find over connection endpoints.
+    const uf = new UnionFind()
+    for (const c of connections) uf.union(pinKey(c.from), pinKey(c.to))
 
     const allPins: PinRef[] = []
     if (inputGroup) for (const p of inputPorts(def)) allPins.push({ instanceId: inputGroup.id, portId: p.id })
@@ -233,7 +232,7 @@ class Generator {
 
     const rootMembers = new Map<string, PinRef[]>()
     for (const pin of allPins) {
-      const r = find(pinKey(pin))
+      const r = uf.find(pinKey(pin))
       const arr = rootMembers.get(r) ?? []
       arr.push(pin)
       rootMembers.set(r, arr)
@@ -310,7 +309,7 @@ class Generator {
     const regNets = new Set<string>()
     for (const inst of instances) {
       const idef = design.defs[inst.defId]
-      if (idef?.primitive === 'dff') {
+      if (idef?.kind === 'primitive' && idef.primitive === 'dff') {
         const out = outputPorts(idef)[0]
         if (out) regNets.add(netOf({ instanceId: inst.id, portId: out.id }))
       }
@@ -336,8 +335,8 @@ class Generator {
 
     const stmts: string[] = []
     stmts.push(...bridges)
-    const emitPrimitive = (inst: Instance, idef: ComponentDef): void => {
-      const k = idef.primitive!
+    const emitPrimitive = (inst: Instance, idef: PrimitiveDef): void => {
+      const k = idef.primitive
       const pin = (id: string): PinRef => ({ instanceId: inst.id, portId: id })
       const net = (id: string): string => netOf(pin(id))
       const inv = (port: { inverted?: boolean } | undefined, s: string): string => (port?.inverted ? `~(${s})` : s)
@@ -457,7 +456,7 @@ class Generator {
       // Sources/sinks (clock/switch/led/7-seg) are handled in the statement loop.
     }
 
-    const emitCompositeInstance = (inst: Instance, childDef: ComponentDef): void => {
+    const emitCompositeInstance = (inst: Instance, childDef: CompositeDef): void => {
       const childModule = this.defToModule.get(childDef.id)!
       const childPorts = this.computePortNames(childDef.id)
       const iname = uniqueName(inst.name || 'u', used)
@@ -475,7 +474,6 @@ class Generator {
         emitCompositeInstance(inst, idef)
         continue
       }
-      if (!idef.primitive) continue
       if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg') {
         // Root instances are module ports; nested ones are skipped (warning already emitted).
         continue
@@ -510,6 +508,7 @@ class Generator {
   }
 }
 
+/** Turn serialized design JSON (`serializeDesign` output) into synthesizable Verilog. */
 export function exportVerilog(json: string): VerilogResult {
   const parsed = withBuiltinPrimitives(parseDesign(json))
   const { design, issues } = sanitizeDesign(parsed)

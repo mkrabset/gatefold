@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { Design } from '../src/types'
+import type { CompositeDef, Design } from '../src/types'
 import { primitiveDef, withBuiltinPrimitives } from '../src/primitives'
 import { parseDesign, sanitizeDesign, serializeDesign, stripBuiltinPrimitives } from '../src/serialize'
+
+const mainDef = (design: Design): CompositeDef => design.defs['main'] as CompositeDef
 
 function makeDesign(): Design {
   const defs: Record<string, Design['defs'][string]> = {
@@ -38,7 +40,7 @@ describe('serializeDesign / parseDesign', () => {
   it('keeps referenced variant copies', () => {
     const design = makeDesign()
     design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1', variant: true }
-    design.defs['main'].instances!.push({ id: 'a2', name: 'a2', defId: 'and~1', pos: { x: 0, y: 0 } })
+    mainDef(design).instances!.push({ id: 'a2', name: 'a2', defId: 'and~1', pos: { x: 0, y: 0 } })
     const parsed = parseDesign(serializeDesign(design))
     expect(parsed.defs['and~1']).toBeDefined()
     expect(parsed.defs['and']).toBeUndefined()
@@ -53,9 +55,9 @@ describe('serializeDesign / parseDesign', () => {
 
   it('rounds instance coordinates to 2 decimals', () => {
     const design = makeDesign()
-    design.defs['main'].instances![0].pos = { x: 1.23456789, y: -2.9999999 }
+    mainDef(design).instances![0].pos = { x: 1.23456789, y: -2.9999999 }
     const parsed = parseDesign(serializeDesign(design))
-    expect(parsed.defs['main'].instances![0].pos).toEqual({ x: 1.23, y: -3 })
+    expect(mainDef(parsed).instances![0].pos).toEqual({ x: 1.23, y: -3 })
   })
 
   it('rejects malformed JSON', () => {
@@ -98,16 +100,17 @@ describe('stripBuiltinPrimitives', () => {
 describe('sanitizeDesign', () => {
   it('removes connections to missing instances and instances with missing defs', () => {
     const design = makeDesign()
+    const main = mainDef(design)
     // Add a dangling connection (references an unknown instance) and a dangling
     // instance (references an unknown def).
-    design.defs['main'].connections!.push({ id: 'c2', from: { instanceId: 'ghost', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
-    design.defs['main'].instances!.push({ id: 'orphan', name: 'orphan', defId: 'missing-def', pos: { x: 0, y: 0 } })
-    design.defs['main'].connections!.push({ id: 'c3', from: { instanceId: 'orphan', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
+    main.connections!.push({ id: 'c2', from: { instanceId: 'ghost', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
+    main.instances!.push({ id: 'orphan', name: 'orphan', defId: 'missing-def', pos: { x: 0, y: 0 } })
+    main.connections!.push({ id: 'c3', from: { instanceId: 'orphan', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
 
     const { design: clean, issues } = sanitizeDesign(design)
-    const main = clean.defs['main']
-    expect(main.instances!.map((i) => i.id)).toEqual(['a1', 'n1'])
-    expect(main.connections!.map((c) => c.id)).toEqual(['c1'])
+    const cleanMain = mainDef(clean)
+    expect(cleanMain.instances!.map((i) => i.id)).toEqual(['a1', 'n1'])
+    expect(cleanMain.connections!.map((c) => c.id)).toEqual(['c1'])
     expect(issues).toEqual([
       { type: 'dangling-instance', defId: 'main', instanceId: 'orphan', instanceName: 'orphan', missingDefId: 'missing-def' },
       { type: 'dangling-connection', defId: 'main', connectionId: 'c2', endpoint: 'from', missingInstanceId: 'ghost' },

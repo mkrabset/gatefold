@@ -19,8 +19,30 @@ export function uniqueId(existing: Set<string>, base: string, sep = '-'): string
   return `${base}${sep}${i}`
 }
 
+/** Minimal path-compressing union-find over string keys. */
+export class UnionFind {
+  private parent = new Map<string, string>()
+
+  find(x: string): string {
+    const p = this.parent.get(x)
+    if (p === undefined) {
+      this.parent.set(x, x)
+      return x
+    }
+    if (p !== x) this.parent.set(x, this.find(p))
+    return this.parent.get(x)!
+  }
+
+  union(a: string, b: string): void {
+    const ra = this.find(a)
+    const rb = this.find(b)
+    if (ra !== rb) this.parent.set(ra, rb)
+  }
+}
+
 /** Remap each instance's `defId` through `idMap` (unmapped ids are left unchanged). */
 export function remapInstanceDefs(def: ComponentDef, idMap: ReadonlyMap<string, string>): void {
+  if (def.kind !== 'composite') return
   for (const inst of def.instances ?? []) {
     const mapped = idMap.get(inst.defId)
     if (mapped) inst.defId = mapped
@@ -42,7 +64,9 @@ export function collectClosure(
     const def = defs[defId]
     if (!def || skip(def)) return
     closure.add(defId)
-    for (const inst of def.instances ?? []) visit(inst.defId)
+    if (def.kind === 'composite') {
+      for (const inst of def.instances ?? []) visit(inst.defId)
+    }
   }
   for (const id of roots) visit(id)
   return closure

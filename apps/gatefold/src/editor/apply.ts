@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Port } from '@gatefold/model'
-import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Port } from '@gatefold/model'
+import { cloneDesign, collectClosure, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth } from '@gatefold/model'
 
 /**
  * Propagate a composite template's changes to every matching variant in a given
@@ -13,20 +13,7 @@ import { cloneDesign, copyDefSubgraph, inputPorts, outputPorts, resolvedPinWidth
 
 /** All def ids reachable from `startId` by following instances (inclusive). */
 export function scopeDefIds(design: Design, startId: string): Set<string> {
-  const seen = new Set<string>([startId])
-  const stack = [startId]
-  while (stack.length > 0) {
-    const id = stack.pop()!
-    const def = design.defs[id]
-    if (!def) continue
-    for (const inst of def.instances ?? []) {
-      if (!seen.has(inst.defId)) {
-        seen.add(inst.defId)
-        stack.push(inst.defId)
-      }
-    }
-  }
-  return seen
+  return collectClosure(design.defs, [startId], () => false)
 }
 
 /** The determined width of a composite port, or null when undetermined/neutral. */
@@ -69,7 +56,7 @@ export function applyTemplate(design: Design, templateId: string, scope: Set<str
 
     const usedIds = new Set(Object.keys(result.defs))
     const { defs: copied, idMap } = copyDefSubgraph(result.defs, [templateId], usedIds)
-    const top = copied[idMap.get(templateId)!]
+    const top = copied[idMap.get(templateId)!] as CompositeDef
     for (const [copyId, d] of Object.entries(copied)) {
       if (copyId !== top.id) result.defs[copyId] = d
     }

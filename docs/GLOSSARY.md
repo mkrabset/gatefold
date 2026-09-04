@@ -119,6 +119,21 @@ authoritative — update this when a term's meaning changes.
   with reset, buses as `[n-1:0]`, and probes as top-level I/O. Reports issues by severity: *errors*
   (floating nets, nested clocks) vs *info* (nested switches/sinks). Also exposed as a CLI and a
   toolbar button.
+- **Copy-link sharing (`?d=`)** — encoding the whole design into a URL: serialized to JSON,
+  gzip-compressed, then base64url-encoded into a `?d=` query parameter. Opening the URL restores
+  the design on launch (taking precedence over any saved default).
+- **Default program state** — a design stored in `localStorage` (`gatefold-default-design`) and
+  restored automatically on launch, distinct from per-session edits. Backed by the *Save as default*
+  / *Clear default* toolbar actions.
+- **PNG primitive icons** — bundled raster icons (one per placeable primitive, mapped by
+  `PrimitiveKind`) rendered in the library cards and sidebar tree in place of the text `glyph`.
+- **Wire-crossing search** — reconstructing each connection's rendered bezier (de Casteljau-flattened)
+  and intersecting it with a query segment to find the unique single-wire connection it crosses
+  (null on ambiguity). Used by drop-to-split and the cut line.
+- **Drop-to-split** — dropping a NODE onto an existing single wire splits it: the wire is replaced by
+  `from → node.in:0` and `node.out:0 → to`.
+- **Cut line** — a transient dashed line drawn while holding Ctrl/Cmd and dragging; on release it
+  finds the single wire it crosses and inserts a NODE join-point there, slicing the wire.
 
 ## Simulation
 
@@ -138,5 +153,11 @@ authoritative — update this when a term's meaning changes.
   oscillators freeze at `x`. This resolves an otherwise-`x` gated latch/flip-flop.
 - **Step mode** — how the Step button advances: `quiescent` (settle to quiescence) or
   `clock-edge` (advance to the next clock edge).
+- **Simulation speed (`timeScale`)** — a session-only multiplier mapping real time to simulated
+  time (`1` = real-time). `run()` advances a fixed slice (`16 ms × timeScale`) of simulated
+  picoseconds per tick, so increasing a CLOCK's period slows its visible toggle rate.
+- **Timing lamp** — a green/yellow/red indicator shown when the design has exactly one clock. It
+  latches a *half-period* breach (logic settles after the next clock edge) or a *full-period*
+  breach (after a whole period), derived from gate delays vs. the clock period.
 - **Signal coloring** — wires/markers colored by their simulated value: red = `1`, black = `0`,
   gray = `x`.

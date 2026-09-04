@@ -36,7 +36,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const applyTemplateToInstances = useEditorStore((s) => s.applyTemplateToInstances)
   const simulating = useSimStore((s) => s.mode) === 'simulate'
   const fileRef = useRef<HTMLInputElement>(null)
-  const composites = Object.values(design.defs).filter((d) => d.kind === 'composite' && d.id !== design.root && !d.variant)
+  const composites = Object.values(design.defs).filter((d) => isTemplateDef(design, d))
   const activeDef = active ? design.defs[active] : null
   const activeTemplate = activeDef && isTemplateDef(design, activeDef) ? active : null
 

@@ -30,7 +30,7 @@ const EPS = 1e-9
 const DEDUP_EPS = 1e-3
 
 function isJoinpoint(def: ComponentDef): boolean {
-  return def.kind === 'primitive' && !!def.primitive && primitiveOf(def.primitive).coincidentTerminals?.() === true
+  return def.kind === 'primitive' && primitiveOf(def.primitive).coincidentTerminals?.() === true
 }
 
 interface Endpoint {
@@ -39,6 +39,7 @@ interface Endpoint {
 }
 
 function resolve(design: Design, parentDef: ComponentDef, ref: PinRef): Endpoint | null {
+  if (parentDef.kind !== 'composite') return null
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return null
   const instDef = design.defs[inst.defId]
@@ -143,6 +144,7 @@ function shiftY(b: CubicBezier, dy: number): CubicBezier {
  */
 export function findWireAtLine(design: Design, parentDef: ComponentDef, a: Point, b: Point): WireHitResult | null {
   if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return null
+  if (parentDef.kind !== 'composite') return null
 
   const hits: WireHitResult[] = []
   for (const conn of parentDef.connections ?? []) {

@@ -62,17 +62,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
 
   /** Enter simulate mode from design mode: build the engine and reset to the top level. */
   const enterSim = (): void => {
-    const design = useEditorStore.getState().design
-    const viewport = useEditorStore.getState().viewport
     // Simulate from the top; navigation within the simulation is tracked by `path`.
-    useEditorStore.setState({
-      navStack: [design.root],
-      viewportStack: [viewport],
-      selectedIds: [],
-      marquee: null,
-      pendingWire: null,
-      hoverPort: null,
-    })
+    useEditorStore.getState().resetNavigation()
     set({ mode: 'simulate', engine: rebuild(), path: [], version: get().version + 1 })
   }
 
@@ -183,15 +174,16 @@ function flatId(instanceId: string): string {
 function viewingLive(): boolean {
   const { path } = useSimStore.getState()
   const editor = useEditorStore.getState()
-  let def = editor.design.defs[editor.design.root]
-  if (!def) return false
+  let defId = editor.design.root
   for (const id of path) {
+    const def = editor.design.defs[defId]
+    if (!def || def.kind !== 'composite') return false
     const inst = def.instances?.find((i) => i.id === id)
     const next = inst && editor.design.defs[inst.defId]
-    if (!next) return false
-    def = next
+    if (!next || next.kind !== 'composite') return false
+    defId = next.id
   }
-  return def.id === editor.navStack[editor.navStack.length - 1]
+  return defId === editor.navStack[editor.navStack.length - 1]
 }
 
 /** The full bit-vector signal for a flattened pin, or undefined when not simulating. */
@@ -221,15 +213,4 @@ export function simValueOf(instanceId: string, portId: string): Signal | undefin
 /** Resolve the full bit-vector signal for a pin, or undefined. */
 export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   return rawSignalOf(instanceId, portId)
-}
-
-/** The timing-breach lamp state for a design with exactly one clock. */
-export function simTimingStatus(): { active: boolean; half: boolean; full: boolean } {
-  const { engine, mode } = useSimStore.getState()
-  if (mode !== 'simulate' || !engine) return { active: false, half: false, full: false }
-  return {
-    active: engine.hasSingleClock(),
-    half: engine.timingHalfViolation,
-    full: engine.timingFullViolation,
-  }
 }

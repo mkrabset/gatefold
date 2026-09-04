@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Instance } from '../src/types'
+import type { ComponentDef, CompositeDef, Design, Instance } from '../src/types'
 import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { cloneDef } from '../src/group'
 import { exportLibrary, importLibrary, parseLibrary, serializeLibrary } from '../src/library'
@@ -98,7 +98,7 @@ describe('exportLibrary', () => {
   it('normalizes references to variant primitive copies back to the built-in id', () => {
     const design = makeDesign()
     const lib = exportLibrary(design)
-    const foo = lib.components.find((c) => c.id === 'foo')!
+    const foo = lib.components.find((c) => c.id === 'foo')! as CompositeDef
     const a1 = foo.instances!.find((i) => i.id === 'a1')!
     expect(a1.defId).toBe('and')
     // Nested composite reference is preserved.
@@ -123,7 +123,7 @@ describe('exportLibrary', () => {
     expect(ids).toEqual(['adder', 'half-adder'])
 
     // The nested reference points at the template, not the variant copy.
-    const adder = lib.components.find((c) => c.id === 'adder')!
+    const adder = lib.components.find((c) => c.id === 'adder')! as CompositeDef
     expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder')
   })
 
@@ -136,7 +136,7 @@ describe('exportLibrary', () => {
     const ids = lib.components.map((c) => c.id).sort()
     expect(ids).toEqual(['adder', 'half-adder~2'])
 
-    const adder = lib.components.find((c) => c.id === 'adder')!
+    const adder = lib.components.find((c) => c.id === 'adder')! as CompositeDef
     expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder~2')
     expect(lib.components.every((c) => !c.variant)).toBe(true)
   })
@@ -168,7 +168,7 @@ describe('importLibrary', () => {
     expect(result.defs['bar'].uuid).toBeTruthy()
     expect(result.defs['foo'].uuid).not.toBe(result.defs['bar'].uuid)
     // Internal nested reference resolves to the imported bar.
-    const foo = result.defs['foo']
+    const foo = result.defs['foo'] as CompositeDef
     expect(foo.instances!.find((i) => i.id === 'b1')!.defId).toBe('bar')
     // Primitive reference stays a built-in id.
     expect(foo.instances!.find((i) => i.id === 'a1')!.defId).toBe('and')
@@ -186,7 +186,7 @@ describe('importLibrary', () => {
     expect(second.defs['foo~2']).toBeDefined()
     expect(second.defs['foo~2'].name).toBe('foo~2')
     // The re-imported copy's nested reference remaps to its own 'bar~2'.
-    const foo2 = second.defs['foo~2']
+    const foo2 = second.defs['foo~2'] as CompositeDef
     expect(foo2.instances!.find((i) => i.id === 'b1')!.defId).toBe('bar~2')
   })
 })

@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { outputPortId } from '../types'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
@@ -6,6 +6,11 @@ import type { VectorContext } from './vector'
 
 /** Default clock period (ps) when an instance has no explicit `period` property. */
 export const CLOCK_DEFAULT_PERIOD = 10_000_000
+
+/** Resolve an instance's clock period (ps), falling back to the default. */
+export function periodOf(props: Record<string, PropertyValue> | undefined): number {
+  return typeof props?.period === 'number' ? props.period : CLOCK_DEFAULT_PERIOD
+}
 
 export class Clock extends Gate {
   readonly kind = 'clock' as const

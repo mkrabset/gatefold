@@ -1,7 +1,8 @@
 import { useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
-import { useSimStore, simTimingStatus } from '../state/simStore'
+import { useSimStore } from '../state/simStore'
 import { isTemplateDef } from '@gatefold/model'
 
 /**
@@ -107,7 +108,12 @@ export function Toolbar() {
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
-  useSimStore((s) => s.version)
+  const timing = useSimStore(
+    useShallow((s) => {
+      if (s.mode !== 'simulate' || !s.engine) return { active: false, half: false, full: false }
+      return { active: s.engine.hasSingleClock(), half: s.engine.timingHalfViolation, full: s.engine.timingFullViolation }
+    }),
+  )
   const toggleMode = useSimStore((s) => s.toggleMode)
   const run = useSimStore((s) => s.run)
   const step = useSimStore((s) => s.step)
@@ -115,7 +121,6 @@ export function Toolbar() {
   const reset = useSimStore((s) => s.reset)
   const ascend = useSimStore((s) => s.ascend)
   const openSettings = useSimStore((s) => s.openSettings)
-  const timing = simTimingStatus()
 
   const onOpenFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, PrimitiveDef } from '@gatefold/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { applyTemplate, scopeDefIds } from './apply'
 
@@ -133,11 +133,11 @@ describe('applyTemplate', () => {
 
     expect(updated).toBe(2)
 
-    const v = result.defs['v']
+    const v = result.defs['v'] as CompositeDef
     // Internals replaced: the OR gate becomes the template's AND (fresh variant copy).
     const g = v.instances!.find((i) => i.name === 'g')!
     expect(g.defId).not.toBe('or')
-    expect(result.defs[g.defId].primitive).toBe('and')
+    expect((result.defs[g.defId] as PrimitiveDef).primitive).toBe('and')
 
     // Interface ids/order preserved, terminal re-pointed to the new internals.
     expect(v.ports.map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
@@ -148,9 +148,9 @@ describe('applyTemplate', () => {
     expect(v.name).toBe('tpl')
 
     // The altered variant (removed input) is left untouched.
-    expect(result.defs['altered'].instances!.some((i) => i.id === 'a-in')).toBe(true)
+    expect((result.defs['altered'] as CompositeDef).instances!.some((i) => i.id === 'a-in')).toBe(true)
     // The out-of-scope variant is untouched.
-    expect(result.defs['v2'].instances).toEqual([])
+    expect((result.defs['v2'] as CompositeDef).instances).toEqual([])
   })
 
   it('matches renamed ports and overwrites their names from the template', () => {

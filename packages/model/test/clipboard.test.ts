@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design } from '../src/types'
+import type { ComponentDef, CompositeDef, Design } from '../src/types'
 import { inputPortDef, primitiveDef } from '../src/primitives'
 import { captureClipboard, copyDefSubgraph, instantiateClipboard } from '../src/clipboard'
 
@@ -42,8 +42,8 @@ describe('copyDefSubgraph', () => {
 
     // closure = outer + inner + and (port groups excluded)
     expect([...idMap.keys()].sort()).toEqual(['and', 'inner', 'outer'])
-    const outerCopy = defs[idMap.get('outer')!]
-    const innerCopy = defs[idMap.get('inner')!]
+    const outerCopy = defs[idMap.get('outer')!] as CompositeDef
+    const innerCopy = defs[idMap.get('inner')!] as CompositeDef
     expect(outerCopy.variant).toBe(true)
     // internal defIds rewritten through the map
     expect(outerCopy.instances!.find((i) => i.id === 'i1')!.defId).toBe(idMap.get('inner'))
@@ -54,7 +54,7 @@ describe('copyDefSubgraph', () => {
     const design = makeDesign()
     const { defs, idMap } = copyDefSubgraph(design.defs, ['inner'], new Set())
     expect(idMap.has('input-port')).toBe(false)
-    const innerCopy = defs[idMap.get('inner')!]
+    const innerCopy = defs[idMap.get('inner')!] as CompositeDef
     expect(innerCopy.instances!.find((i) => i.id === 'pg')!.defId).toBe('input-port')
   })
 
@@ -81,14 +81,14 @@ describe('captureClipboard + instantiateClipboard', () => {
     const newId = newIds[0]
     expect(newId).not.toBe('o1')
 
-    const main = pasted.defs['main']
+    const main = pasted.defs['main'] as CompositeDef
     const newInst = main.instances!.find((i) => i.id === newId)!
     expect(newInst.pos).toEqual({ x: 15, y: 25 })
     // the pasted instance references a fresh copy of 'outer' (not the original)
     expect(newInst.defId).not.toBe('outer')
     expect(pasted.defs[newInst.defId].variant).toBe(true)
     // original untouched
-    expect(pasted.defs['main'].instances!.find((i) => i.id === 'o1')!.defId).toBe('outer')
+    expect((pasted.defs['main'] as CompositeDef).instances!.find((i) => i.id === 'o1')!.defId).toBe('outer')
   })
 
   it('paste does not collide with existing def ids on repeated pastes', () => {
@@ -96,7 +96,7 @@ describe('captureClipboard + instantiateClipboard', () => {
     const clip = captureClipboard(design, 'main', ['o1'])!
     const once = instantiateClipboard(design, 'main', clip, { x: 0, y: 0 })
     const twice = instantiateClipboard(once.design, 'main', clip, { x: 0, y: 0 })
-    const main = twice.design.defs['main']
+    const main = twice.design.defs['main'] as CompositeDef
     const o1 = main.instances!.find((i) => i.id === 'o1')!
     const others = main.instances!.filter((i) => i.id !== 'o1')
     expect(others).toHaveLength(2)
@@ -107,10 +107,11 @@ describe('captureClipboard + instantiateClipboard', () => {
 
   it('preserves instance props on paste', () => {
     const design = makeDesign()
-    design.defs['main'].instances![0].props = { period: 250 }
+    const mainDef = design.defs['main'] as CompositeDef
+    mainDef.instances![0].props = { period: 250 }
     const clip = captureClipboard(design, 'main', ['o1'])!
     const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 0, y: 0 })
-    const newInst = pasted.defs['main'].instances!.find((i) => i.id === newIds[0])!
+    const newInst = (pasted.defs['main'] as CompositeDef).instances!.find((i) => i.id === newIds[0])!
     expect(newInst.props).toEqual({ period: 250 })
   })
 
@@ -138,7 +139,7 @@ describe('captureClipboard + instantiateClipboard', () => {
     expect(clip.connections.map((c) => c.id)).toEqual(['c1'])
 
     const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 10, y: 10 })
-    const main = pasted.defs['main']
+    const main = pasted.defs['main'] as CompositeDef
     expect(main.instances).toHaveLength(5)
     expect(main.connections).toHaveLength(3)
 

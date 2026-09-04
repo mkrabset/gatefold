@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ComponentDef, Design, Instance, PinRef, Port, PortDirection } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue } from '@gatefold/model'
 import {
   allowInversion,
   allowRenameTerminals,
@@ -15,27 +15,27 @@ import {
   findConnectionTo,
   importLibrary as mergeLibrary,
   inferGroup,
-  inputPortDef,
   inputPorts,
   instantiateClipboard,
   instancesReferencing,
   isArityFixed,
+  isArrayDef,
+  arrayDirection,
   isDefReferenced,
   isPortGroupDef,
   isTemplateDef,
-  libraryPrimitives,
   nextPortId,
   nextPrimitiveInputName,
+  nextConnectionId,
   newUuid,
-  outputPortDef,
   outputPorts,
   parseLibrary,
   portGroupDirection,
-  primitiveDef,
   serializeDesign,
   serializeLibrary,
   uniqueId,
   unreachableDefIds,
+  withBuiltinPrimitives,
 } from '@gatefold/model'
 import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
@@ -119,6 +119,7 @@ interface EditorState {
   clearNotice: () => void
   navigateTo: (defId: string) => void
   navigateUp: () => void
+  resetNavigation: () => void
   openGroupDialog: () => void
   setGroupName: (name: string) => void
   setGroupInputName: (index: number, name: string) => void
@@ -133,7 +134,7 @@ interface EditorState {
   togglePinInversion: (ref: PinRef) => void
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
-  setInstanceProp: (id: string, name: string, value: unknown) => void
+  setInstanceProp: (id: string, name: string, value: PropertyValue) => void
   addPort: (direction: PortDirection, defId?: string) => void
   removePort: (portId: string, defId?: string) => void
   setPortOrder: (direction: PortDirection, ids: string[], defId?: string) => void
@@ -156,14 +157,6 @@ interface EditorState {
   exportVerilog: () => void
 }
 
-/** True for the switch-array/led-array primitives. */
-const isArrayPrimitive = (def?: ComponentDef): boolean =>
-  !!def && def.kind === 'primitive' && (def.primitive === 'switch-array' || def.primitive === 'led-array')
-
-/** Terminal direction of an array primitive. */
-const arrayDirection = (def: ComponentDef): PortDirection =>
-  def.primitive === 'switch-array' ? 'output' : 'input'
-
 /**
  * Deep-copy `defId` and its transitive closure into the design as fresh variants and
  * return the new top-level def id (copy-on-place). Mutates `design.defs` in place
@@ -177,7 +170,7 @@ function copyDefIntoDesign(design: Design, defId: string): string {
 }
 
 /** Find the single instance referencing an array's (variant) def, and its parent. */
-function findArrayRef(design: Design, defId: string): { parent: ComponentDef; inst: Instance } | null {
+function findArrayRef(design: Design, defId: string): { parent: CompositeDef; inst: Instance } | null {
   const ref = instancesReferencing(design, defId)[0]
   return ref ? { parent: ref.def, inst: ref.instance } : null
 }
@@ -199,9 +192,9 @@ function pruneOrphanedDefs(design: Design): void {
 }
 
 /** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
-function applyArrayTerminalType(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, terminalType: 'wire' | 'bus'): void {
+function applyArrayTerminalType(parentDef: CompositeDef, inst: Instance, instDef: ComponentDef, terminalType: 'wire' | 'bus'): void {
   if (!inst.props) inst.props = {}
-  const prevType = (inst.props.terminalType ?? 'bus') as 'wire' | 'bus'
+  const prevType: 'wire' | 'bus' = inst.props.terminalType === 'wire' ? 'wire' : 'bus'
   inst.props.terminalType = terminalType
   instDef.ports = arrayPorts(arrayDirection(instDef), terminalType, 1)
   if (terminalType !== prevType) {
@@ -213,7 +206,7 @@ function applyArrayTerminalType(parentDef: ComponentDef, inst: Instance, instDef
 }
 
 /** Replace an array's WIRE ports with `count` lanes, pruning connections to removed ports. */
-function applyArrayPortCount(parentDef: ComponentDef, inst: Instance, instDef: ComponentDef, count: number): void {
+function applyArrayPortCount(parentDef: CompositeDef, inst: Instance, instDef: ComponentDef, count: number): void {
   const newPorts = arrayPorts(arrayDirection(instDef), 'wire', count)
   const removed = new Set(instDef.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
   instDef.ports = newPorts
@@ -250,7 +243,7 @@ const uniqueAgainst = (existing: Set<string>, base: string): string => uniqueId(
 
 // Default placement for a newly-added port group: just outside the component bounds
 // (inputs to the left of the leftmost component, outputs to the right of the rightmost).
-function portPlacement(def: ComponentDef, design: Design, direction: PortDirection): { x: number; y: number } {
+function portPlacement(def: CompositeDef, design: Design, direction: PortDirection): { x: number; y: number } {
   const insts = def.instances ?? []
   let minX = Infinity
   let maxX = -Infinity
@@ -275,14 +268,8 @@ function portPlacement(def: ComponentDef, design: Design, direction: PortDirecti
 
 /** An empty starting design: all built-in primitives and an empty root sheet. */
 export function createDemoDesign(): Design {
-  const defs: Record<string, ComponentDef> = {}
-  for (const spec of libraryPrimitives()) {
-    defs[spec.kind] = primitiveDef(spec.kind)
-  }
-  defs['input-port'] = inputPortDef()
-  defs['output-port'] = outputPortDef()
-
-  defs['main'] = {
+  const design = withBuiltinPrimitives({ version: 1, root: 'main', defs: {} })
+  design.defs['main'] = {
     id: 'main',
     name: 'main',
     kind: 'composite',
@@ -291,8 +278,7 @@ export function createDemoDesign(): Design {
     instances: [],
     connections: [],
   }
-
-  return { version: 1, root: 'main', defs }
+  return design
 }
 
 /** The design restored from localStorage on launch, or null when none is stored. */
@@ -325,6 +311,7 @@ export const useEditorStore = create<EditorState>()(
     setInstancesPosition: (ids, positions) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         ids.forEach((id, i) => {
           const inst = def.instances?.find((x) => x.id === id)
           if (inst) {
@@ -364,10 +351,20 @@ export const useEditorStore = create<EditorState>()(
           s.hoverPort = null
         }
       }),
+    resetNavigation: () =>
+      set((s) => {
+        s.navStack = [s.design.root]
+        s.viewportStack = [s.viewport]
+        s.selectedIds = []
+        s.marquee = null
+        s.pendingWire = null
+        s.hoverPort = null
+      }),
     openGroupDialog: () =>
       set((s) => {
         const defId = currentDefId(s)
         const def = s.design.defs[defId]
+        if (def.kind !== 'composite') return
 
         // A single selected custom component is promoted to a template rather than
         // wrapped in a new layer of ports.
@@ -458,6 +455,7 @@ export const useEditorStore = create<EditorState>()(
         s.design = applyGroup(s.design, defId, s.selectedIds, inputs, outputs, name)
         s.pendingGroup = null
         const def = s.design.defs[defId]
+        if (def.kind !== 'composite') return
         const last = def.instances?.[def.instances.length - 1]
         if (last) {
           // Place the template's port groups relative to its components *before*
@@ -466,6 +464,7 @@ export const useEditorStore = create<EditorState>()(
           // keeps its original position (already set by `applyGroup`); other sides are
           // auto-placed (inputs left of the leftmost pin, outputs right of the rightmost).
           const template = s.design.defs[last.defId]
+          if (template.kind !== 'composite') return
           for (const inst of template.instances ?? []) {
             if (inst.defId === 'input-port' && !inputPortIncluded) inst.pos = portPlacement(template, s.design, 'input')
             else if (inst.defId === 'output-port' && !outputPortIncluded) inst.pos = portPlacement(template, s.design, 'output')
@@ -527,6 +526,7 @@ export const useEditorStore = create<EditorState>()(
     togglePinInversion: (ref) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const inst = def.instances?.find((i) => i.id === ref.instanceId)
         if (!inst) return
         const instDef = s.design.defs[inst.defId]
@@ -543,6 +543,7 @@ export const useEditorStore = create<EditorState>()(
     renameInstance: (id, name) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const inst = def.instances?.find((x) => x.id === id)
         if (inst) inst.name = name
       }),
@@ -566,11 +567,12 @@ export const useEditorStore = create<EditorState>()(
     setInstanceProp: (id, name, value) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const inst = def.instances?.find((x) => x.id === id)
         if (!inst) return
         const instDef = s.design.defs[inst.defId]
-        if (isArrayPrimitive(instDef) && name === 'terminalType') {
-          applyArrayTerminalType(def, inst, instDef, value as 'wire' | 'bus')
+        if (isArrayDef(instDef) && name === 'terminalType') {
+          applyArrayTerminalType(def, inst, instDef, value === 'wire' ? 'wire' : 'bus')
           return
         }
         if (!inst.props) inst.props = {}
@@ -579,7 +581,7 @@ export const useEditorStore = create<EditorState>()(
     addPort: (direction, defId) =>
       set((s) => {
         const def = s.design.defs[defId ?? currentDefId(s)]
-        if (isArrayPrimitive(def)) {
+        if (isArrayDef(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'bus') === 'wire') {
             const count = def.ports.length + 1
@@ -624,7 +626,7 @@ export const useEditorStore = create<EditorState>()(
     removePort: (portId, defId) =>
       set((s) => {
         const def = s.design.defs[defId ?? currentDefId(s)]
-        if (isArrayPrimitive(def)) {
+        if (isArrayDef(def)) {
           const ref = findArrayRef(s.design, def.id)
           if (ref && (ref.inst.props?.terminalType ?? 'bus') === 'wire') {
             const count = def.ports.length - 1
@@ -657,7 +659,7 @@ export const useEditorStore = create<EditorState>()(
       set((s) => {
         const def = s.design.defs[defId ?? currentDefId(s)]
         // Array terminals are index-ordered; reordering is meaningless.
-        if (isArrayPrimitive(def)) return
+        if (isArrayDef(def)) return
         const byId = new Map(def.ports.map((p) => [p.id, p]))
         const ordered = ids.map((id) => byId.get(id)).filter((p): p is Port => !!p)
         const inputs = inputPorts(def)
@@ -668,6 +670,7 @@ export const useEditorStore = create<EditorState>()(
     addInstance: (defId, pos) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const srcDef = s.design.defs[defId]
         if (!def.instances) def.instances = []
         // Default instance name is empty, except for CLOCK/DFF which keep their label.
@@ -683,6 +686,7 @@ export const useEditorStore = create<EditorState>()(
     addConnection: (from, to) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         if (!def.connections) def.connections = []
         // Enforce the single-driver invariant: reject if the target is already driven.
         if (findConnectionTo(def.connections, to)) {
@@ -695,14 +699,12 @@ export const useEditorStore = create<EditorState>()(
           s.notice = err
           return
         }
-        const ids = new Set(def.connections.map((c) => c.id))
-        let i = def.connections.length + 1
-        while (ids.has(`c${i}`)) i++
-        def.connections.push({ id: `c${i}`, from, to })
+        def.connections.push({ id: nextConnectionId(def.connections), from, to })
       }),
     insertJoinPointAt: (connectionId, pos) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const conns = def.connections ?? []
         const conn = conns.find((c) => c.id === connectionId)
         if (!conn) return
@@ -714,19 +716,14 @@ export const useEditorStore = create<EditorState>()(
         const newDefId = copyDefIntoDesign(s.design, 'join-point')
         def.instances.push({ id, name: '', defId: newDefId, pos: { x: pos.x, y: pos.y } })
         def.connections = conns.filter((c) => c.id !== connectionId)
-        const nextConnId = () => {
-          const ids = new Set(def.connections!.map((c) => c.id))
-          let n = def.connections!.length + 1
-          while (ids.has(`c${n}`)) n++
-          return `c${n}`
-        }
-        def.connections.push({ id: nextConnId(), from: conn.from, to: { instanceId: id, portId: 'in:0' } })
-        def.connections.push({ id: nextConnId(), from: { instanceId: id, portId: 'out:0' }, to: conn.to })
+        def.connections.push({ id: nextConnectionId(def.connections), from: conn.from, to: { instanceId: id, portId: 'in:0' } })
+        def.connections.push({ id: nextConnectionId(def.connections), from: { instanceId: id, portId: 'out:0' }, to: conn.to })
         s.selectedIds = [id]
       }),
     retargetConnection: (id, to) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const conns = def.connections ?? []
         const original = conns.find((c) => c.id === id)
         if (!original) return
@@ -745,11 +742,13 @@ export const useEditorStore = create<EditorState>()(
     removeConnection: (id) =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         def.connections = (def.connections ?? []).filter((c) => c.id !== id)
       }),
     deleteSelection: () =>
       set((s) => {
         const def = s.design.defs[currentDefId(s)]
+        if (def.kind !== 'composite') return
         const deleted = new Set<string>()
         const removedPorts = new Set<string>()
         for (const id of s.selectedIds) {

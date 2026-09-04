@@ -11,7 +11,6 @@ interface SortablePortListProps {
   fixed: boolean
   renameAllowed: boolean
   invertAllowed: boolean
-  isConnected: (port: Port) => boolean
   onRename: (id: string, name: string) => void
   onToggleInverted: (id: string, inverted: boolean) => void
   onRemove: (id: string) => void
@@ -23,7 +22,7 @@ interface SortablePortListProps {
  * @dnd-kit (items slide out of the way during the drag); the final order is committed
  * to the store on drop, computed from the store's current order.
  */
-export function SortablePortList({ direction, ports, fixed, renameAllowed, invertAllowed, isConnected, onRename, onToggleInverted, onRemove, onReorder }: SortablePortListProps) {
+export function SortablePortList({ direction, ports, fixed, renameAllowed, invertAllowed, onRename, onToggleInverted, onRemove, onReorder }: SortablePortListProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const items = ports.map((p) => p.id)
 
@@ -46,7 +45,6 @@ export function SortablePortList({ direction, ports, fixed, renameAllowed, inver
             key={port.id}
             id={port.id}
             port={port}
-            connected={isConnected(port)}
             fixed={fixed}
             renameAllowed={renameAllowed}
             invertAllowed={invertAllowed}
@@ -63,7 +61,6 @@ export function SortablePortList({ direction, ports, fixed, renameAllowed, inver
 function SortablePortRow({
   id,
   port,
-  connected,
   fixed,
   renameAllowed,
   invertAllowed,
@@ -73,7 +70,6 @@ function SortablePortRow({
 }: {
   id: string
   port: Port
-  connected: boolean
   fixed: boolean
   renameAllowed: boolean
   invertAllowed: boolean
@@ -88,11 +84,7 @@ function SortablePortRow({
     opacity: isDragging ? 0.85 : 1,
     zIndex: isDragging ? 1 : undefined,
   }
-  const removeTitle = fixed
-    ? `The number of terminals is fixed`
-    : connected
-      ? `${port.name} is connected`
-      : `Remove ${port.name}`
+  const removeTitle = fixed ? `The number of terminals is fixed` : `Remove ${port.name}`
 
   return (
     <div ref={setNodeRef} style={style} className="port-row">
@@ -119,7 +111,7 @@ function SortablePortRow({
       <button
         className="mini-btn"
         title={removeTitle}
-        disabled={fixed || connected}
+        disabled={fixed}
         onClick={() => onRemove(port.id)}
       >
         −

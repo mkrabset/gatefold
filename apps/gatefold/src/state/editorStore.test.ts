@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { cloneDef, inputPortDef, inputPortId, libraryPrimitives, newUuid, outputPortDef, outputPortId, primitiveDef } from '@gatefold/model'
-import type { ComponentDef, Design } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Instance } from '@gatefold/model'
 import {
   beginMoveTransaction,
   endMoveTransaction,
   useEditorStore,
 } from './editorStore'
 
-const mainInstances = () => useEditorStore.getState().design.defs['main'].instances ?? []
+const mainDef = () => useEditorStore.getState().design.defs['main'] as CompositeDef
+const mainInstances = (): Instance[] => mainDef().instances ?? []
 const clkPos = () => mainInstances().find((i) => i.id === 'clk')!.pos
 
 function reset() {
@@ -122,7 +123,19 @@ describe('editorStore undo/redo + clipboard', () => {
 
     useEditorStore.getState().addConnection({ instanceId: 'fi', portId: 'out:0' }, { instanceId: 'bs', portId: 'in:0' })
     expect(useEditorStore.getState().notice).toBe('Bus width must be even')
-    expect(useEditorStore.getState().design.defs['main'].connections).toHaveLength(0)
+    expect(mainDef().connections).toHaveLength(0)
+  })
+
+  it('rejects adding a second driver to an input (single-driver invariant)', () => {
+    reset()
+    useEditorStore.getState().addConnection({ instanceId: 'clk', portId: 'out:0' }, { instanceId: 'inv1', portId: 'in:0' })
+    expect(useEditorStore.getState().notice).toBe('Input already has a driver')
+  })
+
+  it('rejects re-targeting a wire onto an already-driven input', () => {
+    reset()
+    useEditorStore.getState().retargetConnection('c1', { instanceId: 'and1', portId: 'in:0' })
+    expect(useEditorStore.getState().notice).toBe('Input already has a driver')
   })
 
   it('renames a composite template but not the root or primitives', () => {
@@ -174,8 +187,8 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(s.design.defs[ha1.defId].variant).toBe(true)
 
     // The promoted template's internals are deep-copied (not shared with the instance).
-    const instanceDef = s.design.defs[ha1.defId]
-    const templateXor = template!.instances!.find((i) => i.id === 'ha-xor')!
+    const instanceDef = s.design.defs[ha1.defId] as CompositeDef
+    const templateXor = (template as CompositeDef).instances!.find((i) => i.id === 'ha-xor')!
     const instanceXor = instanceDef.instances!.find((i) => i.id === 'ha-xor')!
     expect(templateXor.defId).not.toBe(instanceXor.defId)
   })
@@ -193,10 +206,10 @@ describe('editorStore undo/redo + clipboard', () => {
       (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'combo',
     )!
     const newInst = mainInstances()[mainInstances().length - 1]
-    const variant = s.design.defs[newInst.defId]
+    const variant = s.design.defs[newInst.defId] as CompositeDef
     expect(variant.variant).toBe(true)
 
-    const templateHa = template.instances!.find((i) => i.id === 'ha1')!
+    const templateHa = (template as CompositeDef).instances!.find((i) => i.id === 'ha1')!
     const variantHa = variant.instances!.find((i) => i.id === 'ha1')!
     expect(variantHa.defId).not.toBe(templateHa.defId)
   })
@@ -216,9 +229,9 @@ describe('editorStore undo/redo + clipboard', () => {
       (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'wide',
     )!
     const newInst = mainInstances()[mainInstances().length - 1]
-    const variant = s.design.defs[newInst.defId]
+    const variant = s.design.defs[newInst.defId] as CompositeDef
 
-    for (const def of [template, variant]) {
+    for (const def of [template as CompositeDef, variant]) {
       const inputGroup = def.instances!.find((i) => i.defId === 'input-port')
       const outputGroup = def.instances!.find((i) => i.defId === 'output-port')
       expect(inputGroup).toBeDefined()
@@ -242,12 +255,12 @@ describe('editorStore undo/redo + clipboard', () => {
     const template = Object.values(s.design.defs).find(
       (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'sub',
     )!
-    const newInst = s.design.defs['main'].instances!.find((i) => s.design.defs[i.defId]?.name === 'sub')!
-    const variant = s.design.defs[newInst.defId]
+    const newInst = mainDef().instances!.find((i) => s.design.defs[i.defId]?.name === 'sub')!
+    const variant = s.design.defs[newInst.defId] as CompositeDef
 
     // The parent's port groups were at (0,0) and (200,0); both the template and the
     // grouped instance keep those exact positions (not auto-shifted).
-    for (const def of [template, variant]) {
+    for (const def of [template as CompositeDef, variant]) {
       const inGroup = def.instances!.find((i) => i.defId === 'input-port')!
       const outGroup = def.instances!.find((i) => i.defId === 'output-port')!
       expect(inGroup.pos).toEqual({ x: 0, y: 0 })
@@ -292,14 +305,17 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.getState().insertJoinPointAt('c1', { x: 200, y: 150 })
 
     const s = useEditorStore.getState()
-    const main = s.design.defs['main']
+    const main = mainDef()
     const conns = main.connections!
 
     // The original connection is gone.
     expect(conns.some((c) => c.id === 'c1')).toBe(false)
 
     // A join-point instance was added and selected.
-    const jp = main.instances!.find((i) => s.design.defs[i.defId].primitive === 'join-point')
+    const jp = main.instances!.find((i) => {
+      const d = s.design.defs[i.defId]
+      return d?.kind === 'primitive' && d.primitive === 'join-point'
+    })
     expect(jp).toBeDefined()
     expect(s.selectedIds).toEqual([jp!.id])
 
@@ -313,7 +329,7 @@ describe('editorStore undo/redo + clipboard', () => {
 
     // Undo restores the original single wire and removes the join-point.
     useEditorStore.temporal.getState().undo()
-    const restored = useEditorStore.getState().design.defs['main']
+    const restored = mainDef()
     expect(restored.connections!.some((c) => c.id === 'c1')).toBe(true)
     expect(restored.instances!.some((i) => i.id === jp!.id)).toBe(false)
   })

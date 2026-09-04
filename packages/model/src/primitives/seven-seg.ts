@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId } from '../types'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
@@ -72,15 +72,28 @@ const SEGMENT_PATTERNS: number[][] = [
   [1, 0, 0, 0, 1, 1, 1], // F
 ]
 
+/** Narrow a signal vector to all-known `0|1` bits (no `'x'`). */
+function isBinary(bits: Signal[]): bits is (0 | 1)[] {
+  return bits.every((b) => b === 0 || b === 1)
+}
+
 /** The segment mask (a..g) for a 4-bit nibble, or undefined when any bit is unknown. */
 export function sevenSegDigit(bits: Signal[]): number[] | undefined {
-  if (bits.length !== 4 || bits.some((b) => b !== 0 && b !== 1)) return undefined
-  const value = (bits[0] as number) + 2 * (bits[1] as number) + 4 * (bits[2] as number) + 8 * (bits[3] as number)
+  if (bits.length !== 4 || !isBinary(bits)) return undefined
+  const value = bits[0] + 2 * bits[1] + 4 * bits[2] + 8 * bits[3]
   return SEGMENT_PATTERNS[value]
 }
 
 /** Display modes for a 7-seg: hexadecimal, unsigned decimal, or two's-complement decimal. */
 export type SevenSegMode = 'HEX' | 'DEC' | 'SIGNED DEC'
+
+/** Resolve an instance's `mode` property to a `SevenSegMode` (defaulting to HEX). */
+export function sevenSegModeOf(props: Record<string, PropertyValue> | undefined): SevenSegMode {
+  const mode = props?.mode
+  if (mode === 'DEC') return 'DEC'
+  if (mode === 'SIGNED DEC') return 'SIGNED DEC'
+  return 'HEX'
+}
 
 /** Segment mask for a minus sign (segment `g` only). */
 const SIGN_MASK = [0, 0, 0, 0, 0, 0, 1]
@@ -113,11 +126,11 @@ export function sevenSegDigits(bits: Signal[], mode: SevenSegMode): (number[] | 
   }
 
   // DEC / SIGNED DEC: any unknown bit blanks the whole number.
-  if (bits.some((b) => b !== 0 && b !== 1)) return Array.from({ length: positions }, () => null)
+  if (!isBinary(bits)) return Array.from({ length: positions }, () => null)
 
   const width = bits.length
   let u = 0n
-  for (let i = width - 1; i >= 0; i--) u = (u << 1n) | BigInt(bits[i] as number)
+  for (let i = width - 1; i >= 0; i--) u = (u << 1n) | BigInt(bits[i])
 
   const signed = mode === 'SIGNED DEC'
   const negative = signed && bits[width - 1] === 1

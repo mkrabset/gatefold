@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PrimitiveKind } from '@gatefold/model'
-import { isPortGroupDef, pinWidth } from '@gatefold/model'
+import type { ComponentDef, Design, Instance, PrimitiveDef, PrimitiveKind, PropertyValue } from '@gatefold/model'
+import { isPortGroupDef, pinWidth, UnionFind } from '@gatefold/model'
 
 export interface FlatPort {
   portId: string
@@ -11,7 +11,7 @@ export interface FlatInstance {
   /** Flattened instance id: a `.`-joined path of original instance ids from the root. */
   id: string
   kind: PrimitiveKind
-  props?: Record<string, unknown>
+  props?: Record<string, PropertyValue>
   inputs: FlatPort[]
   outputs: FlatPort[]
 }
@@ -35,31 +35,10 @@ export function joinInstancePath(path: string, id: string): string {
   return path === '' ? id : `${path}${INSTANCE_PATH_SEP}${id}`
 }
 
-/** Minimal union-find over string keys. */
-class UnionFind {
-  private parent = new Map<string, string>()
-
-  find(x: string): string {
-    const p = this.parent.get(x)
-    if (p === undefined) {
-      this.parent.set(x, x)
-      return x
-    }
-    if (p !== x) this.parent.set(x, this.find(p))
-    return this.parent.get(x)!
-  }
-
-  union(a: string, b: string): void {
-    const ra = this.find(a)
-    const rb = this.find(b)
-    if (ra !== rb) this.parent.set(ra, rb)
-  }
-}
-
 interface Leaf {
   id: string
   inst: Instance
-  def: ComponentDef
+  def: PrimitiveDef
   parentDef: ComponentDef
 }
 
@@ -78,7 +57,7 @@ export function flatten(design: Design): Netlist {
 
   const flattenDef = (defId: string, path: string): void => {
     const def = design.defs[defId]
-    if (!def) return
+    if (!def || def.kind !== 'composite') return
 
     for (const c of def.connections ?? []) {
       const fk = pinKey(join(path, c.from.instanceId), c.from.portId)
@@ -131,7 +110,7 @@ export function flatten(design: Design): Netlist {
 
   const instances: FlatInstance[] = []
   for (const leaf of leaves) {
-    const kind = leaf.def.primitive!
+    const kind = leaf.def.primitive
     const inputs: FlatPort[] = []
     const outputs: FlatPort[] = []
     for (const p of leaf.def.ports) {

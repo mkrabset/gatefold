@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Instance, PinRef } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Instance, PinRef } from '@gatefold/model'
 import { withBuiltinPrimitives } from '@gatefold/model'
 import { findJoinpointWire, findWireAtLine } from './wireSearch'
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const inst = (id: string, defId: string, x: number, y: number): Instance => ({ id, name: id, defId, pos: { x, y } })
 
-function mkDesign(instances: Instance[], connections: ComponentDef['connections']): { design: Design; main: ComponentDef } {
+function mkDesign(instances: Instance[], connections: CompositeDef['connections']): { design: Design; main: ComponentDef } {
   const main: ComponentDef = { id: 'main', name: 'main', kind: 'composite', ports: [], instances, connections }
   return { design: withBuiltinPrimitives({ version: 1, root: 'main', defs: { main } }), main }
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { currentDefId, useEditorStore } from '../state/editorStore'
+import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
-import type { ComponentDef, Instance, Port } from '@gatefold/model'
+import type { ComponentDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
 import { allowInversion, allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
 import { PRIMITIVE_ICONS } from '../icons'
@@ -64,15 +64,17 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const design = useEditorStore((s) => s.design)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const instances = def.kind === 'composite' ? def.instances : undefined
 
   return (
     <>
-      {def.instances?.map((inst: Instance) => {
+      {instances?.map((inst: Instance) => {
         const childDef = design.defs[inst.defId]
         const isComposite = childDef?.kind === 'composite'
         const isExpanded = expanded[inst.id] ?? false
-        const iconSrc = childDef?.primitive ? PRIMITIVE_ICONS[childDef.primitive] : undefined
-        const icon = childDef?.primitive ? undefined : '▣'
+        const primitiveKind = childDef && childDef.kind === 'primitive' ? childDef.primitive : undefined
+        const iconSrc = primitiveKind ? PRIMITIVE_ICONS[primitiveKind] : undefined
+        const icon = primitiveKind ? undefined : '▣'
         return (
           <div key={inst.id}>
             <TreeItem
@@ -80,7 +82,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
               depth={depth}
               icon={icon}
               iconSrc={iconSrc}
-              kind={childDef?.primitive ? childDef.primitive : 'composite'}
+              kind={primitiveKind ?? 'composite'}
               selected={selectedIds.includes(inst.id)}
               expandable={isComposite}
               expanded={isExpanded}
@@ -114,7 +116,7 @@ export function Sidebar({ width }: { width: number }) {
   }
 
   const rootDef = design.defs[design.root]
-  const current = design.defs[currentDefId(useEditorStore.getState())]
+  const current = design.defs[navStack[navStack.length - 1]]
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -167,9 +169,11 @@ export function Sidebar({ width }: { width: number }) {
 
 function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   const design = useEditorStore((s) => s.design)
+  const navStack = useEditorStore((s) => s.navStack)
+  const currentDefId = navStack[navStack.length - 1]
   if (selectedIds.length === 0) {
     // Editing a composite template with nothing selected: allow renaming the template.
-    const current = design.defs[currentDefId(useEditorStore.getState())]
+    const current = design.defs[currentDefId]
     const isTemplate = !!current && isTemplateDef(design, current)
     if (isTemplate) {
       return (
@@ -186,8 +190,8 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   if (selectedIds.length > 1) {
     return <div className="props-empty">{selectedIds.length} components selected</div>
   }
-  const current = design.defs[currentDefId(useEditorStore.getState())]
-  const inst = current.instances?.find((i) => i.id === selectedIds[0])
+  const current = design.defs[currentDefId]
+  const inst = (current.kind === 'composite' ? current.instances : undefined)?.find((i) => i.id === selectedIds[0])
   if (!inst) {
     return <div className="props-empty">Nothing selected</div>
   }
@@ -211,7 +215,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
           .properties()
           .map((spec) => (
             <label className="field" key={spec.name}>
-              <span>{spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
+              <span>{spec.type === 'number' && spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
               <PropertyField
                 key={`${inst.id}:${spec.name}`}
                 instanceId={inst.id}
@@ -251,7 +255,7 @@ function DefNameField({ defId, initial }: { defId: string; initial: string }) {
 }
 
 /** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */
-function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: PropertySpec; value: unknown }) {
+function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: PropertySpec; value: PropertyValue }) {
   const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
 
   if (spec.type === 'boolean') {
@@ -298,28 +302,18 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
 
 function PortsGroups({ defId }: { defId?: string }) {
   const design = useEditorStore((s) => s.design)
+  const navStack = useEditorStore((s) => s.navStack)
   const renamePort = useEditorStore((s) => s.renamePort)
   const setPortInverted = useEditorStore((s) => s.setPortInverted)
   const addPort = useEditorStore((s) => s.addPort)
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
-  const target = defId ?? currentDefId(useEditorStore.getState())
+  const target = defId ?? navStack[navStack.length - 1]
   const current = design.defs[target]
   const renameAllowed = allowRenameTerminals(current)
   // Templates keep clean (non-inverted) terminals; inversion is instance-level. A
   // primitive that forbids inversion (e.g. the NODE join-point) never gets checkboxes.
   const invertAllowed = !isTemplateDef(design, current) && allowInversion(current)
-
-  // A port is connected if any wire touches its pin on the port group.
-  const isConnected = (port: Port): boolean => {
-    const instId = port.terminal?.instanceId
-    if (!instId) return false
-    return (current.connections ?? []).some(
-      (c) =>
-        (c.from.instanceId === instId && c.from.portId === port.id) ||
-        (c.to.instanceId === instId && c.to.portId === port.id),
-    )
-  }
 
   const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => {
     const fixed = isArityFixed(current, direction)
@@ -343,7 +337,6 @@ function PortsGroups({ defId }: { defId?: string }) {
           fixed={fixed}
           renameAllowed={renameAllowed}
           invertAllowed={invertAllowed}
-          isConnected={isConnected}
           onRename={(portId, name) => renamePort(portId, name, defId)}
           onToggleInverted={(portId, inverted) => setPortInverted(portId, inverted, defId)}
           onRemove={(portId) => removePort(portId, defId)}

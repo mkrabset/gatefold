@@ -247,4 +247,65 @@ describe('exportVerilog', () => {
     expect(issues.some((i) => i.level === 'info' && i.message.includes('fixed initial value'))).toBe(true)
     expect(source).toContain("assign sw_BUS = {1{1'b1}};")
   })
+
+  it('emits an XOR gate as a ^ assignment', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), input('in:1', 'B'), output('out:0', 'Y')],
+      instances: [pgIn(), { id: 'x', name: 'x', defId: 'xor', pos: { x: 0, y: 0 } }, pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('x', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('x', 'in:1') },
+        { id: 'c3', from: iref('x', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign Y = A ^ B;')
+  })
+
+  it('emits slicing for a bus-split fed by a fan-in bus', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), input('in:1', 'B'), output('out:0', 'Y1'), output('out:1', 'Y2')],
+      instances: [
+        pgIn(),
+        { id: 'fi', name: 'fi', defId: 'fan-in', pos: { x: 0, y: 0 } },
+        { id: 'bs', name: 'bs', defId: 'bus-split', pos: { x: 0, y: 0 } },
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('fi', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('fi', 'in:1') },
+        { id: 'c3', from: iref('fi', 'out:0'), to: iref('bs', 'in:0') },
+        { id: 'c4', from: iref('bs', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c5', from: iref('bs', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign Y1 =')
+    expect(source).toContain('assign Y2 =')
+    expect(source).toContain('[0:0]')
+    expect(source).toContain('[1:1]')
+  })
+
+  it('honors a DFF negedge, initial value, and active-low reset', () => {
+    const main: ComponentDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'D'), input('in:1', 'RST'), output('out:0', 'Q')],
+      instances: [
+        pgIn(),
+        { id: 'clk', name: 'clk', defId: 'clock', pos: { x: 0, y: 0 }, props: { period: 1000 } },
+        { id: 'f', name: 'f', defId: 'dff', pos: { x: 0, y: 0 }, props: { edge: 'negedge', initialValue: true, resetActiveHigh: false } },
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('f', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('f', 'in:2') },
+        { id: 'c3', from: iref('clk', 'out:0'), to: iref('f', 'in:1') },
+        { id: 'c4', from: iref('f', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain("always @(negedge clk_CLK or negedge RST) if (!RST) Q <= 1'b1; else Q <= D;")
+  })
 })

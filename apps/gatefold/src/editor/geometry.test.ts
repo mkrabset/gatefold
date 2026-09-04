@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design, Port } from '@gatefold/model'
+import type { ComponentDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { inputPortDef, outputPortDef, primitiveDef } from '@gatefold/model'
 import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, portPosition, sideHeight, sidePinOffset } from './geometry'
 import { connectionError } from '@gatefold/model'
@@ -58,7 +58,7 @@ describe('pinWidth / isNeutralPin', () => {
 
   it('surfaces an internal fan-in bus on a composite output port from the outside', () => {
     const design = makeBusHolderDesign()
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     // The composite's out:0 is driven internally by a 2-input fan-in, so the pin is a
     // bus even though there is no external connection.
     expect(pinWidth(design, main, iref('bh', 'out:0'))).toBe(2)
@@ -67,7 +67,7 @@ describe('pinWidth / isNeutralPin', () => {
 
   it('keeps the internal bus width even when the outside wire is single-width', () => {
     const design = makeBusHolderDesign()
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     main.connections!.push({ id: 'w', from: iref('bh', 'out:0'), to: iref('g', 'in:0') })
     // The external connection is to a single-wire gate input, but the port's own width
     // is still 2 (the connection itself would be rejected by validation as a mismatch).
@@ -77,7 +77,7 @@ describe('pinWidth / isNeutralPin', () => {
 
   it('surfaces an internal fan-out bus on a composite input port from the outside', () => {
     const design = makeBusHolderDesign()
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     expect(pinWidth(design, main, iref('bh', 'in:0'))).toBe(2)
     expect(isNeutralPin(design, main, iref('bh', 'in:0'))).toBe(false)
   })
@@ -163,7 +163,7 @@ function makeRelationDesign(n: number): Design {
 describe('bus-split / bus-merge derived width', () => {
   it('propagates width through a merge→split chain', () => {
     const design = makeRelationDesign(6)
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     expect(pinWidth(design, main, iref('fi', 'out:0'))).toBe(6)
     expect(pinWidth(design, main, iref('bm', 'in:0'))).toBe(6)
     expect(pinWidth(design, main, iref('bm', 'in:1'))).toBe(6)
@@ -176,7 +176,7 @@ describe('bus-split / bus-merge derived width', () => {
 
   it('leaves an unwired merge→split chain undetermined (neutral)', () => {
     const design = makeRelationDesign(6)
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     main.connections = [{ id: 'c2', from: iref('bm', 'out:0'), to: iref('bs', 'in:0') }]
     expect(isNeutralPin(design, main, iref('bm', 'out:0'))).toBe(true)
     expect(isNeutralPin(design, main, iref('bs', 'in:0'))).toBe(true)
@@ -231,7 +231,7 @@ describe('dynamic body sizing', () => {
 
   it('grows a bus-split body and spaces its outputs for high arity', () => {
     const design = makeRelationDesign(32)
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     const bs = main.instances!.find((i) => i.id === 'bs')!
     const def = design.defs[bs.defId]
 
@@ -251,7 +251,7 @@ describe('dynamic body sizing', () => {
 
   it('keeps the default size when all pins are single-wire', () => {
     const design = makeBusDesign()
-    const main = design.defs['main']
+    const main = design.defs['main'] as CompositeDef
     const fi = main.instances!.find((i) => i.id === 'fi')!
     const def = design.defs[fi.defId]
     expect(instanceBodySize(design, main, fi, def)).toEqual(defBodySize(def))

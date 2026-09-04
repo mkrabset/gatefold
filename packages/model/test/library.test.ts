@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, CompositeDef, Design, Instance } from '../src/types'
+import type { ComponentDef, CompositeDef, Design, Instance, PrimitiveDef } from '../src/types'
+import { inputPortId, outputPortId } from '../src/types'
 import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { cloneDef } from '../src/group'
 import { exportLibrary, importLibrary, parseLibrary, serializeLibrary } from '../src/library'
@@ -161,6 +162,122 @@ describe('exportLibrary', () => {
     const adder = lib.components.find((c) => c.id === 'adder')! as CompositeDef
     expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder~2')
     expect(lib.components.every((c) => !c.variant)).toBe(true)
+  })
+
+  it('preserves a primitive variant with non-default ports (custom-arity fan-in)', () => {
+    const fanIn4: PrimitiveDef = {
+      id: 'fan-in~4',
+      name: 'FAN-IN',
+      kind: 'primitive',
+      primitive: 'fan-in',
+      variant: true,
+      ports: [
+        { id: inputPortId(0), name: 'A', direction: 'input' },
+        { id: inputPortId(1), name: 'B', direction: 'input' },
+        { id: inputPortId(2), name: 'C', direction: 'input' },
+        { id: inputPortId(3), name: 'D', direction: 'input' },
+        { id: outputPortId(0), name: 'BUS', direction: 'output' },
+      ],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        'fan-in~4': fanIn4,
+        foo: {
+          id: 'foo',
+          name: 'foo',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('f1', 'fan-in~4')],
+          connections: [],
+        },
+        main: {
+          id: 'main',
+          name: 'main',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('x1', 'foo')],
+          connections: [],
+        },
+      },
+    }
+
+    const lib = exportLibrary(design)
+
+    // The custom fan-in is exported as a primitive component with 4 inputs.
+    const fanInComponent = lib.components.find((c) => c.kind === 'primitive' && c.primitive === 'fan-in')
+    expect(fanInComponent).toBeDefined()
+    expect((fanInComponent as PrimitiveDef).ports.filter((p) => p.direction === 'input')).toHaveLength(4)
+
+    // The instance references the exported primitive component, not the built-in id.
+    const foo = lib.components.find((c) => c.id === 'foo')! as CompositeDef
+    expect(foo.instances!.find((i) => i.id === 'f1')!.defId).toBe('fan-in~4')
+  })
+
+  it('restores a custom-arity fan-in through export + import', () => {
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        'fan-in~4': {
+          id: 'fan-in~4',
+          name: 'FAN-IN',
+          kind: 'primitive',
+          primitive: 'fan-in',
+          variant: true,
+          ports: [
+            { id: inputPortId(0), name: 'A', direction: 'input' },
+            { id: inputPortId(1), name: 'B', direction: 'input' },
+            { id: inputPortId(2), name: 'C', direction: 'input' },
+            { id: inputPortId(3), name: 'D', direction: 'input' },
+            { id: outputPortId(0), name: 'BUS', direction: 'output' },
+          ],
+        },
+        foo: {
+          id: 'foo',
+          name: 'foo',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('f1', 'fan-in~4')],
+          connections: [],
+        },
+        main: {
+          id: 'main',
+          name: 'main',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('x1', 'foo')],
+          connections: [],
+        },
+      },
+    }
+
+    const lib = parseLibrary(serializeLibrary(exportLibrary(design)))
+
+    const target: Design = {
+      version: 1,
+      root: 'main',
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
+    }
+
+    const result = importLibrary(target, lib)
+    const importedFoo = result.defs['foo'] as CompositeDef
+    const fanInId = importedFoo.instances!.find((i) => i.id === 'f1')!.defId
+    const importedFan = result.defs[fanInId] as PrimitiveDef
+    expect(importedFan.primitive).toBe('fan-in')
+    expect(importedFan.ports.filter((p) => p.direction === 'input')).toHaveLength(4)
   })
 })
 

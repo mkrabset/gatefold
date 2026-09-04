@@ -32,24 +32,38 @@ function roundReplacer(key: string, value: unknown): unknown {
   return value
 }
 
-/** Serialize a design to compact JSON (built-ins stripped, orphans GC'd, coords rounded). */
-export function serializeDesign(design: Design): string {
-  const stripped = stripBuiltinPrimitives(design)
-  const defs: Record<string, ComponentDef> = { ...stripped.defs }
-  for (const id of unreachableDefIds(stripped)) delete defs[id]
-  return JSON.stringify({ ...stripped, defs }, roundReplacer, 2)
+/** Serialize a value to compact JSON: 2-space indent, `x`/`y` coordinates rounded. */
+export function stringifyJson(value: unknown): string {
+  return JSON.stringify(value, roundReplacer, 2)
 }
 
-/** Parse and validate a serialized design, throwing on malformed input. */
-export function parseDesign(json: string): Design {
+/**
+ * Parse and validate JSON, throwing a uniform error on malformed input or a value that
+ * fails `validate`. Shared by the design and library loaders (the only difference is the
+ * validator and the label in the validation error).
+ */
+export function parseJson<T>(json: string, validate: (v: unknown) => v is T, label: string): T {
   let data: unknown
   try {
     data = JSON.parse(json)
   } catch {
     throw new Error('Not a valid JSON file')
   }
-  if (!isDesign(data)) throw new Error('Not a valid Gatefold design')
+  if (!validate(data)) throw new Error(`Not a valid ${label}`)
   return data
+}
+
+/** Serialize a design to compact JSON (built-ins stripped, orphans GC'd, coords rounded). */
+export function serializeDesign(design: Design): string {
+  const stripped = stripBuiltinPrimitives(design)
+  const defs: Record<string, ComponentDef> = { ...stripped.defs }
+  for (const id of unreachableDefIds(stripped)) delete defs[id]
+  return stringifyJson({ ...stripped, defs })
+}
+
+/** Parse and validate a serialized design, throwing on malformed input. */
+export function parseDesign(json: string): Design {
+  return parseJson(json, isDesign, 'Gatefold design')
 }
 
 /**

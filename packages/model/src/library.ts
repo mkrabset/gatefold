@@ -1,7 +1,8 @@
-import type { ComponentDef, Design, PrimitiveDef } from './types'
+import type { ComponentDef, Design, Port, PrimitiveDef } from './types'
 import { isTemplateDef } from './types'
 import { cloneDef, cloneDesign } from './group'
-import { isComponentDef, isRecord } from './serialize'
+import { primitiveDef } from './primitives'
+import { isComponentDef, isRecord, parseJson, stringifyJson } from './serialize'
 import { newUuid, remapInstanceDefs, uniqueId } from './util'
 
 /**
@@ -20,12 +21,23 @@ export interface LibraryFile {
 
 const isPrimitiveDef = (def: ComponentDef | undefined): def is PrimitiveDef => !!def && def.kind === 'primitive'
 
+/** Whether two port lists are structurally identical (id, name, direction, inversion). */
+function portsEqual(a: Port[], b: Port[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((p, i) => {
+    const q = b[i]
+    return p.id === q.id && p.name === q.name && p.direction === q.direction && p.inverted === q.inverted
+  })
+}
+
 /**
  * Collect the library's template composites (and their composite def closure) for export,
  * deep-cloned with `variant` stripped. References to a template's variant copies are collapsed
  * back to the template itself via the shared lineage `uuid`, so only the library templates are
- * exported — never the instance-local copies. Instance references to primitive defs (including
- * `variant` primitive copies) are normalized to their built-in id so imports always resolve.
+ * exported — never the instance-local copies. Instance references to primitive defs are normalized
+ * to their built-in id when they match the built-in's ports; a `variant` primitive copy whose
+ * ports differ (e.g. a custom-arity FAN-IN) is exported as a primitive component instead, so its
+ * configuration survives the round-trip and imports always resolve.
  */
 export function exportLibrary(design: Design): LibraryFile {
   const templates = Object.values(design.defs).filter((d) => isTemplateDef(design, d))
@@ -63,6 +75,7 @@ export function exportLibrary(design: Design): LibraryFile {
   for (const t of templates) visit(t.id)
 
   const components: ComponentDef[] = []
+  const extraPrimitiveIds = new Set<string>()
   for (const id of exportIds) {
     const def = cloneDef(design.defs[id])
     delete def.variant
@@ -71,12 +84,21 @@ export function exportLibrary(design: Design): LibraryFile {
       const ref = design.defs[inst.defId]
       if (!ref) continue
       if (isPrimitiveDef(ref)) {
-        inst.defId = ref.primitive
+        if (portsEqual(ref.ports, primitiveDef(ref.primitive).ports)) {
+          inst.defId = ref.primitive
+        } else {
+          extraPrimitiveIds.add(ref.id)
+        }
       } else if (ref.kind === 'composite') {
         const tid = templateIdOf(ref.id)
         if (tid !== null) inst.defId = tid
       }
     }
+    components.push(def)
+  }
+  for (const id of extraPrimitiveIds) {
+    const def = cloneDef(design.defs[id])
+    delete def.variant
     components.push(def)
   }
 
@@ -85,19 +107,12 @@ export function exportLibrary(design: Design): LibraryFile {
 
 /** Serialize a library file to JSON. */
 export function serializeLibrary(lib: LibraryFile): string {
-  return JSON.stringify(lib, null, 2)
+  return stringifyJson(lib)
 }
 
 /** Parse and validate a library file, throwing on malformed input. */
 export function parseLibrary(json: string): LibraryFile {
-  let data: unknown
-  try {
-    data = JSON.parse(json)
-  } catch {
-    throw new Error('Not a valid JSON file')
-  }
-  if (!isLibraryFile(data)) throw new Error('Not a valid Gatefold library')
-  return data
+  return parseJson(json, isLibraryFile, 'Gatefold library')
 }
 
 function isLibraryFile(v: unknown): v is LibraryFile {

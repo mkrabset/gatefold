@@ -691,6 +691,53 @@ body {
   padding: 0 12px;
 }
 
+.lib-filter {
+  padding: 0 12px 8px;
+}
+
+.lib-filter select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.lib-filter select:hover {
+  border-color: var(--border-strong);
+}
+
+.lib-category-row {
+  padding: 0 12px 8px;
+}
+
+.lib-category-select,
+.lib-category-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.lib-category-select {
+  cursor: pointer;
+}
+
+.lib-category-select:hover {
+  border-color: var(--border-strong);
+}
+
+.lib-category-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .lib-actions {
   display: flex;
   gap: 6px;
@@ -734,6 +781,19 @@ body {
 
 .lib-card:hover {
   border-color: var(--border-strong);
+}
+
+/* Compact custom-component cards (the "My components" grid) — denser than primitives
+   but still draggable. */
+.lib-card.compact {
+  flex-direction: row;
+  justify-content: center;
+  gap: 0;
+  padding: 6px 4px;
+}
+
+.lib-card.compact .lib-label {
+  font-size: 10px;
 }
 
 .lib-card.active {

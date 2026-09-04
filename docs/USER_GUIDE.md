@@ -58,7 +58,9 @@ Left to right:
   template; **×** deletes it. **Export** / **Import** exchange your component library as JSON,
   and **Apply to instances** (shown when a template is selected) propagates that template's
   edits (including its port names) to every matching placed instance. The list scrolls if it
-  grows tall.
+  grows tall. A **category dropdown** above the list shows one category at a time; select a
+  template and use the **category dropdown** below the buttons to move it to an existing
+  category or **＋ New category…** (type a name and press **Enter**).
 
 ### Dialogs
 

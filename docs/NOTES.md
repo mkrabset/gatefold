@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-04 (composite-terminal inversion now works in both the simulator and Verilog export: inverted instance terminals were previously ignored at composite boundaries).
+Last updated: 2026-09-04 (custom components can now be organized into categories in the library panel).
 
 ## Where we are
 
@@ -12,6 +12,31 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Custom-component categories (library panel)** — the right-hand library's "My components"
+  grid grew unbounded, so custom components are now organized into **categories** shown one at
+  a time:
+  - **Model** (`packages/model/src/types.ts`) — `CompositeDef.category?: string` (optional, so
+    old JSONs load unchanged; no `version` bump). `UNCATEGORIZED` + `templateCategory(def)`
+    (trimmed, defaults to `Uncategorized`). `cloneDef`'s spread already preserves `category`
+    through copy-on-place, grouping, promote, and library export/import.
+  - **Store** (`editorStore.ts`) — new `setDefCategory(defId, category)` action (undoable,
+    mirrors `renameDef`): trims, empty clears the field, and only composite templates are
+    targetable.
+  - **Library panel** (`LibraryPanel.tsx`) — a category dropdown above "My components" filters
+    to one category (default `All`; falls back to `All` if the selected category becomes empty).
+    Selecting a card reveals a "move to category" dropdown (existing categories + **Uncategorized**
+    + **＋ New category…**, which becomes an inline input committed on Enter/blur, cancelled on
+    Escape) wired to `setDefCategory`. Custom-component cards are now **compact** (row layout,
+    tighter padding, glyph dropped) while primitives keep their full cards; drag-to-place is
+    unchanged.
+  - **CSS** — new `.lib-filter` / `.lib-category-row` / `.lib-category-select` /
+    `.lib-category-input` and `.lib-card.compact` rules in `index.css`.
+  - Tests in `packages/model/test/types.test.ts` (`templateCategory`), `library.test.ts`
+    (category survives export/import), and `editorStore.test.ts` (`setDefCategory` set/rename/
+    clear + non-template rejection). User guide and glossary updated.
+
+## Latest (previous session)
 
 - **Composite-terminal inversion (sim + Verilog)** — inverting a *composite instance's*
   terminal (e.g. `i` on a placed `MyAndGate`) was silently ignored during simulation: the
@@ -45,7 +70,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   the scope's own ports. Grouping/apply propagation of existing external inversion is unchanged.
   Tests added in `editorStore.test.ts`; glossary/user-guide updated.
 
-## Latest (previous session)
+## Earlier (previous session)
 
 - **Type-model hardening (format-compatible)** — a code-quality pass, no behavior or file
   format change (verified: serialized JSON stays byte-identical; `Design.version` unchanged):

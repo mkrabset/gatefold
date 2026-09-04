@@ -157,6 +157,34 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(useEditorStore.getState().design.defs['half-adder'].name).toBe('half-adder')
   })
 
+  it('sets, renames, and clears a template category', () => {
+    reset()
+    const def = () => useEditorStore.getState().design.defs['half-adder'] as CompositeDef
+
+    useEditorStore.getState().setDefCategory('half-adder', '  Arithmetic  ')
+    expect(def().category).toBe('Arithmetic')
+
+    useEditorStore.getState().setDefCategory('half-adder', 'Logic')
+    expect(def().category).toBe('Logic')
+
+    // Blank clears the category (back to Uncategorized).
+    useEditorStore.getState().setDefCategory('half-adder', '   ')
+    expect(def().category).toBeUndefined()
+
+    // Undo restores the previous value.
+    useEditorStore.temporal.getState().undo()
+    expect(def().category).toBe('Logic')
+  })
+
+  it('ignores setDefCategory on non-templates', () => {
+    reset()
+    useEditorStore.getState().setDefCategory('main', 'Nope')
+    expect((useEditorStore.getState().design.defs['main'] as CompositeDef).category).toBeUndefined()
+
+    useEditorStore.getState().setDefCategory('and', 'Nope')
+    expect((useEditorStore.getState().design.defs['and'] as CompositeDef).category).toBeUndefined()
+  })
+
   it('prunes a variant def once its last instance is deleted', () => {
     reset()
     const defId = mainInstances().find((i) => i.id === 'clk')!.defId

@@ -49,6 +49,11 @@ authoritative — update this when a term's meaning changes.
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
 - **Template** — a definition in the library (`variant` not set). Placed via drag; edited
   by double-clicking its library card; never mutated by editing an instance.
+- **Category** — an optional user-defined grouping (`CompositeDef.category`) that organizes
+  the library's custom components; `undefined`/blank reads as **Uncategorized**. The library
+  panel shows one category at a time via a dropdown, and a component is moved by selecting its
+  card and choosing a category (or typing a new one). Serialized with the design and carried
+  through library export/import.
 - **Variant** — an instance-local copy of a definition (`variant: true`), created on
   placement/grouping (see **Copy-on-place**). Hidden from the library.
 - **Lineage id (`uuid`)** — a `ComponentDef.uuid` shared by a template and every variant

@@ -79,6 +79,8 @@ export interface CompositeDef {
   variant?: boolean
   /** Lineage id: shared by a template and every variant copied from it. */
   uuid?: string
+  /** User-defined grouping shown in the library; `undefined` = Uncategorized. */
+  category?: string
 }
 
 /**
@@ -203,4 +205,12 @@ export function isDefReferenced(design: Design, defId: string): boolean {
  */
 export function isTemplateDef(design: Design, def: ComponentDef): boolean {
   return def.kind === 'composite' && def.variant !== true && def.id !== design.root
+}
+
+/** The category shown for a template with no explicit `category` assigned. */
+export const UNCATEGORIZED = 'Uncategorized'
+
+/** A template's library category, defaulting to `UNCATEGORIZED` when unset or blank. */
+export function templateCategory(def: CompositeDef): string {
+  return def.category?.trim() || UNCATEGORIZED
 }

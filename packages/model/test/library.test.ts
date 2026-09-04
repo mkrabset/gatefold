@@ -22,6 +22,7 @@ function makeDesign(): Design {
     ports: [],
     instances: [inst('o1', 'or')],
     connections: [],
+    category: 'Logic',
   }
   defs['foo'] = {
     id: 'foo',
@@ -109,6 +110,27 @@ describe('exportLibrary', () => {
   it('round-trips through serializeLibrary / parseLibrary', () => {
     const design = makeDesign()
     expect(parseLibrary(serializeLibrary(exportLibrary(design)))).toEqual(exportLibrary(design))
+  })
+
+  it('preserves a template\'s category through export and import', () => {
+    const design = makeDesign()
+    const lib = exportLibrary(design)
+    const bar = lib.components.find((c) => c.id === 'bar')! as CompositeDef
+    expect(bar.category).toBe('Logic')
+
+    const target: Design = {
+      version: 1,
+      root: 'main',
+      defs: {
+        and: primitiveDef('and'),
+        or: primitiveDef('or'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
+    }
+    const result = importLibrary(target, lib)
+    expect((result.defs['bar'] as CompositeDef).category).toBe('Logic')
   })
 
   it('rejects invalid library JSON', () => {

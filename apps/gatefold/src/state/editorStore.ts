@@ -134,6 +134,7 @@ interface EditorState {
   togglePinInversion: (ref: PinRef) => void
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
+  setDefCategory: (defId: string, category: string) => void
   setInstanceProp: (id: string, name: string, value: PropertyValue) => void
   addPort: (direction: PortDirection, defId?: string) => void
   removePort: (portId: string, defId?: string) => void
@@ -568,6 +569,15 @@ export const useEditorStore = create<EditorState>()(
           }
         }
         def.name = trimmed
+      }),
+    setDefCategory: (defId, category) =>
+      set((s) => {
+        const def = s.design.defs[defId]
+        // Only composite templates can be categorized (same rule as `renameDef`).
+        if (!def || def.kind !== 'composite' || !isTemplateDef(s.design, def)) return
+        const trimmed = category.trim()
+        if (trimmed) def.category = trimmed
+        else delete def.category
       }),
     setInstanceProp: (id, name, value) =>
       set((s) => {

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-08-30 (default program state in localStorage — save/clear toolbar buttons + auto-init on launch; auto-fit/center the canvas on load and on descent; DFF `!Q` internally-complemented output; "copy to link" sharing via `?d=` gzip+base64url query param; compact serialization — built-ins stripped, orphaned variants GC'd, coordinates rounded; light-mode sim background; themed 7-seg colors; simulation speed / time-slice pacing (+ off-by-1000 fix); clock frequency + sim-speed canvas overlays; sidebar field commits on unmount; Group dialog Enter-to-confirm; NODE join-point primitive (inversion disabled) + wire-crossing search + drop-to-split + Ctrl/Cmd-drag cut; Verilog source→sink bridge; grouping port placement; Shift+drag-terminal moves component; join-point halo + net bunching; smaller BUFFER/NOT triangle; PNG primitive icons in library + sidebar tree; brighter library cards; gate type labels inside body + empty default instance names).
+Last updated: 2026-09-04 (code-quality remediation pass: `ComponentDef` discriminated union + typed `Instance.props`/`PropertySpec`; `as`/`!` cast cleanup; narrow model/sim barrels; dedup of `invertSignal`/`isTemplateDef`/union-find/`collectClosure`/`nextConnectionId`/`withBuiltinPrimitives`/`periodOf`; `editorStore.resetNavigation` action + Toolbar timing `useShallow` selector + Sidebar reactive `navStack` selector; connected-port-removal rule moved to the store; TSDoc for core types + algorithm comments; glossary terms for `?d=`/`timeScale`/timing lamp/default state/PNG icons/cut line; new helper + validation + Verilog-branch tests).
 
 ## Where we are
 
@@ -12,6 +12,52 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Type-model hardening (format-compatible)** — a code-quality pass, no behavior or file
+  format change (verified: serialized JSON stays byte-identical; `Design.version` unchanged):
+  - `ComponentDef` is now a **discriminated union** `PrimitiveDef | CompositeDef` (`primitive`
+    required on primitives; `instances`/`connections` on composites). Removed dozens of
+    `def.primitive!` assertions and `def.kind === 'primitive' && def.primitive` guards; callers
+    now narrow once on `kind`. `isComponentDef` validates that a primitive def carries a
+    `primitive` (soundness of the union).
+  - `Instance.props` is `Record<string, PropertyValue>` (`PropertyValue = number | string |
+    boolean`) instead of `Record<string, unknown>`; `PropertySpec` is a discriminated union.
+    This removed the `as SevenSegMode` / `as 'wire'|'bus'` casts and `typeof` narrowing — new
+    model helpers `sevenSegModeOf(props)` and `periodOf(props)` (clock) do the narrowing, and
+    `arrayTerminalType` is now derived with a ternary instead of a cast.
+  - `seven-seg.ts` gained an `isBinary` type guard (replacing `Signal` → `number` casts).
+  - `group.ts`/`verilog.ts` non-null `!` assertions cleaned up (port-group ids via
+    `portGroupOf`; `emitPrimitive` now takes `PrimitiveDef`).
+- **Barrel narrowing** — `@gatefold/sim` no longer re-exports internals (`flatten`, `delayOf`,
+  `clockValue`/`equalVectors`/`invert`/`invertVector`, `Netlist`/`FlatInstance`/`FlatPort`); the
+  dead `portPrimitiveDef` was removed from the model.
+- **Dedup (single canonical implementations)** — `sim/signals.ts` reuses the model's
+  `invertSignal`; `exportLibrary` and `LibraryPanel` reuse `isTemplateDef`; new `isArrayDef`/
+  `arrayDirection` in `primitives/array.ts` (replaces the store-local predicate); new
+  `nextConnectionId` (shared by `addConnection`, `insertJoinPointAt`, and clipboard paste); a
+  shared `UnionFind` (model `util.ts`) replaces the copies in `netlist.ts`/`verilog.ts`/
+  `renderer.ts`; `apply.ts` `scopeDefIds` delegates to `collectClosure`; `createDemoDesign`
+  reuses `withBuiltinPrimitives`.
+- **Encapsulation & state** — new `editorStore.resetNavigation()` action; `simStore.enterSim`
+  calls it instead of reaching into the other store with `setState`. The Toolbar timing lamp now
+  uses a `useShallow` selector (dropping the `version`-subscription + `getState()` hack, and
+  the `simTimingStatus` helper). `Sidebar` derives the current def reactively from `navStack`
+  instead of `currentDefId(useEditorStore.getState())`.
+- **Connected-port-removal rule** — the UI no longer disables removing a wired port; the store's
+  `removePort` (which prunes the port's connections) is now the single canonical rule
+  (`SortablePortList` dropped its `isConnected` prop).
+- **Documentation** — TSDoc added to core types (`Signal`, `PortDirection`, `PrimitiveKind`,
+  `Connection`, `Design`, `serializeDesign`, `exportVerilog`) and non-obvious logic (`widths.ts`
+  cycle-guard sentinel, Verilog `sanitizeIdentifier`/`uniqueName`, the DFF's D-by-elimination).
+  `docs/GLOSSARY.md` gained: copy-link sharing (`?d=`), default program state, PNG primitive
+  icons, wire-crossing search, drop-to-split, cut line, simulation speed (`timeScale`), timing
+  lamp.
+- **Tests** — added: `nextConnectionId`/`uniqueId`/`collectClosure`/`remapInstanceDefs`
+  (util/connections), `isArrayDef`/`arrayDirection`/`sevenSegModeOf`/`periodOf` (primitives),
+  editor-store single-driver + re-target rejection, and Verilog XOR/bus-split/DFF-polarity
+  (negedge, `initialValue`, active-low reset).
+
+## Latest (previous session)
 
 - **Default program state in `localStorage`** — two new toolbar buttons (next to Save JSON /
   Export Verilog): **Save as default** (bookmark icon) stores the current design under the
@@ -228,7 +274,7 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   gated JK, **master-slave JK edge-triggering**, oscillator → `x`, buses, clock, clock-edge
   stepping, and port-group/composite signal resolution.
 
-## Latest (previous session)
+## Earlier (previous session — dedup pass)
 
 - **Refactoring pass — code deduplication** (no behavior changes; `typecheck`/`test`/`lint`
   all green):

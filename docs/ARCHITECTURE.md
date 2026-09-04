@@ -51,11 +51,23 @@ type PrimitiveKind =
   | 'bus-split' | 'bus-merge' | 'bus' | 'input-port' | 'output-port'
   | 'seven-seg' | 'switch-array' | 'led-array' | 'dff'
 
-interface ComponentDef {
+// `ComponentDef` is a discriminated union on `kind`: a primitive def always carries a
+// `primitive` kind, a composite def carries its `instances`/`connections`. Narrow once on
+// `kind` and the compiler knows which arm you hold.
+interface PrimitiveDef {
   id: string
   name: string
-  kind: 'primitive' | 'composite'
-  primitive?: PrimitiveKind                 // when kind === 'primitive'
+  kind: 'primitive'
+  primitive: PrimitiveKind
+  ports: Port[]                             // ordered: inputs first, then outputs
+  variant?: boolean                         // true = instance-local fork (hidden from library)
+  uuid?: string                             // lineage id: shared by a template and its variants
+}
+
+interface CompositeDef {
+  id: string
+  name: string
+  kind: 'composite'
   ports: Port[]                             // ordered: inputs first, then outputs
   instances?: Instance[]                    // composite internals
   connections?: Connection[]
@@ -63,13 +75,19 @@ interface ComponentDef {
   uuid?: string                             // lineage id: shared by a template and its variants
 }
 
+type ComponentDef = PrimitiveDef | CompositeDef
+
 interface Instance {
   id: string
   name: string                              // display label; unique within parent's scope
   defId: string                             // -> Design.defs
   pos: { x: number; y: number }             // canvas position
-  props?: Record<string, unknown>           // per-instance property values (e.g. `lanes`, `order`)
+  props?: Record<string, PropertyValue>     // per-instance property values (e.g. `lanes`, `order`)
 }
+
+// A JSON-scalar property value (`number | string | boolean`) — the only shapes
+// `Instance.props` can hold, so props round-trip verbatim through serialization.
+type PropertyValue = number | string | boolean
 
 // A connection endpoint is always an instance pin.
 type PinRef = { instanceId: string; portId: string }
@@ -186,7 +204,9 @@ The document and editing state:
   into a component (`navigateTo`) to request a one-shot fit-to-view from the canvas; excluded
   from undo history by `partialize`.
 
-Actions: viewport/selection/marquee setters, navigation, the group flow, port & instance
+Actions: viewport/selection/marquee setters, navigation (`navigateTo`, `navigateUp`, and
+`resetNavigation` — the last resets to the root and clears transient editing state, used by the
+simulator on entering simulate mode), the group flow, port & instance
 editing (`renamePort`, `renameInstance`, `addPort`, `removePort`, `setPortOrder`),
 connection editing (`addConnection` with single-driver rejection, `retargetConnection`,
 `removeConnection`), instance placement (`addInstance`, deep copy-on-place), and
@@ -438,7 +458,8 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     `RST` (`resetActiveHigh` selects polarity)
     forces the outputs to `initialValue` asynchronously, overriding the clock. Q powers on to
     `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
-- **`signals.ts`** — `invert`/`invertVector`/`equalVectors`/`clockValue`.
+- **`signals.ts`** — `invert` (delegates to the model's `invertSignal`),
+  `invertVector`/`equalVectors`/`clockValue`.
 - **`config.ts`** — `SimConfig { defaultDelay, perKindDelay, stepMode }` (delays in ps).
 
 `Primitive.transfer(inputs: Signal[][]): Signal[][]` is the per-kind combinational function
@@ -520,10 +541,14 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 ## 9. Testing
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
-  property defaults (clock `period`, bus `lanes`, 7-seg `order`), and `widthError` cases.
+  property defaults (clock `period`, bus `lanes`, 7-seg `order`), `widthError` cases, plus
+  `isArrayDef`/`arrayDirection`, `sevenSegModeOf`, and `periodOf`.
+- `packages/model/test/util.test.ts` — `uniqueId`, `collectClosure`, `remapInstanceDefs`,
+  `unreachableDefIds`.
 - `packages/model/test/array.test.ts` — `arrayPorts`, array WIRE/BUS defaults, and width
   constraints via `connectionError` (BUS fixes width; 7-seg multiple-of-4 / ≤64).
-- `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo`.
+- `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo` /
+  `nextConnectionId`.
 - `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
   rewiring, exposed ports).
 - `packages/model/test/clipboard.test.ts` — `copyDefSubgraph` / `captureClipboard` /
@@ -537,11 +562,12 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
   port-group/composite signal resolution, and the DFF (posedge/negedge, async reset, initial value,
   shift register, composite).
-- `packages/verilog/test/verilog.test.ts` — gate emission, inversion, DFF (with/without reset),
-  fan-in bus concatenation, nested composite modules, identifier sanitization, floating-net
-  warning, and the nested-switch fixed-initial-value constant.
+- `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
+  reset, negedge, `initialValue`, active-low reset), fan-in bus concatenation, bus-split slicing,
+  nested composite modules, identifier sanitization, floating-net warning, and the nested-switch
+  fixed-initial-value constant.
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - `apps/gatefold/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
-  multi-step) and copy/paste.
+  multi-step), copy/paste, and the single-driver + re-target rejection rules.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.

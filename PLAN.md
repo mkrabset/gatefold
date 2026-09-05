@@ -50,9 +50,6 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ### Loose ends (possible improvements)
 
-- **Unify the join-point representation.** `addInstance` places a join-point as a `fork`
-  while `insertJoinPointAt` places the same primitive as a `builtin`; both behave identically,
-  but one representation should be chosen.
 - **Make the composite-`id` uniqueness invariant explicit.** `id` uniqueness across the whole
   tree is load-bearing (`findComposite`, `allCompositeIds` seeding) but enforced only by
   convention (clone uniquifies ids); it is untested, and a hand-built design with colliding

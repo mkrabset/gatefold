@@ -130,4 +130,13 @@ describe('sanitizeDesign', () => {
       { type: 'dangling-connection', defId: 'main', connectionId: 'c2', endpoint: 'from', missingInstanceId: 'ghost' },
     ])
   })
+
+  it('normalizes a fork join-point to the canonical shared builtin', () => {
+    const design = makeDesign()
+    design.root.instances.push({ id: 'j', name: '', def: forkOf('join-point'), pos: { x: 0, y: 0 } })
+
+    const { design: clean } = sanitizeDesign(design)
+    const jp = clean.root.instances.find((i) => i.id === 'j')!
+    expect(jp.def).toEqual({ kind: 'builtin', primitive: 'join-point' })
+  })
 })

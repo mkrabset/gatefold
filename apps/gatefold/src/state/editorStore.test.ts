@@ -107,6 +107,14 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(placed.props).toEqual({ period: 10_000_000 })
   })
 
+  it('places a join-point as a shared builtin', () => {
+    reset()
+    useEditorStore.getState().addInstance('join-point', { x: 0, y: 0 })
+    const placed = mainInstances()[mainInstances().length - 1]
+    expect(placed.def).toEqual({ kind: 'builtin', primitive: 'join-point' })
+    expect(placed.props).toBeUndefined()
+  })
+
   it('sets an instance property and undoes it', () => {
     reset()
     useEditorStore.getState().setInstanceProp('clk', 'period', 500)

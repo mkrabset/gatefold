@@ -318,7 +318,15 @@ export function sanitizeDesign(design: Design): { design: Design; issues: Saniti
       }
       return true
     })
-    const instances = def.instances.map((i) => (i.def.kind === 'composite' ? { ...i, def: sanitize(i.def) } : i))
+    const instances = def.instances.map((i) => {
+      if (i.def.kind === 'composite') return { ...i, def: sanitize(i.def) }
+      // Normalize the join-point to its canonical shared builtin representation (a
+      // fork join-point is behaviourally identical but carries a redundant ports array).
+      if (i.def.kind === 'fork' && i.def.primitive === 'join-point') {
+        return { ...i, def: { kind: 'builtin', primitive: 'join-point' } as const }
+      }
+      return i
+    })
     return { ...def, instances, connections }
   }
   const root = sanitize(design.root)

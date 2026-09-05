@@ -13,6 +13,11 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Join-point representation unified** — the NODE join-point now has a single canonical
+  form, the shared `builtin` reference. `addInstance` (palette placement) previously created a
+  `fork` while `insertJoinPointAt` (drop-to-split / cut line) created a `builtin`; the former
+  now also places `builtinOf('join-point')`, and `sanitizeDesign` normalizes any legacy `fork`
+  join-point to the builtin on load, so both creation sites and all saved files converge.
 - **Nested-object model redesign**: replaced the flat
   `Design = { root, library, defs }` + `Instance.defId` string lookups with a tree where a
   composite owns its children inline:

@@ -9,6 +9,7 @@ import {
   applyGroup,
   arrayDirection,
   arrayPorts,
+  builtinOf,
   captureClipboard,
   childLabel,
   childPorts,
@@ -674,7 +675,7 @@ export const useEditorStore = create<EditorState>()(
           if (!def || def.kind !== 'composite') return
           const usedIds = allCompositeIds(s.design)
           let srcDef: ChildDef | undefined = s.design.library[kindOrId]
-          if (!srcDef && isPrimitiveKind(kindOrId)) srcDef = forkOf(kindOrId)
+          if (!srcDef && isPrimitiveKind(kindOrId)) srcDef = kindOrId === 'join-point' ? builtinOf('join-point') : forkOf(kindOrId)
           if (!srcDef) return
           const kind = childPrimitive(srcDef)
           // Default instance name is empty, except for CLOCK/DFF which keep their label.
@@ -713,7 +714,7 @@ export const useEditorStore = create<EditorState>()(
           if (!conn) return
           // Add the join-point, then re-route the original wire through it.
           const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), 'join-point')
-          def.instances.push({ id, name: '', def: { kind: 'builtin', primitive: 'join-point' }, pos: { x: pos.x, y: pos.y } })
+          def.instances.push({ id, name: '', def: builtinOf('join-point'), pos: { x: pos.x, y: pos.y } })
           def.connections = conns.filter((c) => c.id !== connectionId)
           def.connections.push({ id: nextConnectionId(def.connections), from: conn.from, to: { instanceId: id, portId: 'in:0' } })
           def.connections.push({ id: nextConnectionId(def.connections), from: { instanceId: id, portId: 'out:0' }, to: conn.to })

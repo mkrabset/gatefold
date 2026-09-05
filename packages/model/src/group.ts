@@ -1,5 +1,5 @@
 import type { ComponentDef, Connection, Design, Instance, PinRef, Port } from './types'
-import { findConnectionTo, getDef, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals } from './types'
+import { findConnectionTo, getDef, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals, templateNames } from './types'
 import { collectClosure, combinedDefs, uniqueId, newUuid } from './util'
 import { isPortGroupDef, portGroupDirection } from './primitives'
 
@@ -278,7 +278,7 @@ export function applyGroup(
   const isPortGroupInst = portGroupInstPredicate(def.instances ?? [], defs)
   const movable = new Set(instanceIds.filter((id) => !isPortGroupInst(id)))
 
-  const existingNames = new Set(Object.values(defs).map((d) => d.name))
+  const existingNames = templateNames(result)
   const finalName = uniqueId(existingNames, defName.trim() || 'component')
   const newDefId = uniqueId(new Set(Object.keys(defs)), finalName)
 

@@ -1,7 +1,8 @@
 import type { ComponentDef, Design } from './types'
+import { isTemplateDef } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { buildProject, isComponentDef, isRecord, parseJson, stringifyJson } from './serialize'
-import { newUuid, remapInstanceDefs, uniqueId } from './util'
+import { collectClosure, newUuid, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Export/import of the custom component library. A library file is the library part of
@@ -75,5 +76,40 @@ export function importLibrary(design: Design, lib: LibraryFile): Design {
     result.library[def.id] = def
   }
 
+  return result
+}
+
+/**
+ * The library def ids reachable from `templateId`'s instances — the template itself plus
+ * its embedded parts (composite copies and primitive forks). Other origin templates are
+ * excluded (defensive: a template never references an origin directly), and built-in
+ * primitives are naturally excluded (they live in `defs`, not `library`).
+ */
+function templateClosure(design: Design, templateId: string): Set<string> {
+  return collectClosure(
+    design.library,
+    [templateId],
+    (def) => def.id !== templateId && isTemplateDef(design, def),
+  )
+}
+
+/**
+ * Remove a template and its embedded parts from the library, returning a new design.
+ * The template's embedded parts are only reachable through it, so they are deleted
+ * together with it (they would otherwise be orphaned and promoted to visible templates).
+ * The `uuid` soft link on any remaining copy (a live copy in the content tree) is cleared,
+ * so no dangling lineage reference remains. Origin templates referenced only as copies
+ * are left untouched.
+ */
+export function deleteTemplate(design: Design, templateId: string): Design {
+  const template = design.library[templateId]
+  if (!template) return design
+  const result = cloneDesign(design)
+  for (const defId of templateClosure(result, templateId)) delete result.library[defId]
+  if (template.kind === 'composite' && template.uuid) {
+    for (const def of [...Object.values(result.library), ...Object.values(result.defs)]) {
+      if (def.kind === 'composite' && def.id !== templateId && def.uuid === template.uuid) delete def.uuid
+    }
+  }
   return result
 }

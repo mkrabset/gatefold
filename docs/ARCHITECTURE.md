@@ -117,7 +117,9 @@ interface Design {
 - **Ports are named and ordered** (`ports: Port[]`, inputs first then outputs). Port ids
   stay index-based (`in:0..n-1`, `out:0..m-1`) so wiring is stable under renames.
 - **Names are labels, ids are references.** Wiring, selection, navigation, and
-  `Design.defs` all key off `id`s; `name` is only for display and uniqueness.
+  `Design.library`/`Design.defs` all key off `id`s; `name` is only for display. Template
+  names must be unique among templates (`templateNames`), but copies, built-ins, and the root
+  do not collide (their names are ignored).
 - **Ports are modeled as port-group instances.** Inside a composite, one `input-port`
   instance carries all of the composite's inputs (its pins are derived from `ports` and
   act as drivers), and one `output-port` instance carries all of its outputs (derived,
@@ -506,8 +508,8 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 
 ## 7. Current gaps (not yet implemented)
 
-- Instance/definition name-uniqueness validation (rename collision is rejected for templates;
-  instance names and def names are otherwise not globally enforced).
+- Instance/definition name-uniqueness validation (rename collision is rejected among templates;
+  instance names and non-template def names are otherwise not globally enforced).
 - A global bus-width invariant scan (connections are validated at creation time; an
   inconsistent pre-existing design isn't proactively flagged).
 - Timing-accurate simulation (glitch/setup-hold history, per-instance delays, SCC-based

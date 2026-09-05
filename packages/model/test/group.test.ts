@@ -116,6 +116,16 @@ describe('applyGroup', () => {
     expect(main.instances!.some((i) => i.defId === 'adder' && i.name === '')).toBe(true)
   })
 
+  it('ignores live-copy names when naming the new template', () => {
+    const design = buildHalfAdderDesign()
+    // A live copy whose display name collides with the default template name.
+    design.defs['comp~x'] = { id: 'comp~x', name: 'component', kind: 'composite', ports: [], instances: [], connections: [] }
+    const result = applyGroup(design, 'main', ['xor1'], ['X1', 'X2'], ['Y'])
+    const tpl = result.library['component'] as CompositeDef
+    expect(tpl).toBeDefined()
+    expect(tpl.name).toBe('component')
+  })
+
   it('keeps connections that do not touch the selection untouched', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1'], ['X1', 'X2'], ['Y'])

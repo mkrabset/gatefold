@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ComponentDef, CompositeDef, Design, Instance, PrimitiveDef } from '../src/types'
 import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { cloneDef } from '../src/group'
-import { exportLibrary, importLibrary, parseLibrary, serializeLibrary } from '../src/library'
+import { exportLibrary, importLibrary, deleteTemplate, parseLibrary, serializeLibrary } from '../src/library'
 import { buildProject } from '../src/serialize'
 
 const inst = (id: string, defId: string, x = 0, y = 0): Instance => ({ id, name: id, defId, pos: { x, y } })
@@ -208,5 +208,75 @@ describe('importLibrary', () => {
     const importedFan = result.library[fanInId] as PrimitiveDef
     expect(importedFan.primitive).toBe('fan-in')
     expect(importedFan.ports.filter((p) => p.direction === 'input')).toHaveLength(4)
+  })
+})
+
+describe('deleteTemplate', () => {
+  it('deletes a template together with its embedded parts', () => {
+    const design = makeDesign()
+    const result = deleteTemplate(design, 'foo')
+
+    // The template and its embedded copy are gone; the origin it was copied from stays.
+    expect(result.library['foo']).toBeUndefined()
+    expect(result.library['bar~x']).toBeUndefined()
+    expect(result.library['bar']).toBeDefined()
+  })
+
+  it('clears the uuid soft link on live copies but keeps the origin\'s uuid', () => {
+    const design = makeDesign()
+    const result = deleteTemplate(design, 'foo')
+
+    // The live copy (content tree) survives, but its lineage link is broken.
+    expect(result.defs['foo~1']).toBeDefined()
+    expect((result.defs['foo~1'] as CompositeDef).uuid).toBeUndefined()
+    // The origin's own uuid is untouched.
+    expect((result.library['bar'] as CompositeDef).uuid).toBe('uuid-bar')
+  })
+
+  it('removes embedded primitive forks with their template', () => {
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      library: {
+        'fan-in~4': {
+          id: 'fan-in~4',
+          name: 'FAN-IN',
+          kind: 'primitive',
+          primitive: 'fan-in',
+          ports: [
+            { id: 'in:0', name: 'A', direction: 'input' },
+            { id: 'in:1', name: 'B', direction: 'input' },
+            { id: 'in:2', name: 'C', direction: 'input' },
+            { id: 'in:3', name: 'D', direction: 'input' },
+            { id: 'out:0', name: 'BUS', direction: 'output' },
+          ],
+        },
+        foo: {
+          id: 'foo',
+          name: 'foo',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('f1', 'fan-in~4')],
+          connections: [],
+        },
+      },
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
+    }
+
+    const result = deleteTemplate(design, 'foo')
+    expect(result.library['foo']).toBeUndefined()
+    expect(result.library['fan-in~4']).toBeUndefined()
+    // The canonical built-in fan-in (in defs) is untouched.
+    expect(result.defs['fan-in']).toBeDefined()
+  })
+
+  it('returns the design unchanged when the template is missing', () => {
+    const design = makeDesign()
+    expect(deleteTemplate(design, 'nope')).toEqual(design)
   })
 })

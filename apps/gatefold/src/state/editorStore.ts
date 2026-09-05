@@ -12,6 +12,7 @@ import {
   connectionError,
   copyDefSubgraph,
   defaultPropsOf,
+  deleteTemplate,
   exportLibrary as buildLibraryFile,
   findConnectionTo,
   getDef,
@@ -34,6 +35,7 @@ import {
   portGroupDirection,
   serializeDesign,
   serializeLibrary,
+  templateNames,
   uniqueId,
   unreachableDefIds,
   withBuiltinPrimitives,
@@ -434,7 +436,7 @@ export const useEditorStore = create<EditorState>()(
           const target = getDef(s.design, p.promoteDefId)
           if (target) {
             const name = uniqueAgainst(
-              new Set(Object.values(combinedDefs(s.design)).map((d) => d.name)),
+              templateNames(s.design),
               p.name.trim() || target.name,
             )
             const top = s.design.library[copyDefIntoSide(s.design, p.promoteDefId, 'library')]
@@ -508,16 +510,8 @@ export const useEditorStore = create<EditorState>()(
           s.notice = 'Exit the component before deleting it'
           return
         }
-        const template = s.design.library[id]
-        if (!template) return
-        delete s.design.library[id]
-        // Break the `uuid` soft link on every copy (embedded or live) derived from this
-        // template, so no dangling lineage references remain.
-        if (template.kind === 'composite' && template.uuid) {
-          for (const def of [...Object.values(s.design.library), ...Object.values(s.design.defs)]) {
-            if (def.kind === 'composite' && def.id !== id && def.uuid === template.uuid) delete def.uuid
-          }
-        }
+        if (!s.design.library[id]) return
+        s.design = deleteTemplate(s.design, id)
         pruneOrphanedDefs(s.design)
       }),
     renamePort: (portId, name, defId) =>
@@ -573,12 +567,11 @@ export const useEditorStore = create<EditorState>()(
         if (!def || !isTemplateDef(s.design, def)) return
         const trimmed = name.trim()
         if (!trimmed) return
-        // Reject a name already used by any def (template, copy, built-in, or root).
-        for (const [id, other] of Object.entries(combinedDefs(s.design))) {
-          if (id !== defId && other.name === trimmed) {
-            s.notice = `A component named "${trimmed}" already exists`
-            return
-          }
+        // Collide only against other templates (names are display-only; live copies,
+        // embedded copies, built-ins, and the root are ignored).
+        if (trimmed !== def.name && templateNames(s.design).has(trimmed)) {
+          s.notice = `A component named "${trimmed}" already exists`
+          return
         }
         def.name = trimmed
       }),

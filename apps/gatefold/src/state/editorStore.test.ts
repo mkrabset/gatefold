@@ -150,11 +150,40 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(useEditorStore.getState().design.defs['and'].name).toBe('AND')
   })
 
-  it('rejects renaming a template to an already-used name', () => {
+  it('rejects renaming a template to another template\'s name', () => {
     reset()
-    useEditorStore.getState().renameDef('half-adder', 'AND')
-    expect(useEditorStore.getState().notice).toBe('A component named "AND" already exists')
+    useEditorStore.getState().renameDef('half-adder', 'or-gate')
+    expect(useEditorStore.getState().notice).toBe('A component named "or-gate" already exists')
     expect(useEditorStore.getState().design.library['half-adder'].name).toBe('half-adder')
+  })
+
+  it('ignores built-in and non-template names when renaming a template', () => {
+    reset()
+    // A built-in display name is no longer a collision.
+    useEditorStore.getState().renameDef('half-adder', 'AND')
+    expect(useEditorStore.getState().design.library['half-adder'].name).toBe('AND')
+    expect(useEditorStore.getState().notice).toBeNull()
+  })
+
+  it('deletes a template together with its embedded parts', () => {
+    reset()
+    useEditorStore.setState({ design: makeEmbeddedDesign(), navStack: ['main'], selectedIds: [] })
+    useEditorStore.temporal.getState().clear()
+
+    const state = useEditorStore.getState()
+    state.requestDeleteTemplate('ander2')
+    state.confirmDeleteTemplate()
+
+    const lib = useEditorStore.getState().design.library
+    expect(lib['ander2']).toBeUndefined()
+    expect(lib['ander~a']).toBeUndefined()
+    expect(lib['ander~b']).toBeUndefined()
+    // The origin template the copies came from is untouched.
+    expect(lib['ander']).toBeDefined()
+    // The live copy on the canvas survives, untethered (uuid cleared).
+    const live = useEditorStore.getState().design.defs['ander2~live'] as CompositeDef
+    expect(live).toBeDefined()
+    expect(live.uuid).toBeUndefined()
   })
 
   it('sets, renames, and clears a template category', () => {
@@ -434,6 +463,17 @@ function makeTestDesign(): Design {
     connections: [],
   }
 
+  // A second, empty template for name-collision tests.
+  library['or-gate'] = {
+    id: 'or-gate',
+    name: 'or-gate',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [],
+    instances: [],
+    connections: [],
+  }
+
   // Copy-on-place: a placed instance references a fresh copy (live in the content tree
   // for the root, or embedded in the library for a template). Composites inherit the
   // template's `uuid` (the lineage soft link).
@@ -506,4 +546,53 @@ function makePortGroupDesign(): Design {
     ],
   }
   return { version: 1, root: 'main', library: {}, defs }
+}
+
+// A template "ander2" embedding two copies of "ander", plus a live copy on the canvas.
+function makeEmbeddedDesign(): Design {
+  const defs: Record<string, ComponentDef> = {}
+  for (const spec of libraryPrimitives()) {
+    defs[spec.kind] = primitiveDef(spec.kind)
+  }
+  defs['input-port'] = inputPortDef()
+  defs['output-port'] = outputPortDef()
+
+  const ander: CompositeDef = {
+    id: 'ander',
+    name: 'ander',
+    kind: 'composite',
+    uuid: 'u-ander',
+    ports: [],
+    instances: [{ id: 'g1', name: '', defId: 'and', pos: { x: 0, y: 0 } }],
+    connections: [],
+  }
+  const ander2: CompositeDef = {
+    id: 'ander2',
+    name: 'ander2',
+    kind: 'composite',
+    uuid: 'u-ander2',
+    ports: [],
+    instances: [
+      { id: 'c1', name: '', defId: 'ander~a', pos: { x: 0, y: 0 } },
+      { id: 'c2', name: '', defId: 'ander~b', pos: { x: 100, y: 0 } },
+    ],
+    connections: [],
+  }
+  const library: Record<string, ComponentDef> = {
+    ander,
+    'ander~a': { ...cloneDef(ander), id: 'ander~a' } as CompositeDef,
+    'ander~b': { ...cloneDef(ander), id: 'ander~b' } as CompositeDef,
+    ander2,
+  }
+  defs['main'] = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [],
+    instances: [{ id: 'x', name: '', defId: 'ander2~live', pos: { x: 0, y: 0 } }],
+    connections: [],
+  }
+  defs['ander2~live'] = { ...cloneDef(ander2), id: 'ander2~live' } as CompositeDef
+  return { version: 1, root: 'main', library, defs }
 }

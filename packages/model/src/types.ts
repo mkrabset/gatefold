@@ -233,6 +233,19 @@ function isEmbeddedInLibrary(design: Design, defId: string): boolean {
   return false
 }
 
+/**
+ * The display names of the origin templates. Used for name-collision checks when naming
+ * or renaming a template — only other templates collide; names on live copies, embedded
+ * copies, built-in primitives, and the root are ignored (names are display-only).
+ */
+export function templateNames(design: Design): Set<string> {
+  const names = new Set<string>()
+  for (const def of Object.values(design.library)) {
+    if (isTemplateDef(design, def)) names.add(def.name)
+  }
+  return names
+}
+
 /** The category shown for a template with no explicit `category` assigned. */
 export const UNCATEGORIZED = 'Uncategorized'
 

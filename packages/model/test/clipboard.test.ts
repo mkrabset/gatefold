@@ -1,151 +1,118 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, CompositeDef, Design } from '../src/types'
-import { inputPortDef, primitiveDef } from '../src/primitives'
-import { captureClipboard, copyDefSubgraph, instantiateClipboard } from '../src/clipboard'
+import type { ChildDef, CompositeDef, Design, Instance } from '../src/types'
+import { forkOf } from '../src/primitives'
+import { allCompositeIds } from '../src/util'
+import { captureClipboard, instantiateClipboard } from '../src/clipboard'
 
-const inst = (id: string, defId: string, x = 0, y = 0) => ({ id, name: id, defId, pos: { x, y } })
+const inst = (id: string, def: ChildDef, x = 0, y = 0): Instance => ({ id, name: id, def, pos: { x, y } })
+const INPUT_PORT: ChildDef = { kind: 'builtin', primitive: 'input-port' }
 
 function makeDesign(): Design {
-  const and = primitiveDef('and')
-  const inputPort = inputPortDef()
-  const inner: ComponentDef = {
+  const inner: CompositeDef = {
     id: 'inner',
     name: 'inner',
     kind: 'composite',
     ports: [],
-    instances: [inst('a1', 'and'), inst('pg', 'input-port')],
+    instances: [inst('a1', forkOf('and')), inst('pg', INPUT_PORT)],
     connections: [],
   }
-  const outer: ComponentDef = {
+  const outer: CompositeDef = {
     id: 'outer',
     name: 'outer',
     kind: 'composite',
     ports: [],
-    instances: [inst('i1', 'inner')],
+    instances: [inst('i1', inner)],
     connections: [],
   }
-  const main: ComponentDef = {
+  const main: CompositeDef = {
     id: 'main',
     name: 'main',
     kind: 'composite',
     ports: [],
-    instances: [inst('o1', 'outer', 10, 20)],
+    instances: [inst('o1', outer, 10, 20)],
     connections: [],
   }
-  return { version: 1, root: 'main', library: {}, defs: { and, 'input-port': inputPort, inner, outer, main } }
+  return { version: 2, root: main, library: {} }
 }
-
-describe('copyDefSubgraph', () => {
-  it('deep-copies the transitive closure and rewrites internal defIds', () => {
-    const design = makeDesign()
-    const { defs, idMap } = copyDefSubgraph(design.defs, ['outer'], new Set(['outer', 'inner', 'and']))
-
-    // closure = outer + inner + and (port groups excluded)
-    expect([...idMap.keys()].sort()).toEqual(['and', 'inner', 'outer'])
-    const outerCopy = defs[idMap.get('outer')!] as CompositeDef
-    const innerCopy = defs[idMap.get('inner')!] as CompositeDef
-    // copies are distinct objects with fresh ids
-    expect(outerCopy.id).toBe(idMap.get('outer'))
-    expect(outerCopy.id).not.toBe('outer')
-    // internal defIds rewritten through the map
-    expect(outerCopy.instances!.find((i) => i.id === 'i1')!.defId).toBe(idMap.get('inner'))
-    expect(innerCopy.instances!.find((i) => i.id === 'a1')!.defId).toBe(idMap.get('and'))
-  })
-
-  it('excludes port-group primitives from the copy (they stay shared)', () => {
-    const design = makeDesign()
-    const { defs, idMap } = copyDefSubgraph(design.defs, ['inner'], new Set())
-    expect(idMap.has('input-port')).toBe(false)
-    const innerCopy = defs[idMap.get('inner')!] as CompositeDef
-    expect(innerCopy.instances!.find((i) => i.id === 'pg')!.defId).toBe('input-port')
-  })
-
-  it('preserves the lineage uuid on copies', () => {
-    const design = makeDesign()
-    ;(design.defs['outer'] as CompositeDef).uuid = 'U-outer'
-    ;(design.defs['inner'] as CompositeDef).uuid = 'U-inner'
-    const { defs, idMap } = copyDefSubgraph(design.defs, ['outer'], new Set())
-    expect((defs[idMap.get('outer')!] as CompositeDef).uuid).toBe('U-outer')
-    expect((defs[idMap.get('inner')!] as CompositeDef).uuid).toBe('U-inner')
-  })
-})
 
 describe('captureClipboard + instantiateClipboard', () => {
   it('snapshots selected instances and pastes independent copies at an offset', () => {
     const design = makeDesign()
-    const clip = captureClipboard(design, 'main', ['o1'])!
+    const clip = captureClipboard(design.root, ['o1'])!
     expect(clip).not.toBeNull()
     expect(clip.instances).toHaveLength(1)
     expect(clip.instances[0].id).toBe('o1')
 
-    const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 5, y: 5 })
+    const newIds = instantiateClipboard(design.root, clip, allCompositeIds(design), { x: 5, y: 5 })
     expect(newIds).toHaveLength(1)
     const newId = newIds[0]
     expect(newId).not.toBe('o1')
 
-    const main = pasted.defs['main'] as CompositeDef
-    const newInst = main.instances!.find((i) => i.id === newId)!
+    const newInst = design.root.instances.find((i) => i.id === newId)!
     expect(newInst.pos).toEqual({ x: 15, y: 25 })
     // the pasted instance references a fresh copy of 'outer' (not the original)
-    expect(newInst.defId).not.toBe('outer')
+    expect(newInst.def.kind === 'composite' && newInst.def.id).not.toBe('outer')
     // original untouched
-    expect((pasted.defs['main'] as CompositeDef).instances!.find((i) => i.id === 'o1')!.defId).toBe('outer')
+    expect(design.root.instances.find((i) => i.id === 'o1')!.def).toEqual(
+      expect.objectContaining({ id: 'outer' }),
+    )
   })
 
-  it('paste does not collide with existing def ids on repeated pastes', () => {
+  it('paste does not collide with existing composite ids on repeated pastes', () => {
     const design = makeDesign()
-    const clip = captureClipboard(design, 'main', ['o1'])!
-    const once = instantiateClipboard(design, 'main', clip, { x: 0, y: 0 })
-    const twice = instantiateClipboard(once.design, 'main', clip, { x: 0, y: 0 })
-    const main = twice.design.defs['main'] as CompositeDef
-    const o1 = main.instances!.find((i) => i.id === 'o1')!
-    const others = main.instances!.filter((i) => i.id !== 'o1')
+    const main = design.root
+    const clip = captureClipboard(main, ['o1'])!
+    instantiateClipboard(main, clip, allCompositeIds(design), { x: 0, y: 0 })
+    instantiateClipboard(main, clip, allCompositeIds(design), { x: 0, y: 0 })
+    const o1 = main.instances.find((i) => i.id === 'o1')!
+    const others = main.instances.filter((i) => i.id !== 'o1')
     expect(others).toHaveLength(2)
-    const defIds = others.map((i) => i.defId)
+    const defIds = others.map((i) => (i.def.kind === 'composite' ? i.def.id : ''))
     expect(new Set(defIds).size).toBe(2)
-    expect(defIds).not.toContain(o1.defId)
+    expect(defIds).not.toContain(o1.def.kind === 'composite' ? o1.def.id : '')
   })
 
   it('preserves instance props on paste', () => {
     const design = makeDesign()
-    const mainDef = design.defs['main'] as CompositeDef
-    mainDef.instances![0].props = { period: 250 }
-    const clip = captureClipboard(design, 'main', ['o1'])!
-    const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 0, y: 0 })
-    const newInst = (pasted.defs['main'] as CompositeDef).instances!.find((i) => i.id === newIds[0])!
+    design.root.instances[0].props = { period: 250 }
+    const clip = captureClipboard(design.root, ['o1'])!
+    const newIds = instantiateClipboard(design.root, clip, allCompositeIds(design), { x: 0, y: 0 })
+    const newInst = design.root.instances.find((i) => i.id === newIds[0])!
     expect(newInst.props).toEqual({ period: 250 })
   })
 
+  it('preserves the lineage uuid on pasted copies', () => {
+    const design = makeDesign()
+    const outer = design.root.instances[0].def as CompositeDef
+    outer.uuid = 'U-outer'
+    const clip = captureClipboard(design.root, ['o1'])!
+    const newIds = instantiateClipboard(design.root, clip, allCompositeIds(design), { x: 0, y: 0 })
+    const newInst = design.root.instances.find((i) => i.id === newIds[0])!
+    expect((newInst.def as CompositeDef).uuid).toBe('U-outer')
+  })
+
   it('copies internal connections among the selected instances', () => {
-    const defs: Record<string, ComponentDef> = {
-      and: primitiveDef('and'),
-      or: primitiveDef('or'),
-      not: primitiveDef('not'),
-    }
-    defs['main'] = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
-      instances: [inst('a1', 'and', 0, 0), inst('o1', 'or', 100, 0), inst('n1', 'not', 200, 0)],
+      instances: [inst('a1', forkOf('and'), 0, 0), inst('o1', forkOf('or'), 100, 0), inst('n1', forkOf('not'), 200, 0)],
       connections: [
         { id: 'c1', from: { instanceId: 'a1', portId: 'out:0' }, to: { instanceId: 'o1', portId: 'in:0' } },
         { id: 'c2', from: { instanceId: 'o1', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } },
       ],
     }
-    const design: Design = { version: 1, root: 'main', library: {}, defs }
+    const design: Design = { version: 2, root: main, library: {} }
 
-    // a1 + o1 share the internal connection c1; c2 crosses into the unselected n1.
-    const clip = captureClipboard(design, 'main', ['a1', 'o1'])!
+    const clip = captureClipboard(main, ['a1', 'o1'])!
     expect(clip.connections.map((c) => c.id)).toEqual(['c1'])
 
-    const { design: pasted, newIds } = instantiateClipboard(design, 'main', clip, { x: 10, y: 10 })
-    const main = pasted.defs['main'] as CompositeDef
+    const newIds = instantiateClipboard(main, clip, allCompositeIds(design), { x: 10, y: 10 })
     expect(main.instances).toHaveLength(5)
     expect(main.connections).toHaveLength(3)
 
-    // The pasted connection runs between the two newly-created instances.
-    const pastedConn = main.connections!.find((c) => c.id !== 'c1' && c.id !== 'c2')!
+    const pastedConn = main.connections.find((c) => c.id !== 'c1' && c.id !== 'c2')!
     expect(newIds).toContain(pastedConn.from.instanceId)
     expect(newIds).toContain(pastedConn.to.instanceId)
     expect(pastedConn.from.portId).toBe('out:0')
@@ -153,36 +120,28 @@ describe('captureClipboard + instantiateClipboard', () => {
   })
 
   it('excludes port-group instances and their connections', () => {
-    const defs: Record<string, ComponentDef> = {
-      and: primitiveDef('and'),
-      'input-port': inputPortDef(),
-    }
-    defs['main'] = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
-      instances: [inst('a1', 'and', 0, 0), inst('pg', 'input-port', 100, 0)],
+      instances: [inst('a1', forkOf('and'), 0, 0), inst('pg', INPUT_PORT, 100, 0)],
       connections: [{ id: 'c1', from: { instanceId: 'pg', portId: 'in:0' }, to: { instanceId: 'a1', portId: 'in:0' } }],
     }
-    const design: Design = { version: 1, root: 'main', library: {}, defs }
-
-    const clip = captureClipboard(design, 'main', ['a1', 'pg'])!
+    const clip = captureClipboard(main, ['a1', 'pg'])!
     expect(clip.instances.map((i) => i.id)).toEqual(['a1'])
     expect(clip.connections).toHaveLength(0)
   })
 
   it('returns null when only port groups are selected', () => {
-    const defs: Record<string, ComponentDef> = { 'input-port': inputPortDef() }
-    defs['main'] = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
-      instances: [inst('pg', 'input-port', 0, 0)],
+      instances: [inst('pg', INPUT_PORT, 0, 0)],
       connections: [],
     }
-    const design: Design = { version: 1, root: 'main', library: {}, defs }
-    expect(captureClipboard(design, 'main', ['pg'])).toBeNull()
+    expect(captureClipboard(main, ['pg'])).toBeNull()
   })
 })

@@ -1,9 +1,9 @@
 import { useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { useEditorStore } from '../state/editorStore'
+import { resolveNav, useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore } from '../state/simStore'
-import { getDef, isTemplateDef } from '@gatefold/model'
+import { childLabel } from '@gatefold/model'
 
 /**
  * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
@@ -190,14 +190,22 @@ export function Toolbar() {
       <div className="tb-divider" />
 
       <div className="breadcrumb">
-        {navStack.map((id, i) => {
-          const def = getDef(design, id)
-          const name = def?.name ?? id
+        {navStack.map((step, i) => {
           const isLast = i === navStack.length - 1
-          // Mark library templates (not the root, not an instance copy).
-          const isTemplate = !!def && isTemplateDef(design, def)
+          let name: string
+          let isTemplate = false
+          if (step.kind === 'root') {
+            name = design.root.name
+          } else if (step.kind === 'template') {
+            name = design.library[step.id]?.name ?? step.id
+            isTemplate = true
+          } else {
+            const parent = resolveNav(design, navStack.slice(0, i))
+            const inst = parent && parent.kind === 'composite' ? parent.instances.find((x) => x.id === step.id) : undefined
+            name = inst ? childLabel(inst.def) : step.id
+          }
           return (
-            <span key={id} className="crumb">
+            <span key={i} className="crumb">
               {i > 0 && <span className="crumb-sep">/</span>}
               {isLast ? <span className="crumb-current">{name}</span> : <span className="crumb-link">{name}</span>}
               {isTemplate && <span className="crumb-kind">template</span>}

@@ -176,7 +176,7 @@ export function LibraryPanel({ width }: { width: number }) {
         <div className="lib-components">
           <div className="lib-grid">
             {visible.map((d) => {
-              const editing = navStack.includes(d.id)
+              const editing = navStack.some((s) => s.kind === 'template' && s.id === d.id)
               return (
                 <button
                   key={d.id}
@@ -185,7 +185,7 @@ export function LibraryPanel({ width }: { width: number }) {
                   onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', d.id)}
                   onClick={() => setActive(d.id)}
                   onDoubleClick={() => {
-                    if (!simulating) navigateTo(d.id)
+                    if (!simulating) navigateTo({ kind: 'template', id: d.id })
                   }}
                   title={editing ? `Editing ${d.name}` : `Drag to place · double-click to edit ${d.name}`}
                 >

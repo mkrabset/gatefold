@@ -1,5 +1,5 @@
-import type { ComponentDef, Design, Instance, PrimitiveDef, PrimitiveKind, PropertyValue } from '@gatefold/model'
-import { isPortGroupDef, pinWidth, UnionFind } from '@gatefold/model'
+import type { CompositeDef, Design, Instance, Port, PrimitiveKind, PropertyValue } from '@gatefold/model'
+import { childPorts, isPortGroupDef, pinWidth, UnionFind } from '@gatefold/model'
 
 export interface FlatPort {
   portId: string
@@ -38,8 +38,9 @@ export function joinInstancePath(path: string, id: string): string {
 interface Leaf {
   id: string
   inst: Instance
-  def: PrimitiveDef
-  parentDef: ComponentDef
+  kind: PrimitiveKind
+  ports: Port[]
+  parentDef: CompositeDef
 }
 
 /**
@@ -57,11 +58,8 @@ export function flatten(design: Design): Netlist {
   const join = (path: string, id: string): string => joinInstancePath(path, id)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
 
-  const flattenDef = (defId: string, path: string): void => {
-    const def = design.defs[defId]
-    if (!def || def.kind !== 'composite') return
-
-    for (const c of def.connections ?? []) {
+  const flattenDef = (def: CompositeDef, path: string): void => {
+    for (const c of def.connections) {
       const fk = pinKey(join(path, c.from.instanceId), c.from.portId)
       const tk = pinKey(join(path, c.to.instanceId), c.to.portId)
       allPins.add(fk)
@@ -87,16 +85,16 @@ export function flatten(design: Design): Netlist {
       }
     }
 
-    for (const inst of def.instances ?? []) {
-      const idef = design.defs[inst.defId]
-      if (!idef) continue
+    for (const inst of def.instances) {
+      const idef = inst.def
       if (isPortGroupDef(idef)) continue // dissolved through terminals
       const childPath = join(path, inst.id)
       if (idef.kind === 'composite') {
-        flattenDef(inst.defId, childPath)
+        flattenDef(idef, childPath)
       } else {
-        for (const p of idef.ports) allPins.add(pinKey(childPath, p.id))
-        leaves.push({ id: childPath, inst, def: idef, parentDef: def })
+        const ports = childPorts(idef)
+        for (const p of ports) allPins.add(pinKey(childPath, p.id))
+        leaves.push({ id: childPath, inst, kind: idef.primitive, ports, parentDef: def })
       }
     }
   }
@@ -120,12 +118,11 @@ export function flatten(design: Design): Netlist {
 
   const instances: FlatInstance[] = []
   for (const leaf of leaves) {
-    const kind = leaf.def.primitive
     const inputs: FlatPort[] = []
     const outputs: FlatPort[] = []
-    for (const p of leaf.def.ports) {
+    for (const p of leaf.ports) {
       const net = netIdOf(pinKey(leaf.id, p.id))
-      const w = pinWidth(design, leaf.parentDef, { instanceId: leaf.inst.id, portId: p.id })
+      const w = pinWidth(leaf.parentDef, { instanceId: leaf.inst.id, portId: p.id })
       if (w > netWidths[net]) netWidths[net] = w
       const port = { portId: p.id, net, inverted: p.inverted === true }
       if (p.direction === 'input') inputs.push(port)
@@ -134,7 +131,7 @@ export function flatten(design: Design): Netlist {
         driven[net] = true
       }
     }
-    instances.push({ id: leaf.id, kind, props: leaf.inst.props, inputs, outputs })
+    instances.push({ id: leaf.id, kind: leaf.kind, props: leaf.inst.props, inputs, outputs })
   }
 
   // Synthesized inverters for inverted composite terminals: a buffer whose output is

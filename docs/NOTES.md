@@ -1,19 +1,53 @@
 # Session Notes
 
-Last updated: 2026-09-05 (two-part model: library + content tree, `variant` flag removed).
+Last updated: 2026-09-05 (nested-object model — flat `defs` id-lookup removed).
 
 ## Where we are
 
 Gatefold is a graphical logic-circuit designer/simulator (TypeScript + React + Zustand +
-HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
-hierarchical circuits, with JSON save/load and library export/import, **and a working
-event-driven simulator** (combinational + gate-built latches/flip-flops, buses, probe
-components, signal-colored wires). The document is now split into a **library** (templates)
-and a **content tree** (live objects), with `uuid` lineage soft-links instead of a `variant`
-flag. See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design),
-`docs/GLOSSARY.md` (terminology).
+HTML5 canvas, pnpm monorepo). The document is now a **nested object tree**: a composite owns
+its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a nested
+`CompositeDef`), so deleting a template deletes its children for free — there is no flat
+`defs` map, no `defId` back-references, no `variant` flag, and no reachability GC. See
+`docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSARY.md` (terminology),
+`docs/NESTED_MODEL_REFACTOR.md` (the plan + locked decisions).
 
 ## Latest (this session)
+
+- **Nested-object model redesign** (the `NESTED_MODEL_REFACTOR` task): replaced the flat
+  `Design = { root, library, defs }` + `Instance.defId` string lookups with a tree where a
+  composite owns its children inline:
+
+  - **Model** (`packages/model/src/types.ts`) — `Design = { version, root: CompositeDef,
+    library: Record<string, CompositeDef> }`; `Instance.def: ChildDef` where
+    `ChildDef = builtin | fork | CompositeDef`. `builtin` is a shared immutable primitive
+    reference (the port groups + the join-point); `fork` is an owned primitive with its own
+    `ports` (every placed primitive, carrying per-instance `inverted`/arity); a composite is
+    owned inline. `CompositeDef.instances`/`connections` are now required.
+  - **Model core** — `getDef`, `combinedDefs`, `collectClosure`, `unreachableDefIds`,
+    `remapInstanceDefs`, `instancesReferencing`, `isDefReferenced`, `relocateToLibrary` are
+    gone. New: `cloneChildDef`/`cloneComposite` (deep-clone with fresh composite ids,
+    preserving `uuid` and instance ids), `walkComposites`/`findComposite`/`allCompositeIds`.
+    `inferGroup(parent, ids)` and `applyGroup(design, parentId, …)` operate on composites;
+    the template owns its moved instances inline. `clipboard` deep-clones inline subtrees.
+    `deleteTemplate` is `delete library[id]` + `uuid` soft-link clearing. `widths` caches by
+    `WeakMap<CompositeDef, SheetWidths>` (object identity) and resolves `inst.def`.
+  - **Serialization** — `{ version: 2, root: <composite>, library: { id: <composite> } }`.
+    `parseDesign` migrates the v1 two-part flat shape and the older flat-`variant` shape into
+    the nested model (`flatToNested`). `sanitizeDesign` drops dangling connections only.
+    `stripBuiltinPrimitives`/`withBuiltinPrimitives` removed (built-ins are inline references).
+  - **Sim/Verilog** — `netlist.ts`/`verilog.ts` walk the nested tree (`inst.def` instead of
+    `design.defs[inst.defId]`); the flattened instance path / module naming are unchanged.
+  - **App** — `navStack` is now a discriminated `NavStep[]` (`root` / `instance` / `template`),
+    resolved by `resolveNav`; the sim's `path`/`viewingLive` reuse it. `editorStore` drops
+    `copyDefIntoSide`/`pruneOrphanedDefs`/`findArrayRef`; port editing targets a placed
+    instance by id, and `pruneConnectionsToPorts` becomes a direct-parent prune. geometry/
+    renderer/wireSearch take the current `ChildDef` (no `design` threading).
+  - **Tests** — fixtures rewritten to nested (model 109, sim 36, verilog 17, app 76; 238
+    total). The flat-model GC/closure/remap/`withBuiltinPrimitives` tests were dropped along
+    with the machinery. Architecture + glossary updated.
+
+## Earlier (this session)
 
 - **Two-part model: library + content tree, `variant` removed** — a large model/persistence
   refactor so that "Save JSON" and "Export library" share one code path for the library body:

@@ -1,145 +1,87 @@
-import type { ComponentDef, Connection, Design, Instance } from './types'
-import { getDef, nextConnectionId } from './types'
-import { cloneDef, cloneDesign } from './group'
+import type { CompositeDef, Connection, Instance } from './types'
+import { nextConnectionId } from './types'
+import { cloneChildDef } from './group'
 import { isPortGroupDef } from './primitives'
-import { collectClosure, combinedDefs, remapInstanceDefs, uniqueId } from './util'
+import { uniqueId } from './util'
 
 /**
- * Copy/paste primitives. A clipboard is a self-contained snapshot: a set of
- * deep-copied component definitions plus the copied instances that reference them,
- * and the connections that run entirely within the copied selection. Because the app
- * uses copy-on-place, pasting re-copies the whole transitive def closure so each
- * paste is fully independent of the originals.
+ * Copy/paste primitives. A clipboard is a self-contained snapshot: deep-copied
+ * instances (with their inline child defs) plus the connections that run entirely
+ * within the copied selection. Because the app uses copy-on-place, pasting re-copies
+ * the whole selection so each paste is fully independent of the originals.
  */
 
 export interface Clipboard {
-  defs: Record<string, ComponentDef>
   instances: Instance[]
   /** Connections whose both endpoints are within the copied selection. */
   connections: Connection[]
 }
 
 /**
- * Deep-copy a set of root defs and their transitive closure into fresh, unique defs.
- * The special port-group primitives are *not* copied (they stay shared). Returns the
- * copied defs keyed by their new ids, plus a map from old id to new id.
+ * Snapshot the selected instances (and their inline defs) into a clipboard. Port-group
+ * instances (a composite's input/output terminal rectangles) are never copied — they
+ * are derived from the enclosing composite's ports.
  */
-export function copyDefSubgraph(
-  defs: Record<string, ComponentDef>,
-  rootIds: string[],
-  usedIds: Set<string>,
-): { defs: Record<string, ComponentDef>; idMap: Map<string, string> } {
-  const closure = collectClosure(defs, rootIds, (def) => isPortGroupDef(def))
-
-  const idMap = new Map<string, string>()
-  for (const oldId of closure) {
-    const newId = uniqueId(usedIds, oldId, '~')
-    usedIds.add(newId)
-    idMap.set(oldId, newId)
-  }
-
-  const result: Record<string, ComponentDef> = {}
-  for (const oldId of closure) {
-    const def = cloneDef(defs[oldId])
-    def.id = idMap.get(oldId)!
-    remapInstanceDefs(def, idMap)
-    result[def.id] = def
-  }
-
-  return { defs: result, idMap }
-}
-
-/** Snapshot the selected instances (and their def closure) into a clipboard. */
-export function captureClipboard(design: Design, defId: string, instanceIds: string[]): Clipboard | null {
-  const def = getDef(design, defId)
-  if (!def || def.kind !== 'composite') return null
-  // Port-group instances (a composite's input/output terminal rectangles) are never
-  // copied — they are derived from the enclosing composite's ports.
-  const selected = (def.instances ?? []).filter((i) => {
-    if (!instanceIds.includes(i.id)) return false
-    const idef = getDef(design, i.defId)
-    return !!idef && !isPortGroupDef(idef)
-  })
+export function captureClipboard(parent: CompositeDef, instanceIds: string[]): Clipboard | null {
+  const selected = parent.instances.filter((i) => instanceIds.includes(i.id) && !isPortGroupDef(i.def))
   if (selected.length === 0) return null
 
   const selectedIds = new Set(selected.map((i) => i.id))
-  const connections = (def.connections ?? [])
+  const connections = parent.connections
     .filter((c) => selectedIds.has(c.from.instanceId) && selectedIds.has(c.to.instanceId))
     .map((c) => ({ id: c.id, from: { ...c.from }, to: { ...c.to } }))
 
-  const rootIds = selected.map((i) => i.defId)
-  const { defs, idMap } = copyDefSubgraph(combinedDefs(design), rootIds, new Set())
+  const instances = selected.map((inst) => ({
+    id: inst.id,
+    name: inst.name,
+    pos: { ...inst.pos },
+    ...(inst.props ? { props: { ...inst.props } } : {}),
+    def: cloneChildDef(inst.def, new Set()),
+  }))
 
-  return {
-    defs,
-    instances: selected.map((inst) => ({
-      ...inst,
-      pos: { ...inst.pos },
-      defId: idMap.get(inst.defId) ?? inst.defId,
-    })),
-    connections,
-  }
+  return { instances, connections }
 }
 
 /**
- * Paste a clipboard into a definition, re-copying with fresh ids and offsetting the
- * positions. Returns a new design and the ids of the newly created instances.
+ * Paste a clipboard into a composite, re-copying with fresh instance and composite ids
+ * and offsetting the positions. Mutates `parent` (an immer draft in the app) and
+ * returns the ids of the newly created instances.
  */
 export function instantiateClipboard(
-  design: Design,
-  defId: string,
+  parent: CompositeDef,
   clipboard: Clipboard,
+  usedIds: Set<string>,
   offset: { x: number; y: number },
-): { design: Design; newIds: string[] } {
-  const result = cloneDesign(design)
-  const def = getDef(result, defId)
-  if (!def || def.kind !== 'composite') return { design: result, newIds: [] }
-  // Pasted copies go into the map the target scope lives in (content tree or library).
-  const target: 'defs' | 'library' = defId in result.library ? 'library' : 'defs'
-
-  const rootIds = clipboard.instances.map((i) => i.defId)
-  const { defs, idMap } = copyDefSubgraph(
-    clipboard.defs,
-    rootIds,
-    new Set([...Object.keys(result.library), ...Object.keys(result.defs)]),
-  )
-  for (const [id, d] of Object.entries(defs)) {
-    result[target][id] = d
-  }
-
-  if (!def.instances) def.instances = []
-  const usedInstanceIds = new Set(def.instances.map((i) => i.id))
+): string[] {
+  const usedInstanceIds = new Set(parent.instances.map((i) => i.id))
   const instIdMap = new Map<string, string>()
   const newIds: string[] = []
   for (const inst of clipboard.instances) {
     const id = uniqueId(usedInstanceIds, inst.id, '~')
     usedInstanceIds.add(id)
     instIdMap.set(inst.id, id)
-    def.instances.push({
+    parent.instances.push({
       id,
       name: inst.name,
-      defId: idMap.get(inst.defId) ?? inst.defId,
       pos: { x: inst.pos.x + offset.x, y: inst.pos.y + offset.y },
       ...(inst.props ? { props: { ...inst.props } } : {}),
+      def: cloneChildDef(inst.def, usedIds),
     })
     newIds.push(id)
   }
 
   // Re-create the connections that ran entirely within the copied selection, using
   // the freshly-assigned instance ids.
-  if (clipboard.connections.length > 0) {
-    if (!def.connections) def.connections = []
-    for (const c of clipboard.connections) {
-      const from = instIdMap.get(c.from.instanceId)
-      const to = instIdMap.get(c.to.instanceId)
-      if (!from || !to) continue
-      def.connections.push({
-        id: nextConnectionId(def.connections),
-        from: { instanceId: from, portId: c.from.portId },
-        to: { instanceId: to, portId: c.to.portId },
-      })
-    }
+  for (const c of clipboard.connections) {
+    const from = instIdMap.get(c.from.instanceId)
+    const to = instIdMap.get(c.to.instanceId)
+    if (!from || !to) continue
+    parent.connections.push({
+      id: nextConnectionId(parent.connections),
+      from: { instanceId: from, portId: c.from.portId },
+      to: { instanceId: to, portId: c.to.portId },
+    })
   }
 
-  return { design: result, newIds }
+  return newIds
 }

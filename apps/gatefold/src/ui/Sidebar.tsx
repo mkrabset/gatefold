@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useEditorStore } from '../state/editorStore'
+import { resolveNav, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
-import type { ComponentDef, Instance, PropertyValue } from '@gatefold/model'
+import type { ChildDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
-import { allowInversion, allowRenameTerminals, getDef, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
+import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
 import { PRIMITIVE_ICONS } from '../icons'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
@@ -56,23 +56,21 @@ function TreeItem(props: TreeItemProps) {
 }
 
 function CompositeChildren({ def, depth, selectId, onOpen }: {
-  def: ComponentDef
+  def: ChildDef
   depth: number
   selectId: (id: string) => void
   onOpen: (id: string) => void
 }) {
   const selectedIds = useEditorStore((s) => s.selectedIds)
-  const design = useEditorStore((s) => s.design)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const instances = def.kind === 'composite' ? def.instances : undefined
 
   return (
     <>
       {instances?.map((inst: Instance) => {
-        const childDef = getDef(design, inst.defId)
-        const isComposite = childDef?.kind === 'composite'
+        const isComposite = inst.def.kind === 'composite'
         const isExpanded = expanded[inst.id] ?? false
-        const primitiveKind = childDef && childDef.kind === 'primitive' ? childDef.primitive : undefined
+        const primitiveKind = childPrimitive(inst.def) ?? undefined
         const iconSrc = primitiveKind ? PRIMITIVE_ICONS[primitiveKind] : undefined
         const icon = primitiveKind ? undefined : '▣'
         return (
@@ -88,10 +86,10 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
               expanded={isExpanded}
               onToggle={() => setExpanded((m) => ({ ...m, [inst.id]: !m[inst.id] }))}
               onSelect={() => selectId(inst.id)}
-              onOpen={childDef && isNavigableDef(childDef) ? () => onOpen(inst.defId) : undefined}
+              onOpen={isNavigableDef(inst.def) ? () => onOpen(inst.id) : undefined}
             />
             {isComposite && isExpanded && (
-              <CompositeChildren def={childDef} depth={depth + 1} selectId={selectId} onOpen={onOpen} />
+              <CompositeChildren def={inst.def} depth={depth + 1} selectId={selectId} onOpen={onOpen} />
             )}
           </div>
         )
@@ -111,12 +109,12 @@ export function Sidebar({ width }: { width: number }) {
 
   // In simulate mode, navigation is done on the canvas (which keeps the sim path in
   // sync); entering defs from the tree is disabled.
-  const openDef = (defId: string) => {
-    if (!simulating) navigateTo(defId)
+  const openDef = (instanceId: string) => {
+    if (!simulating) navigateTo({ kind: 'instance', id: instanceId })
   }
 
-  const rootDef = getDef(design, design.root)!
-  const current = getDef(design, navStack[navStack.length - 1])!
+  const rootDef = design.root
+  const current = resolveNav(design, navStack) ?? design.root
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -170,11 +168,10 @@ export function Sidebar({ width }: { width: number }) {
 function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
-  const currentDefId = navStack[navStack.length - 1]
+  const current = resolveNav(design, navStack) ?? design.root
   if (selectedIds.length === 0) {
     // Editing a composite template with nothing selected: allow renaming the template.
-    const current = getDef(design, currentDefId)
-    const isTemplate = !!current && isTemplateDef(design, current)
+    const isTemplate = current.kind === 'composite' && isTemplateDef(design, current)
     if (isTemplate) {
       return (
         <div className="props">
@@ -190,15 +187,11 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   if (selectedIds.length > 1) {
     return <div className="props-empty">{selectedIds.length} components selected</div>
   }
-  const current = getDef(design, currentDefId)
-  const inst = (current?.kind === 'composite' ? current.instances : undefined)?.find((i) => i.id === selectedIds[0])
+  const inst = current.kind === 'composite' ? current.instances.find((i) => i.id === selectedIds[0]) : undefined
   if (!inst) {
     return <div className="props-empty">Nothing selected</div>
   }
-  const def = getDef(design, inst.defId)
-  if (!def) {
-    return <div className="props-empty">Nothing selected</div>
-  }
+  const def = inst.def
   return (
     <div className="props">
       <label className="field">
@@ -207,11 +200,10 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
       </label>
       <label className="field">
         <span>Type</span>
-        <input defaultValue={def.kind === 'primitive' ? def.primitive : 'composite'} readOnly />
+        <input defaultValue={childPrimitive(def) ?? 'composite'} readOnly />
       </label>
-      {def.kind === 'primitive' &&
-        def.primitive &&
-        primitiveOf(def.primitive)
+      {childPrimitive(def) &&
+        primitiveOf(childPrimitive(def)!)
           .properties()
           .map((spec) => (
             <label className="field" key={spec.name}>
@@ -224,7 +216,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
               />
             </label>
           ))}
-      {!isPortGroupDef(def) && <PortsGroups defId={inst.defId} />}
+      {!isPortGroupDef(def) && <PortsGroups instanceId={inst.id} />}
     </div>
   )
 }
@@ -300,7 +292,7 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
   return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setInstanceProp(instanceId, spec.name, raw)} />
 }
 
-function PortsGroups({ defId }: { defId?: string }) {
+function PortsGroups({ instanceId }: { instanceId?: string }) {
   const design = useEditorStore((s) => s.design)
   const navStack = useEditorStore((s) => s.navStack)
   const renamePort = useEditorStore((s) => s.renamePort)
@@ -308,16 +300,21 @@ function PortsGroups({ defId }: { defId?: string }) {
   const addPort = useEditorStore((s) => s.addPort)
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
-  const target = defId ?? navStack[navStack.length - 1]
-  const current = getDef(design, target)!
+  const scope = resolveNav(design, navStack)
+  const current = instanceId !== undefined
+    ? scope && scope.kind === 'composite' ? scope.instances.find((i) => i.id === instanceId)?.def : undefined
+    : scope
+  if (!current) return null
   const renameAllowed = allowRenameTerminals(current)
   // Templates keep clean (non-inverted) terminals; inversion is instance-level. The
-  // scope's own terminals (the input/output port groups, edited without a defId) are
-  // never invertable — only a selected instance's terminals (defId set) get checkboxes,
-  // and a primitive that forbids inversion (e.g. the NODE join-point) never does either.
-  const invertAllowed = defId !== undefined && !isTemplateDef(design, current) && allowInversion(current)
+  // scope's own terminals (the input/output port groups, edited without an instanceId)
+  // are never invertable — only a selected instance's terminals (instanceId set) get
+  // checkboxes, and a primitive that forbids inversion (e.g. the NODE join-point)
+  // never does either.
+  const invertAllowed = instanceId !== undefined && !(current.kind === 'composite' && isTemplateDef(design, current)) && allowInversion(current)
+  const ports = childPorts(current)
 
-  const renderGroup = (title: string, ports: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => {
+  const renderGroup = (title: string, groupPorts: ReturnType<typeof inputPorts>, direction: 'input' | 'output') => {
     const fixed = isArityFixed(current, direction)
     return (
       <div className="ports-group">
@@ -327,22 +324,22 @@ function PortsGroups({ defId }: { defId?: string }) {
             className="mini-btn"
             title={fixed ? `The number of ${direction}s is fixed` : `Add ${direction}`}
             disabled={fixed}
-            onClick={() => addPort(direction, defId)}
+            onClick={() => addPort(direction, instanceId)}
           >
             +
           </button>
         </div>
         <SortablePortList
-          key={current.id}
+          key={current.kind === 'composite' ? current.id : 'primitive'}
           direction={direction}
-          ports={ports}
+          ports={groupPorts}
           fixed={fixed}
           renameAllowed={renameAllowed}
           invertAllowed={invertAllowed}
-          onRename={(portId, name) => renamePort(portId, name, defId)}
-          onToggleInverted={(portId, inverted) => setPortInverted(portId, inverted, defId)}
-          onRemove={(portId) => removePort(portId, defId)}
-          onReorder={(direction, ids) => setPortOrder(direction, ids, defId)}
+          onRename={(portId, name) => renamePort(portId, name, instanceId)}
+          onToggleInverted={(portId, inverted) => setPortInverted(portId, inverted, instanceId)}
+          onRemove={(portId) => removePort(portId, instanceId)}
+          onReorder={(direction, ids) => setPortOrder(direction, ids, instanceId)}
         />
       </div>
     )
@@ -350,8 +347,8 @@ function PortsGroups({ defId }: { defId?: string }) {
 
   return (
     <>
-      {renderGroup('Inputs', inputPorts(current), 'input')}
-      {renderGroup('Outputs', outputPorts(current), 'output')}
+      {renderGroup('Inputs', inputPorts(ports), 'input')}
+      {renderGroup('Outputs', outputPorts(ports), 'output')}
     </>
   )
 }

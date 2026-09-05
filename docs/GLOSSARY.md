@@ -5,14 +5,28 @@ authoritative — update this when a term's meaning changes.
 
 ## Core data
 
-- **Design** — the whole document: `{ version, root, defs }`. The unit saved/loaded as JSON.
-- **Definition (`ComponentDef`)** — a reusable *type*: a `primitive` or `composite`.
-  Has `id`, `name`, `kind`, `ports`, and (composites only) `instances` + `connections`.
-- **Instance** — a concrete placement of a definition at a position, with a unique `id` and a
-  display `name` (not enforced unique; logic keys off `id` only). References its def via `defId`.
+- **Design** — the whole document: `{ version, root, library }`. The unit saved/loaded as JSON.
+  The model is **nested**: a composite owns its children as inline objects (there is no
+  flat id-lookup map).
+- **Definition** — a reusable *type*. Two kinds: a **primitive** (built-in behavior) or a
+  **composite** (`CompositeDef`: `id`, `name`, `ports`, `instances`, `connections`, plus
+  `uuid`/`category`).
+- **Child def (`ChildDef`)** — what an instance actually holds, inline. A discriminated
+  union: `builtin` (a shared primitive referenced by kind — the port groups and the
+  join-point), `fork` (an owned primitive with its own `ports`, carrying per-instance
+  inversion/arity), or a nested `CompositeDef`.
+- **Instance** — a concrete placement of a definition at a position, with a unique `id`, a
+  display `name` (not enforced unique; logic keys off `id` only), and an inline `def:
+  ChildDef` (owned by the parent composite). There is no `defId` string back-reference.
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
   and the probe primitives 7-SEG, SWITCHES, LEDS. Not editable as a circuit.
+- **Fork** — an owned primitive child def with its own `ports`. Every *placed* primitive is
+  a fork from birth (copy-on-place), because per-instance terminal `inverted` and array
+  `terminalType`/wire-count live on the fork's ports. A shared `builtin` cannot carry that.
+- **Builtin** — a shared, immutable primitive reference (`{ kind: 'builtin', primitive }`)
+  whose ports are derived from the registry. Used only for the port groups
+  (`input-port`/`output-port`) and the join-point.
 - **Node (join-point)** — a single-wire passthrough drawn as a filled dot whose one input
   terminal and one output terminal coincide at the body center (`coincidentTerminals`). Multiple
   wires exit by fan-out from its single output. Wires radiating from the dot collapse their
@@ -66,14 +80,13 @@ authoritative — update this when a term's meaning changes.
   card and choosing a category (or typing a new one). Serialized with the design and carried
   through library export/import.
 - **Copy** — an instantiation of a template (or a fork of a primitive) that is a full, independent
-  definition. A **live copy** lives in the content tree (`design.defs`); an **embedded copy** lives
-  in the library as "part of" a template (referenced by that template's instances). Whether a def
+  definition. A **live copy** lives in the content tree (a nested `CompositeDef` under `root`);
+  an **embedded copy** lives inline inside a library template as "part of" it. Whether a def
   is a template or a copy is determined purely by *location* — there is no `variant` flag.
-- **Content tree** — the live objects: the root composite plus every live copy, keyed in
-  `design.defs` (which also holds the built-in primitives). `design.root` points at the root node.
-- **Library** — the set of templates (`design.library`): origin templates plus their embedded
-  copies and primitive forks. Self-contained: a library entry's instances reference only built-in
-  primitives or other library entries.
+- **Content tree** — the live objects: the root composite plus every live copy, all nested
+  under `design.root` (which is a `CompositeDef`).
+- **Library** — the set of templates (`design.library`): origin templates, keyed by id. A
+  template owns its embedded copies inline (nested), so it is self-contained.
 - **Lineage id (`uuid`)** — a `CompositeDef.uuid`. On an origin template it is the template's
   identity; on a copy (embedded or live) it is a **soft link** back to the origin template that
   instantiated it. `id` stays the unique key; `uuid` is for origin/apply. Deleting a template

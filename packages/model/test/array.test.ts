@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, Design } from '../src/types'
-import { arrayPorts, defaultPropsOf, primitiveDef, primitiveOf } from '../src/primitives'
+import type { ChildDef, CompositeDef, Instance } from '../src/types'
+import { arrayPorts, defaultPropsOf, forkOf, primitiveOf } from '../src/primitives'
 import { connectionError } from '../src/widths'
+
+const inst = (id: string, def: ChildDef, x = 0, y = 0, props?: Instance['props']): Instance => ({
+  id,
+  name: id,
+  def,
+  pos: { x, y },
+  ...(props ? { props } : {}),
+})
 
 describe('array primitives', () => {
   it('builds switch-array/led-array with bus defaults', () => {
-    const sa = primitiveDef('switch-array')
+    const sa = forkOf('switch-array')
     expect(sa.ports.map((p) => p.id)).toEqual(['out:0'])
     expect(sa.ports[0].direction).toBe('output')
 
-    const la = primitiveDef('led-array')
+    const la = forkOf('led-array')
     expect(la.ports.map((p) => p.id)).toEqual(['in:0'])
     expect(la.ports[0].direction).toBe('input')
 
@@ -32,92 +40,62 @@ describe('array primitives', () => {
   })
 
   it('rejects connecting a WIRE terminal to a bus of a different width', () => {
-    const main: ComponentDef = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
       instances: [
-        { id: 'sa', name: 'sa', defId: 'switch-array', pos: { x: 0, y: 0 } },
-        { id: 'fo', name: 'fo', defId: 'fan-out', pos: { x: 100, y: 0 } },
+        inst('sa', { kind: 'fork', primitive: 'switch-array', ports: arrayPorts('output', 'wire', 1) }),
+        inst('fo', forkOf('fan-out'), 100, 0),
       ],
       connections: [],
     }
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      library: {},
-      defs: {
-        'switch-array': { id: 'switch-array', name: 'SWITCHES', kind: 'primitive', primitive: 'switch-array', ports: arrayPorts('output', 'wire', 1) },
-        'fan-out': primitiveDef('fan-out'),
-        main,
-      },
-    }
-    // sa.out:0 is width 1; fo.in:0 is a bus (width = 2 outputs).
-    expect(connectionError(design, main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
+    expect(connectionError(main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 
   it('BUS fixes the width of its terminals to the lanes property', () => {
-    const main: ComponentDef = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
       instances: [
-        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 8 } },
-        { id: 'and', name: 'and', defId: 'and', pos: { x: 100, y: 0 } },
+        inst('b', forkOf('bus'), 0, 0, { lanes: 8 }),
+        inst('and', forkOf('and'), 100, 0),
       ],
       connections: [],
     }
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      library: {},
-      defs: { bus: primitiveDef('bus'), and: primitiveDef('and'), main },
-    }
-    // b.out:0 is fixed width 8; and.in:0 is width 1 → mismatch.
-    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
+    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 
   it('rejects a bus width that is not a multiple of 4 for seven-seg', () => {
-    const main: ComponentDef = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
       instances: [
-        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 6 } },
-        { id: 'seg', name: 'seg', defId: 'seven-seg', pos: { x: 100, y: 0 } },
+        inst('b', forkOf('bus'), 0, 0, { lanes: 6 }),
+        inst('seg', forkOf('seven-seg'), 100, 0),
       ],
       connections: [],
     }
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      library: {},
-      defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
-    }
-    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
+    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
   })
 
   it('rejects a bus wider than 64 lanes for seven-seg', () => {
-    const main: ComponentDef = {
+    const main: CompositeDef = {
       id: 'main',
       name: 'main',
       kind: 'composite',
       ports: [],
       instances: [
-        { id: 'b', name: 'b', defId: 'bus', pos: { x: 0, y: 0 }, props: { lanes: 68 } },
-        { id: 'seg', name: 'seg', defId: 'seven-seg', pos: { x: 100, y: 0 } },
+        inst('b', forkOf('bus'), 0, 0, { lanes: 68 }),
+        inst('seg', forkOf('seven-seg'), 100, 0),
       ],
       connections: [],
     }
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      library: {},
-      defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
-    }
-    expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')
+    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')
   })
 })

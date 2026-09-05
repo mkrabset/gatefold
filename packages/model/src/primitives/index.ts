@@ -1,4 +1,4 @@
-import type { ComponentDef, Design, Port, PortDirection, PrimitiveKind, PropertyValue } from '../types'
+import type { ChildDef, Port, PortDirection, PrimitiveKind, PropertyValue } from '../types'
 import type { Primitive } from './primitive'
 import { AndGate } from './and'
 import { OrGate } from './or'
@@ -55,9 +55,41 @@ export function primitiveOf(kind: PrimitiveKind): Primitive {
   return PRIMITIVES[kind]
 }
 
+/** True when `kind` names a registered primitive kind. */
+export function isPrimitiveKind(kind: string): kind is PrimitiveKind {
+  return kind in PRIMITIVES
+}
+
 /** The behaviour objects for the placeable library primitives. */
 export function libraryPrimitives(): Primitive[] {
   return LIBRARY_KINDS.map((k) => PRIMITIVES[k])
+}
+
+/** The primitive kind of a child def, or null for a composite. */
+export function childPrimitive(def: ChildDef): PrimitiveKind | null {
+  return def.kind === 'composite' ? null : def.primitive
+}
+
+/** A child def's ports (built-ins derive theirs from the registry). */
+export function childPorts(def: ChildDef): Port[] {
+  if (def.kind === 'composite' || def.kind === 'fork') return def.ports
+  return PRIMITIVES[def.primitive].defaultPorts()
+}
+
+/** A child def's display label (built-ins/fork use the primitive label). */
+export function childLabel(def: ChildDef): string {
+  if (def.kind === 'composite') return def.name
+  return PRIMITIVES[def.primitive].label
+}
+
+/** A shared built-in child reference (ports derived from the registry). */
+export function builtinOf(kind: PrimitiveKind): ChildDef {
+  return { kind: 'builtin', primitive: kind }
+}
+
+/** An owned primitive fork carrying the registry's default ports. */
+export function forkOf(kind: PrimitiveKind): ChildDef & { kind: 'fork' } {
+  return { kind: 'fork', primitive: kind, ports: PRIMITIVES[kind].defaultPorts() }
 }
 
 /** Fold a primitive's property schema into a `{ name: default }` record. */
@@ -65,79 +97,53 @@ export function defaultPropsOf(kind: PrimitiveKind): Record<string, PropertyValu
   return Object.fromEntries(PRIMITIVES[kind].properties().map((p) => [p.name, p.default]))
 }
 
-/** Build the serializable `ComponentDef` for a primitive kind. */
-export function primitiveDef(kind: PrimitiveKind): ComponentDef {
-  const p = PRIMITIVES[kind]
-  return { id: kind, name: p.label, kind: 'primitive', primitive: kind, ports: p.defaultPorts() }
-}
-
-export function inputPortDef(): ComponentDef {
-  return primitiveDef('input-port')
-}
-
-export function outputPortDef(): ComponentDef {
-  return primitiveDef('output-port')
-}
-
-/**
- * Return a design whose built-in primitive defs are ensured: the canonical primitive
- * defs (library primitives + the internal port groups) are added/overwritten so a
- * design loaded from an older file still has every current built-in available.
- */
-export function withBuiltinPrimitives(design: Design): Design {
-  const defs = { ...design.defs }
-  for (const kind of LIBRARY_KINDS) {
-    defs[kind] = primitiveDef(kind)
-  }
-  defs['input-port'] = inputPortDef()
-  defs['output-port'] = outputPortDef()
-  return { ...design, defs }
-}
-
-/** True for the internal input-port/output-port primitive defs. */
-export function isPortGroupDef(def: ComponentDef): boolean {
-  return def.kind === 'primitive' && PRIMITIVES[def.primitive].isPortGroup()
+/** True for the internal input-port/output-port built-in references. */
+export function isPortGroupDef(def: ChildDef): boolean {
+  const k = childPrimitive(def)
+  return !!k && PRIMITIVES[k].isPortGroup()
 }
 
 /** The port group direction of `def`, or null when it is not a port group. */
-export function portGroupDirection(def: ComponentDef): 'input' | 'output' | null {
-  if (def.kind !== 'primitive' || !PRIMITIVES[def.primitive].isPortGroup()) return null
-  return PRIMITIVES[def.primitive].portGroupDirection()
+export function portGroupDirection(def: ChildDef): 'input' | 'output' | null {
+  const k = childPrimitive(def)
+  if (!k || !PRIMITIVES[k].isPortGroup()) return null
+  return PRIMITIVES[k].portGroupDirection()
 }
 
 /** Whether the arity of `def` in the given direction is fixed. */
-export function isArityFixed(def: ComponentDef, direction: PortDirection): boolean {
+export function isArityFixed(def: ChildDef, direction: PortDirection): boolean {
   if (def.kind === 'composite') return false
-  const p = PRIMITIVES[def.primitive]
-  return direction === 'input' ? p.fixedInputs : p.fixedOutputs
+  return direction === 'input' ? PRIMITIVES[def.primitive].fixedInputs : PRIMITIVES[def.primitive].fixedOutputs
 }
 
 /** Whether the terminals of `def` can be renamed by the user. */
-export function allowRenameTerminals(def: ComponentDef): boolean {
+export function allowRenameTerminals(def: ChildDef): boolean {
   if (def.kind === 'composite') return true
   return PRIMITIVES[def.primitive].allowRenameTerminals
 }
 
 /** Whether the terminals of `def` may be inverted (the negation bubble) by the user. */
-export function allowInversion(def: ComponentDef): boolean {
+export function allowInversion(def: ChildDef): boolean {
   if (def.kind === 'composite') return true
   return PRIMITIVES[def.primitive].allowInversion
 }
 
 /** The suggested name for a newly-added input terminal of a primitive, or null. */
-export function nextPrimitiveInputName(def: ComponentDef): string | null {
-  if (def.kind !== 'primitive') return null
-  return PRIMITIVES[def.primitive].nextInputName(def.ports)
+export function nextPrimitiveInputName(def: ChildDef): string | null {
+  const k = childPrimitive(def)
+  if (!k) return null
+  return PRIMITIVES[k].nextInputName(childPorts(def))
 }
 
 /** The intrinsic width (number of wires) of a terminal (fan-in/fan-out bus = arity). */
-export function portWidth(def: ComponentDef, port: Port): number {
-  if (def.kind !== 'primitive') return 1
-  return PRIMITIVES[def.primitive].intrinsicWidth(def.ports, port) ?? 1
+export function portWidth(def: ChildDef, port: Port): number {
+  const k = childPrimitive(def)
+  if (!k) return 1
+  return PRIMITIVES[k].intrinsicWidth(childPorts(def), port) ?? 1
 }
 
 /** Whether a definition can be "entered" for editing. */
-export function isNavigableDef(def: ComponentDef): boolean {
+export function isNavigableDef(def: ChildDef): boolean {
   if (def.kind === 'composite') return true
   return PRIMITIVES[def.primitive].isNavigable()
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Connection, Design, PinRef } from '../src/types'
-import { findConnectionTo, isDefReferenced, nextConnectionId, pinRefEquals } from '../src/types'
+import type { Connection, PinRef } from '../src/types'
+import { findConnectionTo, nextConnectionId, pinRefEquals } from '../src/types'
 
 const iRef = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef): Connection => ({ id, from, to })
@@ -33,29 +33,5 @@ describe('nextConnectionId', () => {
   it('skips a non-sequential collision', () => {
     const cs = [conn('c1', iRef('a', 'out:0'), iRef('b', 'in:0')), conn('c3', iRef('a', 'out:0'), iRef('c', 'in:0'))]
     expect(nextConnectionId(cs)).toBe('c4')
-  })
-})
-
-describe('isDefReferenced', () => {
-  it('detects when an instance references a def', () => {
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      library: {},
-      defs: {
-        main: {
-          id: 'main',
-          name: 'main',
-          kind: 'composite',
-          ports: [],
-          instances: [{ id: 'x1', name: 'x1', defId: 'foo', pos: { x: 0, y: 0 } }],
-          connections: [],
-        },
-        foo: { id: 'foo', name: 'foo', kind: 'composite', ports: [], instances: [], connections: [] },
-        bar: { id: 'bar', name: 'bar', kind: 'composite', ports: [], instances: [], connections: [] },
-      },
-    }
-    expect(isDefReferenced(design, 'foo')).toBe(true)
-    expect(isDefReferenced(design, 'bar')).toBe(false)
   })
 })

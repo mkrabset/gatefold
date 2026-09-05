@@ -1,8 +1,8 @@
 # Plan: Nested-object model redesign (drop the flat `defs` id-lookup)
 
-> **Status:** Design plan — not yet implemented. This document is the single source of
-> truth for the next task. A fresh session should read this file first, then re-read the
-> code it references.
+> **Status: Implemented** (2026-09-05). The nested model is the as-built shape now — see
+> `docs/ARCHITECTURE.md` §2, `docs/GLOSSARY.md`, and `docs/NOTES.md` for the current state.
+> This document remains the record of the plan and the locked decisions (§7).
 
 ## 1. Goal
 
@@ -125,10 +125,10 @@ The only shared defs are the **built-in primitives** (`and`, `or`, `clock`, the 
 
 ```ts
 // A child is either a reference to a shared built-in primitive (by kind), an owned
-// custom-arity primitive fork, or an owned composite.
+// primitive fork, or an owned composite.
 type ChildDef =
-  | { kind: 'builtin'; primitive: PrimitiveKind }                 // shared; ports derived
-  | { kind: 'fork';    primitive: PrimitiveKind; name: string; ports: Port[] }
+  | { kind: 'builtin'; primitive: PrimitiveKind }                 // port groups, join-point
+  | { kind: 'fork';    primitive: PrimitiveKind; ports: Port[] }  // every placed primitive
   | CompositeDef
 
 interface Instance {
@@ -141,12 +141,12 @@ interface Instance {
 
 interface CompositeDef {
   kind: 'composite'
-  id: string            // stable identity (templates need it; keep on copies too for now)
+  id: string            // stable identity (templates, root, and copies all keep it)
   name: string
   uuid?: string         // lineage: origin identity / copy→origin soft link
   category?: string     // templates only
   ports: Port[]
-  instances: Instance[]
+  instances: Instance[]   // required (no longer optional)
   connections: Connection[]
 }
 
@@ -159,14 +159,18 @@ interface Design {
 
 Notes:
 
-- **Built-ins are not inline objects.** They stay a shared registry (`primitives/index.ts`:
-  `primitiveOf`, `primitiveDef`). An `Instance.def = { kind: 'builtin', primitive: 'and' }`
-  resolves its `ports` from the registry. This is why the model is a *tree of custom defs*
-  plus shared built-in leaves — not a 100% pure object tree.
-- **Port groups** are built-ins too. A composite's `ports[i].terminal` still points at an
+- **The `fork` arm is the common case, not the exception.** Copy-on-place forks *every*
+  placed primitive today (`copyDefSubgraph`'s `skip` excludes only port groups), because
+  per-instance terminal `inverted` and array `terminalType`/wire-count are stored on the
+  def's `ports`. A shared `builtin` can't carry that. So: `fork` = any placed primitive;
+  `builtin` = only the port groups (`input-port`/`output-port`, pins derived from the
+  parent composite) and the join-point (fixed coincident terminals). No "builtin → fork
+  promotion" logic is ever needed.
+- **Port groups** are built-ins. A composite's `ports[i].terminal` still points at an
   internal `input-port`/`output-port` instance by `instanceId` (local to that composite).
-- **Templates keep `id`** for export keys, the library panel, and navigation; embedded
-  copies and live copies may or may not need an `id` (see open questions).
+- **Templates keep `id`** for export keys, the library panel, and navigation; the root and
+  inline copies keep an `id` too (a pure identity label for the widths cache, sim/verilog
+  module naming, and navigation), regenerated on clone.
 
 ## 6. Impact analysis — every subsystem that resolves `Instance.defId`
 
@@ -218,34 +222,28 @@ Use `rg "defId" packages apps` to find all sites. The full list today:
 - **`ui/Canvas.tsx`, `Sidebar.tsx`, `Toolbar.tsx`, `LibraryPanel.tsx`, `DeleteDialog.tsx`** —
   `design.defs[...]`/`getDef` lookups and `navStack`/`currentDefId` usage.
 
-## 7. Key design decisions to confirm (start of next session)
+## 7. Design decisions — LOCKED (next session: execute, don't re-litigate)
 
-1. **Scope: nest both `library` and the content tree?** (Recommended: yes — live copies are
-   also 1:1 with their instance, so they nest the same way. The content-tree GC
-   `unreachableDefIds` becomes unnecessary.)
-2. **Built-ins stay a shared by-kind registry** (recommended) — they cannot be inline
-   (many instances share one `and`).
-3. **`id` on defs:** keep on templates (export keys, panel, navigation); decide whether
-   embedded/live copies need an `id` at all (probably not — they're owned; only instance
-   ids matter for connections/selection/sim paths).
-4. **Navigation.** `navStack` currently holds def ids; with nesting it must distinguish:
-   - *descend into a placed instance* → a path of instance ids (the sim's `path` is
-     precedent), and
-   - *open a template from the library* → a template id.
-   Propose replacing `navStack: string[]` with an explicit discriminated navigation
-   structure (e.g. a list of `{ kind: 'instance', id } | { kind: 'template', id }`), or a
-   tree path + a separate "editing template id".
-5. **`instancesReferencing` / `findArrayRef` / `pruneConnectionsToPorts`.** These "find the
-   instance that references def X" lookups currently scan the flat map. With nesting, an
-   owned def's owner is implicit (the parent composite that contains the instance), so most
-   of these become direct parent operations or disappear. `pruneConnectionsToPorts` (prune
-   wires to a removed terminal across sheets) needs a plan: with single-ownership, removing
-   a port affects only the owning instance's parent — verify this simplification is sound.
-6. **Serialization format + migration.** Decide the nested JSON shape (e.g. `{ version,
-   root: <nested composite>, library: { id: <nested composite> } }`), and how to migrate
-   existing flat files. Likely a `Design.version` bump and a `migrateLegacyDesign` rewrite.
-7. **Undo (zundo + immer).** `partialize` is currently `{ design }`; nested trees work with
-   immer, but verify reference equality / the coalescing move logic still behaves.
+1. **Nest both `library` and the content tree.** `root` is a `CompositeDef`; `library` is
+   `Record<string, CompositeDef>`; there is no `defs` map. Reachability GC disappears.
+2. **Built-ins stay a shared registry**, but only the port groups and the join-point are
+   `builtin`. Every placed primitive is a **`fork`** (see §5 note): copy-on-place already
+   forks all primitives today because per-instance `inverted`/arity live on the def's ports.
+3. **`id` is kept on every composite** (root, templates, inline copies), regenerated on
+   clone. Ownership is structural (no `defId` back-pointer); `id` is a pure identity label.
+4. **Navigation** becomes a discriminated path:
+   `NavStep = { kind:'root' } | { kind:'instance'; id } | { kind:'template'; id }`.
+   One shared `resolveNav(design, navStack): CompositeDef` walks from `design.root`; the
+   sim's `path`/`viewingLive` reuses it.
+5. **`instancesReferencing` / `findArrayRef` / `pruneConnectionsToPorts`** collapse to
+   direct-parent operations (single ownership). Verified sound: `pruneConnectionsToPorts`
+   is only ever called on owned copies, whose parent is unique.
+6. **Serialization** `{ version: 2, root: <composite>, library: {id: <composite>} }`; child
+   defs serialize as `{kind:'builtin',primitive}` / `{kind:'fork',primitive,ports}` / inline
+   composite. Migration handles v2 (validate), v1 two-part (`flatToNested`), and the old
+   flat-variant (migrate → `flatToNested`).
+7. **Undo** stays `partialize: {design}`. The widths cache becomes
+   `WeakMap<CompositeDef, SheetWidths>` (auto-invalidates on immer's new object identity).
 
 ## 8. Strategy / phasing
 

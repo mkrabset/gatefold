@@ -1,63 +1,50 @@
 import { describe, expect, it } from 'vitest'
-import type { ComponentDef, CompositeDef, Design } from '../src/types'
-import { inputPortDef, outputPortDef, primitiveDef, withBuiltinPrimitives } from '../src/primitives'
-import { parseDesign, sanitizeDesign, serializeDesign, stripBuiltinPrimitives } from '../src/serialize'
+import type { CompositeDef, Design } from '../src/types'
+import { forkOf } from '../src/primitives'
+import { parseDesign, sanitizeDesign, serializeDesign } from '../src/serialize'
 
-const mainDef = (design: Design): CompositeDef => design.defs['main'] as CompositeDef
+const AND_PORTS = [
+  { id: 'in:0', name: 'A', direction: 'input' as const },
+  { id: 'in:1', name: 'B', direction: 'input' as const },
+  { id: 'out:0', name: 'Y', direction: 'output' as const },
+]
 
 function makeDesign(): Design {
-  const defs: Record<string, Design['defs'][string]> = {
-    and: primitiveDef('and'),
-    not: primitiveDef('not'),
-  }
-  defs['main'] = {
+  const main: CompositeDef = {
     id: 'main',
     name: 'main',
     kind: 'composite',
     ports: [],
     instances: [
-      { id: 'a1', name: 'a1', defId: 'and', pos: { x: 0, y: 0 } },
-      { id: 'n1', name: 'n1', defId: 'not', pos: { x: 100, y: 0 } },
+      { id: 'a1', name: 'a1', def: forkOf('and'), pos: { x: 0, y: 0 } },
+      { id: 'n1', name: 'n1', def: forkOf('not'), pos: { x: 100, y: 0 } },
     ],
     connections: [{ id: 'c1', from: { instanceId: 'a1', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } }],
   }
-  return { version: 1, root: 'main', library: {}, defs }
+  return { version: 2, root: main, library: {} }
 }
 
 describe('serializeDesign / parseDesign', () => {
-  it('omits canonical built-in primitives but keeps the composite intact', () => {
+  it('round-trips a nested design intact', () => {
     const design = makeDesign()
     const parsed = parseDesign(serializeDesign(design))
-    expect(parsed.defs['and']).toBeUndefined()
-    expect(parsed.defs['not']).toBeUndefined()
-    expect(parsed.defs['main']).toBeDefined()
-    // The composite's own contents round-trip intact.
-    expect(parsed.defs['main']).toEqual(design.defs['main'])
-    // Built-ins are regenerated on load.
-    expect(withBuiltinPrimitives(parsed).defs['and']).toEqual(primitiveDef('and'))
+    expect(parsed.root).toEqual(design.root)
+    expect(parsed.library).toEqual({})
   })
 
-  it('keeps referenced primitive forks', () => {
+  it('keeps primitive forks referenced by instances', () => {
     const design = makeDesign()
-    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1' }
-    mainDef(design).instances!.push({ id: 'a2', name: 'a2', defId: 'and~1', pos: { x: 0, y: 0 } })
+    design.root.instances.push({ id: 'a2', name: 'a2', def: { kind: 'fork', primitive: 'and', ports: AND_PORTS }, pos: { x: 0, y: 0 } })
     const parsed = parseDesign(serializeDesign(design))
-    expect(parsed.defs['and~1']).toBeDefined()
-    expect(parsed.defs['and']).toBeUndefined()
-  })
-
-  it('drops unreferenced defs (GC on save)', () => {
-    const design = makeDesign()
-    design.defs['and~orphan'] = { ...primitiveDef('and'), id: 'and~orphan' }
-    const parsed = parseDesign(serializeDesign(design))
-    expect(parsed.defs['and~orphan']).toBeUndefined()
+    const fork = parsed.root.instances.find((i) => i.id === 'a2')!.def
+    expect(fork).toEqual({ kind: 'fork', primitive: 'and', ports: AND_PORTS })
   })
 
   it('rounds instance coordinates to 2 decimals', () => {
     const design = makeDesign()
-    mainDef(design).instances![0].pos = { x: 1.23456789, y: -2.9999999 }
+    design.root.instances[0].pos = { x: 1.23456789, y: -2.9999999 }
     const parsed = parseDesign(serializeDesign(design))
-    expect(mainDef(parsed).instances![0].pos).toEqual({ x: 1.23, y: -3 })
+    expect(parsed.root.instances[0].pos).toEqual({ x: 1.23, y: -3 })
   })
 
   it('rejects malformed JSON', () => {
@@ -70,83 +57,77 @@ describe('serializeDesign / parseDesign', () => {
     expect(() => parseDesign('[]')).toThrow()
   })
 
-  it('rejects a design missing its root def', () => {
-    const design = makeDesign()
-    const bad = JSON.parse(JSON.stringify(design))
-    bad.root = 'nope'
+  it('rejects a design whose root is not a composite', () => {
+    const bad = { version: 2, root: { id: 'x', name: 'x', kind: 'primitive', primitive: 'and', ports: [] }, library: {} }
     expect(() => parseDesign(JSON.stringify(bad))).toThrow()
   })
 
-  it('rejects a design with a malformed def', () => {
+  it('rejects a design with a malformed instance', () => {
     const design = makeDesign()
     const bad = JSON.parse(JSON.stringify(design))
-    delete bad.defs['and'].kind
+    delete bad.root.instances[0].def
     expect(() => parseDesign(JSON.stringify(bad))).toThrow()
   })
 })
 
-describe('stripBuiltinPrimitives', () => {
-  it('removes only canonical built-in primitive defs', () => {
-    const design = makeDesign()
-    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1' }
-    const stripped = stripBuiltinPrimitives(design)
-    expect(stripped.defs['and']).toBeUndefined()
-    expect(stripped.defs['not']).toBeUndefined()
-    expect(stripped.defs['and~1']).toBeDefined()
-    expect(stripped.defs['main']).toBeDefined()
+describe('parseDesign (v1 two-part migration)', () => {
+  it('migrates a v1 two-part document to the nested model', () => {
+    const flat = {
+      version: 1,
+      root: 'main',
+      library: {
+        tpl: { id: 'tpl', name: 'tpl', kind: 'composite', ports: [], instances: [{ id: 'g', name: 'g', defId: 'and~1', pos: { x: 0, y: 0 } }], connections: [] },
+      },
+      defs: {
+        'and~1': { id: 'and~1', name: 'AND', kind: 'primitive', primitive: 'and', ports: AND_PORTS },
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [{ id: 'a', name: 'a', defId: 'and~1', pos: { x: 0, y: 0 } }], connections: [] },
+      },
+    }
+    const design = parseDesign(JSON.stringify(flat))
+    expect(design.version).toBe(2)
+    expect(design.root.id).toBe('main')
+    expect(design.root.instances[0].def).toEqual({ kind: 'fork', primitive: 'and', ports: AND_PORTS })
+    expect(design.library['tpl'].instances[0].def).toEqual({ kind: 'fork', primitive: 'and', ports: AND_PORTS })
   })
-})
 
-describe('parseDesign (legacy migration)', () => {
-  it('splits a legacy flat defs map (with `variant`) into library + defs', () => {
+  it('migrates a legacy flat-variant document to the nested model', () => {
     const legacy = {
       version: 1,
       root: 'main',
       defs: {
-        and: primitiveDef('and'),
-        'input-port': inputPortDef(),
-        'output-port': outputPortDef(),
+        and: { id: 'and', name: 'AND', kind: 'primitive', primitive: 'and', ports: AND_PORTS },
+        'input-port': { id: 'input-port', name: 'input-port', kind: 'primitive', primitive: 'input-port', ports: [] },
+        'output-port': { id: 'output-port', name: 'output-port', kind: 'primitive', primitive: 'output-port', ports: [] },
         tpl: { id: 'tpl', name: 'tpl', kind: 'composite', uuid: 'U', ports: [], instances: [], connections: [] },
         'tpl~1': { id: 'tpl~1', name: 'tpl', kind: 'composite', variant: true, uuid: 'U', ports: [], instances: [], connections: [] },
         main: {
-          id: 'main', name: 'main', kind: 'composite', ports: [],
+          id: 'main',
+          name: 'main',
+          kind: 'composite',
+          ports: [],
           instances: [{ id: 'a', name: 'a', defId: 'tpl~1', pos: { x: 0, y: 0 } }],
           connections: [],
         },
       },
     }
-
     const design = parseDesign(JSON.stringify(legacy))
-    // Templates → library, live copies + root + built-ins → defs, `variant` dropped.
     expect(design.library['tpl']).toBeDefined()
-    expect((design.library['tpl'] as ComponentDef & { variant?: boolean }).variant).toBeUndefined()
-    expect(design.defs['tpl~1']).toBeDefined()
-    expect(design.defs['main']).toBeDefined()
-    // Built-ins remain in `defs` (stripped only at save time).
-    expect(design.defs['and']).toBeDefined()
-    // Legacy field is gone from the parsed result.
-    expect((design.defs['tpl~1'] as ComponentDef & { variant?: boolean }).variant).toBeUndefined()
+    expect(design.root.id).toBe('main')
+    expect(design.root.instances[0].def).toEqual(expect.objectContaining({ kind: 'composite', id: 'tpl~1' }))
+    // The canonical built-in primitive becomes a shared builtin reference.
+    expect(design.library['tpl'].kind).toBe('composite')
   })
 })
 
 describe('sanitizeDesign', () => {
-  it('removes connections to missing instances and instances with missing defs', () => {
+  it('removes connections to missing instances', () => {
     const design = makeDesign()
-    const main = mainDef(design)
-    // Add a dangling connection (references an unknown instance) and a dangling
-    // instance (references an unknown def).
-    main.connections!.push({ id: 'c2', from: { instanceId: 'ghost', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
-    main.instances!.push({ id: 'orphan', name: 'orphan', defId: 'missing-def', pos: { x: 0, y: 0 } })
-    main.connections!.push({ id: 'c3', from: { instanceId: 'orphan', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
+    design.root.connections.push({ id: 'c2', from: { instanceId: 'ghost', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } })
 
     const { design: clean, issues } = sanitizeDesign(design)
-    const cleanMain = mainDef(clean)
-    expect(cleanMain.instances!.map((i) => i.id)).toEqual(['a1', 'n1'])
-    expect(cleanMain.connections!.map((c) => c.id)).toEqual(['c1'])
+    expect(clean.root.connections.map((c) => c.id)).toEqual(['c1'])
     expect(issues).toEqual([
-      { type: 'dangling-instance', defId: 'main', instanceId: 'orphan', instanceName: 'orphan', missingDefId: 'missing-def' },
       { type: 'dangling-connection', defId: 'main', connectionId: 'c2', endpoint: 'from', missingInstanceId: 'ghost' },
-      { type: 'dangling-connection', defId: 'main', connectionId: 'c3', endpoint: 'from', missingInstanceId: 'orphan' },
     ])
   })
 })

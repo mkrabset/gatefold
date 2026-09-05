@@ -1,12 +1,5 @@
 import type { Design } from '@gatefold/model'
-import {
-  newUuid,
-  parseDesign,
-  sanitizeDesign,
-  serializeDesign,
-  unreachableDefIds,
-  withBuiltinPrimitives,
-} from '@gatefold/model'
+import { newUuid, parseDesign, sanitizeDesign, serializeDesign, walkComposites } from '@gatefold/model'
 
 /**
  * Persistence of the "default" program state: the whole `Design` (model + composite
@@ -25,16 +18,19 @@ function hasStorage(): boolean {
 }
 
 /**
- * Parse and repair a serialized design (add missing built-ins, drop dangling refs,
- * backfill lineage uuids, reclaim orphaned defs). Throws on malformed input.
+ * Parse and repair a serialized design (drop dangling refs, backfill lineage uuids).
+ * Throws on malformed input.
  */
 export function repairDesign(json: string): { design: Design; issues: ReturnType<typeof sanitizeDesign>['issues'] } {
   const design = parseDesign(json)
-  const repaired = sanitizeDesign(withBuiltinPrimitives(design))
-  for (const def of [...Object.values(repaired.design.library), ...Object.values(repaired.design.defs)]) {
-    if (def.kind === 'composite' && !def.uuid) def.uuid = newUuid()
+  const repaired = sanitizeDesign(design)
+  const backfill = (def: Design['root']): void => {
+    walkComposites(def, (d) => {
+      if (!d.uuid) d.uuid = newUuid()
+    })
   }
-  for (const id of unreachableDefIds(repaired.design)) delete repaired.design.defs[id]
+  backfill(repaired.design.root)
+  for (const def of Object.values(repaired.design.library)) backfill(def)
   return repaired
 }
 

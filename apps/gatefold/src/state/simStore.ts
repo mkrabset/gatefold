@@ -3,7 +3,7 @@ import type { Signal, ValueFormat, ValueOrder } from '@gatefold/model'
 import { Simulation } from '@gatefold/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
 import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
-import { useEditorStore } from './editorStore'
+import { resolveNav, useEditorStore } from './editorStore'
 import { useUiStore } from './uiStore'
 
 type SimMode = 'design' | 'simulate'
@@ -198,16 +198,14 @@ function flatId(instanceId: string): string {
 function viewingLive(): boolean {
   const { path } = useSimStore.getState()
   const editor = useEditorStore.getState()
-  let defId = editor.design.root
+  let def: import('@gatefold/model').ChildDef = editor.design.root
   for (const id of path) {
-    const def = editor.design.defs[defId]
-    if (!def || def.kind !== 'composite') return false
-    const inst = def.instances?.find((i) => i.id === id)
-    const next = inst && editor.design.defs[inst.defId]
-    if (!next || next.kind !== 'composite') return false
-    defId = next.id
+    if (def.kind !== 'composite') return false
+    const inst: import('@gatefold/model').Instance | undefined = def.instances.find((i) => i.id === id)
+    if (!inst) return false
+    def = inst.def
   }
-  return defId === editor.navStack[editor.navStack.length - 1]
+  return resolveNav(editor.design, editor.navStack) === def
 }
 
 /** The full bit-vector signal for a flattened pin, or undefined when not simulating. */

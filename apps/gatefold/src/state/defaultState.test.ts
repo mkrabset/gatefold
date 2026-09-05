@@ -44,15 +44,13 @@ describe('default state (localStorage persistence)', () => {
     expect(readDefaultState()).toBeNull()
   })
 
-  it('repairDesign backfills missing lineage ids and strips orphaned defs', () => {
+  it('repairDesign backfills missing lineage ids', () => {
     const design = createDemoDesign()
-    // Simulate an older save: no uuid on the root, plus an orphaned def.
-    delete (design.defs['main'] as { uuid?: string }).uuid
-    design.defs['orphan'] = { id: 'orphan', name: 'orphan', kind: 'composite', ports: [], instances: [], connections: [] }
+    // Simulate an older save: no uuid on the root.
+    delete design.root.uuid
 
     const repaired = repairDesign(serializeDesign(design)).design
-    expect((repaired.defs['main'] as { uuid?: string }).uuid).toBeDefined()
-    expect(repaired.defs['orphan']).toBeUndefined()
+    expect(repaired.root.uuid).toBeDefined()
   })
 })
 

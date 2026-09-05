@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { withBuiltinPrimitives } from '@gatefold/model'
 import { LINK_QUERY_KEY, base64UrlToBytes, bytesToBase64Url, decodeDesignLink, encodeDesignLink } from './link'
 import { createDemoDesign } from '../state/editorStore'
 
@@ -33,8 +32,7 @@ describe('shareable-link encoding', () => {
 
       const json = await decodeDesignLink(new URL(url).search)
       expect(json).not.toBeNull()
-      // Built-in primitives are omitted from the payload and regenerated on load.
-      expect(withBuiltinPrimitives(JSON.parse(json!))).toEqual(design)
+      expect(JSON.parse(json!)).toEqual(design)
     },
   )
 })

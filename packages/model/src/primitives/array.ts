@@ -1,17 +1,23 @@
-import type { ComponentDef, Port, PortDirection, PrimitiveDef, Signal } from '../types'
+import type { ChildDef, Port, PortDirection, Signal } from '../types'
 import { inputPortId, outputPortId } from '../types'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
+/** The primitive kind of a child def, or null when composite. */
+function childKind(def: ChildDef): string | null {
+  return def.kind === 'composite' ? null : def.primitive
+}
+
 /** True for the switch-array/led-array primitive defs. */
-export function isArrayDef(def: ComponentDef | undefined): def is PrimitiveDef {
-  return !!def && def.kind === 'primitive' && (def.primitive === 'switch-array' || def.primitive === 'led-array')
+export function isArrayDef(def: ChildDef | undefined): boolean {
+  const k = def ? childKind(def) : null
+  return k === 'switch-array' || k === 'led-array'
 }
 
 /** Terminal direction of an array primitive (switch-array drives, led-array sinks). */
-export function arrayDirection(def: ComponentDef): PortDirection {
-  return def.kind === 'primitive' && def.primitive === 'switch-array' ? 'output' : 'input'
+export function arrayDirection(def: ChildDef): PortDirection {
+  return childKind(def) === 'switch-array' ? 'output' : 'input'
 }
 
 /** Port list for a switch-array/led-array: `size` single-wire ports, or one bus port. */

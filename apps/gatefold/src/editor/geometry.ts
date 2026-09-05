@@ -1,7 +1,7 @@
-import type { ComponentDef, Design, Instance, PinRef, Port } from '@gatefold/model'
-import { getDef, inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Instance, PinRef, Port } from '@gatefold/model'
+import { childPorts, childPrimitive, inputPorts, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
 
-export { isNeutralPin, pinWidth, undeterminedHint }
+export { isNeutralPin, pinWidth, resolvedPinWidth, undeterminedHint } from '@gatefold/model'
 
 /**
  * Geometry helpers for the canvas: component sizes, port placement, and hit-testing.
@@ -46,8 +46,8 @@ export function busWireOffsets(width: number): number[] {
 }
 
 /** The resolved widths (one per port, in order) of a side's terminals. */
-function widthsOf(design: Design, parentDef: ComponentDef, instanceId: string, ports: Port[]): number[] {
-  return ports.map((p) => pinWidth(design, parentDef, { instanceId, portId: p.id }))
+function widthsOf(parentDef: CompositeDef, instanceId: string, ports: Port[]): number[] {
+  return ports.map((p) => pinWidth(parentDef, { instanceId, portId: p.id }))
 }
 
 /** Total height of a terminal side: its markers stacked with a constant gap, plus
@@ -68,10 +68,9 @@ export function sidePinOffset(widths: number[], index: number): number {
 }
 
 /** The base body size of a def (before accounting for pin radii). */
-export function defBodySize(def: ComponentDef): { w: number; h: number } {
-  if (def.kind === 'primitive' && def.primitive) {
-    return primitiveOf(def.primitive).bodySize()
-  }
+export function defBodySize(def: ChildDef): { w: number; h: number } {
+  const k = childPrimitive(def)
+  if (k) return primitiveOf(k).bodySize()
   return { w: 88, h: 56 }
 }
 
@@ -82,43 +81,42 @@ export function sizeForPorts(widths: number[]): { w: number; h: number } {
 
 /** Resolved bus width of a seven-seg input, or null when undetermined. */
 export function sevenSegLaneCount(
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
 ): number | null {
-  const input = inputPorts(def)[0]
+  const input = inputPorts(childPorts(def))[0]
   if (!input) return null
-  return resolvedPinWidth(design, parentDef, { instanceId: instance.id, portId: input.id })
+  return resolvedPinWidth(parentDef, { instanceId: instance.id, portId: input.id })
 }
 
 /** Effective body size of an instance (port group or normal), accounting for pin radii. */
 export function instanceBodySize(
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
 ): { w: number; h: number } {
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
-    const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
-    return sizeForPorts(widthsOf(design, parentDef, instance.id, ports))
+    const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
+    return sizeForPorts(widthsOf(parentDef, instance.id, ports))
   }
-  if (def.kind === 'primitive' && def.primitive === 'seven-seg') {
-    const lanes = sevenSegLaneCount(design, parentDef, instance, def)
+  const k = childPrimitive(def)
+  if (k === 'seven-seg') {
+    const lanes = sevenSegLaneCount(parentDef, instance, def)
     const mode = sevenSegModeOf(instance.props)
     const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const w = 2 * SEVEN_SEG_PAD + positions * SEVEN_SEG_DIGIT_W + (positions - 1) * SEVEN_SEG_GAP
-    const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
+    const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))))
     return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }
-  if (def.kind === 'primitive' && def.primitive && primitiveOf(def.primitive).coincidentTerminals?.()) {
+  if (k && primitiveOf(k).coincidentTerminals?.()) {
     // A join-point's coincident terminals never inflate the body: it stays a dot.
     return defBodySize(def)
   }
   const base = defBodySize(def)
-  const inH = sideHeight(widthsOf(design, parentDef, instance.id, inputPorts(def)))
-  const outH = sideHeight(widthsOf(design, parentDef, instance.id, outputPorts(def)))
+  const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))))
+  const outH = sideHeight(widthsOf(parentDef, instance.id, outputPorts(childPorts(def))))
   return { w: base.w, h: Math.max(base.h, inH, outH) }
 }
 
@@ -129,35 +127,36 @@ export function instanceBodySize(
  * right edge for `input-port`, on the left for `output-port`).
  */
 export function portPosition(
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
   portId: string,
 ): { x: number; y: number } {
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
-    const ports = isInput ? inputPorts(parentDef) : outputPorts(parentDef)
+    const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
     const idx = ports.findIndex((p) => p.id === portId)
-    const widths = widthsOf(design, parentDef, instance.id, ports)
+    const widths = widthsOf(parentDef, instance.id, ports)
     const { w } = sizeForPorts(widths)
     const y = instance.pos.y + sidePinOffset(widths, idx)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
   }
 
   // Coincident terminals (the join-point dot): every pin sits at the body center.
-  if (def.kind === 'primitive' && def.primitive && primitiveOf(def.primitive).coincidentTerminals?.()) {
+  const k = childPrimitive(def)
+  if (k && primitiveOf(k).coincidentTerminals?.()) {
     return { x: instance.pos.x, y: instance.pos.y }
   }
 
-  const { w } = instanceBodySize(design, parentDef, instance, def)
-  const inIdx = inputPorts(def).findIndex((p) => p.id === portId)
+  const { w } = instanceBodySize(parentDef, instance, def)
+  const ports = childPorts(def)
+  const inIdx = inputPorts(ports).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
-    const widths = widthsOf(design, parentDef, instance.id, inputPorts(def))
+    const widths = widthsOf(parentDef, instance.id, inputPorts(ports))
     return { x: instance.pos.x - w / 2, y: instance.pos.y + sidePinOffset(widths, inIdx) }
   }
-  const outIdx = outputPorts(def).findIndex((p) => p.id === portId)
-  const widths = widthsOf(design, parentDef, instance.id, outputPorts(def))
+  const outIdx = outputPorts(ports).findIndex((p) => p.id === portId)
+  const widths = widthsOf(parentDef, instance.id, outputPorts(ports))
   return { x: instance.pos.x + w / 2, y: instance.pos.y + sidePinOffset(widths, outIdx) }
 }
 
@@ -168,8 +167,8 @@ export interface Bounds {
   h: number
 }
 
-export function instanceBounds(design: Design, parentDef: ComponentDef, instance: Instance, def: ComponentDef, pad = 0): Bounds {
-  const { w, h } = instanceBodySize(design, parentDef, instance, def)
+export function instanceBounds(parentDef: CompositeDef, instance: Instance, def: ChildDef, pad = 0): Bounds {
+  const { w, h } = instanceBodySize(parentDef, instance, def)
   return {
     x: instance.pos.x - w / 2 - pad,
     y: instance.pos.y - h / 2 - pad,
@@ -183,14 +182,11 @@ export function hitTest(
   wx: number,
   wy: number,
   instances: Instance[],
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
 ): Instance | null {
   for (let i = instances.length - 1; i >= 0; i--) {
     const inst = instances[i]
-    const def = getDef(design, inst.defId)
-    if (!def) continue
-    const b = instanceBounds(design, parentDef, inst, def, 4)
+    const b = instanceBounds(parentDef, inst, inst.def, 4)
     if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) {
       return inst
     }
@@ -213,8 +209,7 @@ export function hitTestPort(
   wx: number,
   wy: number,
   instances: Instance[],
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   prefer?: 'source' | 'sink',
 ): PortHit | null {
   let best: PortHit | null = null
@@ -223,7 +218,7 @@ export function hitTestPort(
     if (prefer && prefer !== role) return
     // Distance to the terminal marker (a vertical segment of half-height r): anywhere
     // along the marker counts, not just its centre.
-    const r = pinRadiusWorld(pinWidth(design, parentDef, ref))
+    const r = pinRadiusWorld(pinWidth(parentDef, ref))
     let d: number
     if (wy < pos.y - r) d = Math.hypot(wx - pos.x, wy - (pos.y - r))
     else if (wy > pos.y + r) d = Math.hypot(wx - pos.x, wy - (pos.y + r))
@@ -235,23 +230,23 @@ export function hitTestPort(
   }
 
   for (const inst of instances) {
-    const def = getDef(design, inst.defId)
-    if (!def) continue
+    const def = inst.def
     const dir = portGroupDirection(def)
     if (dir === 'input') {
-      for (const p of inputPorts(parentDef)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(design, parentDef, inst, def, p.id), 'source')
+      for (const p of inputPorts(parentDef.ports)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
       }
     } else if (dir === 'output') {
-      for (const p of outputPorts(parentDef)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(design, parentDef, inst, def, p.id), 'sink')
+      for (const p of outputPorts(parentDef.ports)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
       }
     } else {
-      for (const p of outputPorts(def)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(design, parentDef, inst, def, p.id), 'source')
+      const ports = childPorts(def)
+      for (const p of outputPorts(ports)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
       }
-      for (const p of inputPorts(def)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(design, parentDef, inst, def, p.id), 'sink')
+      for (const p of inputPorts(ports)) {
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
       }
     }
   }
@@ -261,38 +256,38 @@ export function hitTestPort(
 
 /** The number of lanes an array currently has (WIRE = port count, BUS = resolved width). */
 export function arrayLaneCount(
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
 ): number | null {
-  if (def.ports.length > 1) return def.ports.length
-  return resolvedPinWidth(design, parentDef, { instanceId: instance.id, portId: def.ports[0].id })
+  const ports = childPorts(def)
+  if (ports.length > 1) return ports.length
+  return resolvedPinWidth(parentDef, { instanceId: instance.id, portId: ports[0].id })
 }
 
 /** World-space indicator circles (center y + radius) for a switch/led array, or null
  *  when its bus width is undetermined. The radius is zoom-aware so it matches the
  *  screen-space circle drawn by the renderer. */
 export function arrayIndicatorLanes(
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
   zoom: number,
 ): { y: number; r: number }[] | null {
-  const n = arrayLaneCount(design, parentDef, instance, def)
+  const n = arrayLaneCount(parentDef, instance, def)
   if (n === null) return null
-  const h = instanceBodySize(design, parentDef, instance, def).h
+  const h = instanceBodySize(parentDef, instance, def).h
   const r = Math.max(3 / zoom, (h / Math.max(n, 1)) * 0.3)
   const lanes: { y: number; r: number }[] = []
-  if (def.ports.length > 1) {
+  const ports = childPorts(def)
+  if (ports.length > 1) {
     for (let i = 0; i < n; i++) {
-      lanes.push({ y: portPosition(design, parentDef, instance, def, def.ports[i].id).y, r })
+      lanes.push({ y: portPosition(parentDef, instance, def, ports[i].id).y, r })
     }
   } else {
-    const port = def.ports[0]
-    const y = portPosition(design, parentDef, instance, def, port.id).y
-    const width = pinWidth(design, parentDef, { instanceId: instance.id, portId: port.id })
+    const port = ports[0]
+    const y = portPosition(parentDef, instance, def, port.id).y
+    const width = pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
     for (const dy of busWireOffsets(width)) lanes.push({ y: y + dy, r })
   }
   return lanes
@@ -302,13 +297,12 @@ export function arrayIndicatorLanes(
 export function hitArrayIndicator(
   wx: number,
   wy: number,
-  design: Design,
-  parentDef: ComponentDef,
+  parentDef: CompositeDef,
   instance: Instance,
-  def: ComponentDef,
+  def: ChildDef,
   zoom: number,
 ): number | null {
-  const lanes = arrayIndicatorLanes(design, parentDef, instance, def, zoom)
+  const lanes = arrayIndicatorLanes(parentDef, instance, def, zoom)
   if (!lanes) return null
   const dx = wx - instance.pos.x
   for (let i = 0; i < lanes.length; i++) {
@@ -319,17 +313,14 @@ export function hitArrayIndicator(
 }
 
 /** World-space bounding box of everything inside a composite def, or null when empty. */
-export function defContentsBounds(design: Design, def: ComponentDef): Bounds | null {
-  if (def.kind !== 'composite') return null
-  const insts = def.instances ?? []
+export function defContentsBounds(def: CompositeDef): Bounds | null {
+  const insts = def.instances
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
   for (const inst of insts) {
-    const idef = getDef(design, inst.defId)
-    if (!idef) continue
-    const b = instanceBounds(design, def, inst, idef)
+    const b = instanceBounds(def, inst, inst.def)
     minX = Math.min(minX, b.x)
     minY = Math.min(minY, b.y)
     maxX = Math.max(maxX, b.x + b.w)

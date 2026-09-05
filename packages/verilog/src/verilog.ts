@@ -1,5 +1,7 @@
-import type { CompositeDef, Design, Instance, PinRef, PrimitiveDef } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PrimitiveKind } from '@gatefold/model'
 import {
+  childPorts,
+  childPrimitive,
   findConnectionTo,
   inputPorts,
   outputPorts,
@@ -9,7 +11,6 @@ import {
   primitiveOf,
   sanitizeDesign,
   UnionFind,
-  withBuiltinPrimitives,
 } from '@gatefold/model'
 
 /**
@@ -63,6 +64,17 @@ interface ModPort {
   width: number
 }
 
+/** A normalized primitive view of a non-composite child def. */
+interface PrimLike {
+  kind: PrimitiveKind
+  ports: Port[]
+}
+
+function asPrimitive(def: ChildDef): PrimLike | null {
+  if (def.kind === 'composite') return null
+  return { kind: def.primitive, ports: childPorts(def) }
+}
+
 class Generator {
   private readonly design: Design
   private readonly issues: VerilogIssue[]
@@ -84,87 +96,75 @@ class Generator {
   }
 
   generate(): string {
-    const root = this.design.defs[this.design.root]
-    if (!root || root.kind !== 'composite') {
-      throw new Error('Design root is not a composite')
-    }
-    const order = this.collectComposites(root.id)
-    for (const id of order) {
-      const def = this.design.defs[id]
-      this.defToModule.set(id, uniqueName(def.name || def.id, this.moduleNames))
-      this.computePortNames(id)
+    const root = this.design.root
+    const order = this.collectComposites(root)
+    for (const def of order) {
+      this.defToModule.set(def.id, uniqueName(def.name || def.id, this.moduleNames))
+      this.computePortNames(def)
     }
     const parts: string[] = []
-    for (const id of order) {
-      const def = this.design.defs[id]
-      if (!def || def.kind !== 'composite') continue
-      parts.push(this.emitModule(def, id === this.design.root))
+    for (const def of order) {
+      parts.push(this.emitModule(def, def.id === root.id))
     }
     return parts.join('\n\n') + '\n'
   }
 
-  /** Composite def ids reachable from `rootId`, children before parents. */
-  private collectComposites(rootId: string): string[] {
-    const out: string[] = []
+  /** Composite defs reachable from `root`, children before parents. */
+  private collectComposites(root: CompositeDef): CompositeDef[] {
+    const out: CompositeDef[] = []
     const seen = new Set<string>()
-    const visit = (id: string) => {
-      if (seen.has(id)) return
-      seen.add(id)
-      const def = this.design.defs[id]
-      if (!def || def.kind !== 'composite') return
-      for (const inst of def.instances ?? []) {
-        const idef = this.design.defs[inst.defId]
-        if (idef && idef.kind === 'composite') visit(inst.defId)
+    const visit = (def: CompositeDef) => {
+      if (seen.has(def.id)) return
+      seen.add(def.id)
+      for (const inst of def.instances) {
+        if (inst.def.kind === 'composite') visit(inst.def)
       }
-      out.push(id)
+      out.push(def)
     }
-    visit(rootId)
+    visit(root)
     return out
   }
 
   /** The deduped Verilog port names for a composite's own input/output terminals. */
-  private computePortNames(defId: string): Map<string, string> {
-    const cached = this.portNames.get(defId)
+  private computePortNames(def: CompositeDef): Map<string, string> {
+    const cached = this.portNames.get(def.id)
     if (cached) return cached
-    const def = this.design.defs[defId]
     const used = new Set<string>()
     const map = new Map<string, string>()
-    for (const p of [...inputPorts(def), ...outputPorts(def)]) {
+    for (const p of [...inputPorts(def.ports), ...outputPorts(def.ports)]) {
       map.set(p.id, uniqueName(p.name || p.id, used))
     }
-    this.portNames.set(defId, map)
+    this.portNames.set(def.id, map)
     return map
   }
 
   private emitModule(def: CompositeDef, isRoot: boolean): string {
-    const design = this.design
-    const instances = def.instances ?? []
-    const connections = def.connections ?? []
+    const instances = def.instances
+    const connections = def.connections
     const byId = new Map(instances.map((i) => [i.id, i]))
 
     const isPortGroupInst = (inst: Instance, dir: 'input' | 'output'): boolean => {
-      const idef = design.defs[inst.defId]
-      return !!idef && idef.kind === 'primitive' && idef.primitive === (dir === 'input' ? 'input-port' : 'output-port')
+      const kind = childPrimitive(inst.def)
+      return kind === (dir === 'input' ? 'input-port' : 'output-port')
     }
     const inputGroup = instances.find((i) => isPortGroupInst(i, 'input'))
     const outputGroup = instances.find((i) => isPortGroupInst(i, 'output'))
 
-    const portNameMap = this.computePortNames(def.id)
+    const portNameMap = this.computePortNames(def)
 
     // Sources/sinks are only exported at the top level (they become I/O pins). A nested
     // switch is emitted as a fixed constant (see the statement loop).
     const sources: Instance[] = []
     const sinks: Instance[] = []
     for (const inst of instances) {
-      const idef = design.defs[inst.defId]
-      if (!idef || idef.kind !== 'primitive') continue
-      if (idef.primitive === 'clock') {
+      const kind = childPrimitive(inst.def)
+      if (kind === 'clock') {
         if (isRoot) sources.push(inst)
         else this.error(`clock source "${inst.name}" nested in composite "${def.name}" is not exported`)
-      } else if (idef.primitive === 'switch-array') {
+      } else if (kind === 'switch-array') {
         if (isRoot) sources.push(inst)
         else this.info(`switch "${inst.name}" nested in composite "${def.name}" is exported as a fixed initial value`)
-      } else if (idef.primitive === 'led-array' || idef.primitive === 'seven-seg') {
+      } else if (kind === 'led-array' || kind === 'seven-seg') {
         if (isRoot) sinks.push(inst)
         else this.info(`sink "${inst.name}" nested in composite "${def.name}" is not exported`)
       }
@@ -183,8 +183,8 @@ class Generator {
 
     const inputPortNames = new Map<string, string>()
     const inputPortWidths = new Map<string, number>()
-    for (const p of inputPorts(def)) {
-      const w = inputGroup ? pinWidth(design, def, { instanceId: inputGroup.id, portId: p.id }) : 1
+    for (const p of inputPorts(def.ports)) {
+      const w = inputGroup ? pinWidth(def, { instanceId: inputGroup.id, portId: p.id }) : 1
       const name = portNameMap.get(p.id)!
       ports.push({ dir: 'input', name, width: w })
       inputPortNames.set(p.id, name)
@@ -192,8 +192,8 @@ class Generator {
     }
     const outputPortNames = new Map<string, string>()
     const outputPortWidths = new Map<string, number>()
-    for (const p of outputPorts(def)) {
-      const w = outputGroup ? pinWidth(design, def, { instanceId: outputGroup.id, portId: p.id }) : 1
+    for (const p of outputPorts(def.ports)) {
+      const w = outputGroup ? pinWidth(def, { instanceId: outputGroup.id, portId: p.id }) : 1
       const name = portNameMap.get(p.id)!
       ports.push({ dir: 'output', name, width: w })
       outputPortNames.set(p.id, name)
@@ -201,17 +201,17 @@ class Generator {
     }
     const sourcePorts = new Map<string, { name: string; width: number }>()
     for (const inst of sources) {
-      const idef = design.defs[inst.defId]
-      for (const p of outputPorts(idef)) {
-        const w = pinWidth(design, def, { instanceId: inst.id, portId: p.id })
+      const prim = asPrimitive(inst.def)!
+      for (const p of outputPorts(prim.ports)) {
+        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
         sourcePorts.set(pinKey({ instanceId: inst.id, portId: p.id }), { name: addExtraPort('input', `${inst.name}_${p.name}`, w), width: w })
       }
     }
     const sinkPorts = new Map<string, { name: string; width: number }>()
     for (const inst of sinks) {
-      const idef = design.defs[inst.defId]
-      for (const p of inputPorts(idef)) {
-        const w = pinWidth(design, def, { instanceId: inst.id, portId: p.id })
+      const prim = asPrimitive(inst.def)!
+      for (const p of inputPorts(prim.ports)) {
+        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
         sinkPorts.set(pinKey({ instanceId: inst.id, portId: p.id }), { name: addExtraPort('output', `${inst.name}_${p.name}`, w), width: w })
       }
     }
@@ -221,13 +221,12 @@ class Generator {
     for (const c of connections) uf.union(pinKey(c.from), pinKey(c.to))
 
     const allPins: PinRef[] = []
-    if (inputGroup) for (const p of inputPorts(def)) allPins.push({ instanceId: inputGroup.id, portId: p.id })
-    if (outputGroup) for (const p of outputPorts(def)) allPins.push({ instanceId: outputGroup.id, portId: p.id })
+    if (inputGroup) for (const p of inputPorts(def.ports)) allPins.push({ instanceId: inputGroup.id, portId: p.id })
+    if (outputGroup) for (const p of outputPorts(def.ports)) allPins.push({ instanceId: outputGroup.id, portId: p.id })
     for (const inst of instances) {
       if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
-      const idef = design.defs[inst.defId]
-      if (!idef) continue
-      for (const p of idef.ports) allPins.push({ instanceId: inst.id, portId: p.id })
+      const ports = childPorts(inst.def)
+      for (const p of ports) allPins.push({ instanceId: inst.id, portId: p.id })
     }
 
     const rootMembers = new Map<string, PinRef[]>()
@@ -267,11 +266,11 @@ class Generator {
       if (name === null) {
         for (const m of members) {
           const inst = byId.get(m.instanceId)
-          const idef = inst && design.defs[inst.defId]
-          const port = idef && idef.ports.find((p) => p.id === m.portId)
+          const ports = inst && childPorts(inst.def)
+          const port = ports && ports.find((p) => p.id === m.portId)
           if (port && port.direction === 'output') {
             name = uniqueName(`${inst!.name}_${port.name || port.id}`, used)
-            width = pinWidth(design, def, m)
+            width = pinWidth(def, m)
             break
           }
         }
@@ -287,16 +286,15 @@ class Generator {
 
     // Floating-input warnings.
     for (const inst of instances) {
-      const idef = design.defs[inst.defId]
-      if (!idef || inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
-      for (const p of inputPorts(idef)) {
+      if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
+      for (const p of inputPorts(childPorts(inst.def))) {
         if (!findConnectionTo(connections, { instanceId: inst.id, portId: p.id })) {
           this.error(`floating input "${inst.name}.${p.name}" in composite "${def.name}"`)
         }
       }
     }
     if (outputGroup) {
-      for (const p of outputPorts(def)) {
+      for (const p of outputPorts(def.ports)) {
         if (!findConnectionTo(connections, { instanceId: outputGroup.id, portId: p.id })) {
           this.error(`floating output "${p.name}" in composite "${def.name}"`)
         }
@@ -308,9 +306,9 @@ class Generator {
     // DFF Q nets are `reg` (the register output); derived outputs (e.g. !Q) are `assign`ed.
     const regNets = new Set<string>()
     for (const inst of instances) {
-      const idef = design.defs[inst.defId]
-      if (idef?.kind === 'primitive' && idef.primitive === 'dff') {
-        const out = outputPorts(idef)[0]
+      const kind = childPrimitive(inst.def)
+      if (kind === 'dff') {
+        const out = outputPorts(childPorts(inst.def))[0]
         if (out) regNets.add(netOf({ instanceId: inst.id, portId: out.id }))
       }
     }
@@ -335,16 +333,15 @@ class Generator {
 
     const stmts: string[] = []
     stmts.push(...bridges)
-    const emitPrimitive = (inst: Instance, idef: PrimitiveDef): void => {
-      const k = idef.primitive
+    const emitPrimitive = (inst: Instance, kind: PrimitiveKind, ports: Port[]): void => {
       const pin = (id: string): PinRef => ({ instanceId: inst.id, portId: id })
       const net = (id: string): string => netOf(pin(id))
       const inv = (port: { inverted?: boolean } | undefined, s: string): string => (port?.inverted ? `~(${s})` : s)
 
-      if (k === 'and' || k === 'or' || k === 'xor' || k === 'not' || k === 'buffer' || k === 'join-point') {
-        const op = k === 'and' ? ' & ' : k === 'or' ? ' | ' : k === 'xor' ? ' ^ ' : null
-        const inputs = inputPorts(idef)
-        const output = outputPorts(idef)[0]
+      if (kind === 'and' || kind === 'or' || kind === 'xor' || kind === 'not' || kind === 'buffer' || kind === 'join-point') {
+        const op = kind === 'and' ? ' & ' : kind === 'or' ? ' | ' : kind === 'xor' ? ' ^ ' : null
+        const inputs = inputPorts(ports)
+        const output = outputPorts(ports)[0]
         const terms = inputs.map((p) => inv(p, net(p.id)))
         let rhs: string
         if (op === null) rhs = terms[0] ?? "1'b0"
@@ -355,9 +352,9 @@ class Generator {
         return
       }
 
-      if (k === 'fan-in') {
-        const inputs = inputPorts(idef)
-        const output = outputPorts(idef)[0]
+      if (kind === 'fan-in') {
+        const inputs = inputPorts(ports)
+        const output = outputPorts(ports)[0]
         const terms = inputs.map((p) => inv(p, net(p.id)))
         let rhs = `{${terms.slice().reverse().join(', ')}}`
         if (output.inverted) rhs = `~(${rhs})`
@@ -365,9 +362,9 @@ class Generator {
         return
       }
 
-      if (k === 'fan-out') {
-        const input = inputPorts(idef)[0]
-        const outputs = outputPorts(idef)
+      if (kind === 'fan-out') {
+        const input = inputPorts(ports)[0]
+        const outputs = outputPorts(ports)
         outputs.forEach((p, i) => {
           let rhs = `${net(input.id)}[${i}]`
           if (input.inverted) rhs = `~(${rhs})`
@@ -377,9 +374,9 @@ class Generator {
         return
       }
 
-      if (k === 'bus-split') {
-        const input = inputPorts(idef)[0]
-        const [y1, y2] = outputPorts(idef)
+      if (kind === 'bus-split') {
+        const input = inputPorts(ports)[0]
+        const [y1, y2] = outputPorts(ports)
         const n = netWidthByName.get(net(input.id)) ?? 1
         const m = Math.max(1, n >> 1)
         let r1 = `${net(input.id)}[${m - 1}:0]`
@@ -392,33 +389,33 @@ class Generator {
         return
       }
 
-      if (k === 'bus-merge') {
-        const [a, b] = inputPorts(idef)
-        const output = outputPorts(idef)[0]
+      if (kind === 'bus-merge') {
+        const [a, b] = inputPorts(ports)
+        const output = outputPorts(ports)[0]
         let rhs = `{${inv(b, net(b.id))}, ${inv(a, net(a.id))}}`
         if (output.inverted) rhs = `~(${rhs})`
         stmts.push(`assign ${net(output.id)} = ${rhs};`)
         return
       }
 
-      if (k === 'bus') {
-        const input = inputPorts(idef)[0]
-        const output = outputPorts(idef)[0]
+      if (kind === 'bus') {
+        const input = inputPorts(ports)[0]
+        const output = outputPorts(ports)[0]
         let rhs = inv(input, net(input.id))
         if (output.inverted) rhs = `~(${rhs})`
         stmts.push(`assign ${net(output.id)} = ${rhs};`)
         return
       }
 
-      if (k === 'dff') {
+      if (kind === 'dff') {
         const prim = primitiveOf('dff')
         const clkId = prim.clockPortId?.() ?? 'in:1'
         const rstId = prim.resetPortId?.() ?? 'in:2'
         const complementId = prim.complementPortId?.() ?? null
-        const dPort = inputPorts(idef).find((p) => p.id !== clkId && p.id !== rstId)
-        const clkPort = idef.ports.find((p) => p.id === clkId)
-        const rstPort = idef.ports.find((p) => p.id === rstId)
-        const qPort = outputPorts(idef)[0]
+        const dPort = inputPorts(ports).find((p) => p.id !== clkId && p.id !== rstId)
+        const clkPort = ports.find((p) => p.id === clkId)
+        const rstPort = ports.find((p) => p.id === rstId)
+        const qPort = outputPorts(ports)[0]
         const d = dPort ? net(dPort.id) : ''
         const clk = net(clkId)
         const rst = net(rstId)
@@ -445,7 +442,7 @@ class Generator {
         // Derived outputs (e.g. the internally-complemented `!Q`): continuous assignments
         // from Q. A pin is inverted when its own bubble, its internal complement, and Q's
         // bubble differ — i.e. an odd number of inversions.
-        for (const p of outputPorts(idef).slice(1)) {
+        for (const p of outputPorts(ports).slice(1)) {
           const complement = p.id === complementId
           const invertFromQ = (p.inverted === true) !== complement !== qInverted
           stmts.push(`assign ${net(p.id)} = ${invertFromQ ? `~(${q})` : q};`)
@@ -458,7 +455,7 @@ class Generator {
 
     const emitCompositeInstance = (inst: Instance, childDef: CompositeDef): void => {
       const childModule = this.defToModule.get(childDef.id)!
-      const childPorts = this.computePortNames(childDef.id)
+      const childPorts = this.computePortNames(childDef)
       const iname = uniqueName(inst.name || 'u', used)
       const conns: string[] = []
       for (const p of childDef.ports) {
@@ -470,7 +467,7 @@ class Generator {
         }
         // Inverted instance terminal: bridge the parent net to the child port through a
         // temp net, since a Verilog module port can't take an expression directly.
-        const w = pinWidth(design, def, { instanceId: inst.id, portId: p.id })
+        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
         const tmp = uniqueName(`${iname}_${portName}_inv`, used)
         conns.push(`    .${portName}(${tmp})`)
         decls.push(w > 1 ? `wire [${w - 1}:0] ${tmp};` : `wire ${tmp};`)
@@ -482,8 +479,7 @@ class Generator {
 
     for (const inst of instances) {
       if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
-      const idef = design.defs[inst.defId]
-      if (!idef) continue
+      const idef = inst.def
       if (idef.kind === 'composite') {
         emitCompositeInstance(inst, idef)
         continue
@@ -496,14 +492,15 @@ class Generator {
         // Root switches are module inputs; nested switches become a fixed constant.
         if (!isRoot) {
           const init = inst.props?.initialValue === true ? 1 : 0
-          for (const p of outputPorts(idef)) {
+          const ports = childPorts(idef)
+          for (const p of outputPorts(ports)) {
             const w = netWidthByName.get(netOf({ instanceId: inst.id, portId: p.id })) ?? 1
             stmts.push(`assign ${netOf({ instanceId: inst.id, portId: p.id })} = {${w}{1'b${init}}};`)
           }
         }
         continue
       }
-      emitPrimitive(inst, idef)
+      emitPrimitive(inst, idef.primitive, childPorts(idef))
     }
 
     const lines: string[] = []
@@ -524,14 +521,10 @@ class Generator {
 
 /** Turn serialized design JSON (`serializeDesign` output) into synthesizable Verilog. */
 export function exportVerilog(json: string): VerilogResult {
-  const parsed = withBuiltinPrimitives(parseDesign(json))
-  const { design, issues } = sanitizeDesign(parsed)
+  const { design, issues } = sanitizeDesign(parseDesign(json))
   const verilogIssues: VerilogIssue[] = issues.map((i) => ({
     level: 'error' as const,
-    message:
-      i.type === 'dangling-connection'
-        ? `removed dangling connection ${i.connectionId} in "${i.defId}"`
-        : `removed dangling instance "${i.instanceName ?? i.instanceId}" in "${i.defId}"`,
+    message: `removed dangling connection ${i.connectionId} in "${i.defId}"`,
   }))
   const gen = new Generator(design, verilogIssues)
   return { source: gen.generate(), issues: verilogIssues }

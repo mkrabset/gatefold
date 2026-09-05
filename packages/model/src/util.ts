@@ -1,4 +1,4 @@
-import type { ComponentDef, Design } from './types'
+import type { CompositeDef } from './types'
 
 /** Generate a fresh UUID for a template lineage (browser + node). */
 export function newUuid(): string {
@@ -9,11 +9,6 @@ export function newUuid(): string {
     const v = ch === 'x' ? r : (r & 0x3) | 0x8
     return v.toString(16)
   })
-}
-
-/** A flattened view of every def in the design (library + content tree). */
-export function combinedDefs(design: Design): Record<string, ComponentDef> {
-  return { ...design.library, ...design.defs }
 }
 
 /** Produce an id/name unique against `existing`: `base`, then `base<sep>2`, `base<sep>3`… */
@@ -45,51 +40,41 @@ export class UnionFind {
   }
 }
 
-/** Remap each instance's `defId` through `idMap` (unmapped ids are left unchanged). */
-export function remapInstanceDefs(def: ComponentDef, idMap: ReadonlyMap<string, string>): void {
-  if (def.kind !== 'composite') return
-  for (const inst of def.instances ?? []) {
-    const mapped = idMap.get(inst.defId)
-    if (mapped) inst.defId = mapped
+/** Pre-order walk of every composite in the nested subtree rooted at `root`. */
+export function walkComposites(root: CompositeDef, visit: (def: CompositeDef) => void): void {
+  visit(root)
+  for (const inst of root.instances) {
+    if (inst.def.kind === 'composite') walkComposites(inst.def, visit)
   }
 }
 
-/**
- * Collect `roots` plus their transitive composite def closure, skipping any def for
- * which `skip` returns true. Order follows depth-first discovery.
- */
-export function collectClosure(
-  defs: Record<string, ComponentDef>,
-  roots: string[],
-  skip: (def: ComponentDef) => boolean,
-): Set<string> {
-  const closure = new Set<string>()
-  const visit = (defId: string) => {
-    if (closure.has(defId)) return
-    const def = defs[defId]
-    if (!def || skip(def)) return
-    closure.add(defId)
-    if (def.kind === 'composite') {
-      for (const inst of def.instances ?? []) visit(inst.defId)
-    }
-  }
-  for (const id of roots) visit(id)
-  return closure
-}
-
-/**
- * Ids of content-tree defs that are no longer reachable from the root. Only `defs`
- * (the content tree) is collected — the library is never GC'd. Canonical built-in
- * primitives (whose `id` equals their `primitive` kind) are always kept, even when
- * nothing references them, since they are regenerated on load.
- */
-export function unreachableDefIds(design: Design): Set<string> {
-  const defs = design.defs
-  const reachable = collectClosure(defs, [design.root], () => false)
-  const ids = new Set(Object.keys(defs))
-  for (const id of reachable) ids.delete(id)
-  for (const [id, def] of Object.entries(defs)) {
-    if (def.kind === 'primitive' && def.id === def.primitive) ids.delete(id)
-  }
+/** The ids of every composite in the nested subtree rooted at `root` (inclusive). */
+export function collectCompositeSubtree(root: CompositeDef): Set<string> {
+  const ids = new Set<string>()
+  walkComposites(root, (def) => ids.add(def.id))
   return ids
+}
+
+/** Every composite id in the design (the whole content tree plus the library). */
+export function allCompositeIds(design: { root: CompositeDef; library: Record<string, CompositeDef> }): Set<string> {
+  const ids = new Set<string>()
+  walkComposites(design.root, (d) => ids.add(d.id))
+  for (const def of Object.values(design.library)) walkComposites(def, (d) => ids.add(d.id))
+  return ids
+}
+
+/** Find a composite by id across the content tree and the library. */
+export function findComposite(design: { root: CompositeDef; library: Record<string, CompositeDef> }, id: string): CompositeDef | undefined {
+  let found: CompositeDef | undefined
+  walkComposites(design.root, (d) => {
+    if (!found && d.id === id) found = d
+  })
+  if (found) return found
+  for (const def of Object.values(design.library)) {
+    walkComposites(def, (d) => {
+      if (!found && d.id === id) found = d
+    })
+    if (found) return found
+  }
+  return undefined
 }

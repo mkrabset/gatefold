@@ -1,10 +1,10 @@
 /**
  * Core domain model for Gatefold.
  *
- * A design is a registry of component *definitions* (`ComponentDef`). A composite
- * definition describes its internals as a graph of *instances* wired together by
- * *connections*. Definitions are types; instances are concrete usages. Everything
- * here is plain data with no UI or framework dependencies.
+ * A design is a tree of composite definitions. A composite owns its children as
+ * inline objects: its `instances` carry an inline `ChildDef` (a shared built-in, an
+ * owned primitive fork, or an owned composite). Definitions are types; instances are
+ * concrete usages. Everything here is plain data with no UI or framework dependencies.
  */
 
 /** 3-state logic value: `0` low, `1` high, `'x'` unknown/floating. */
@@ -54,23 +54,18 @@ export type PrimitiveKind =
 /** A per-instance custom property value (JSON-scalar only, so props round-trip verbatim). */
 export type PropertyValue = number | string | boolean
 
-/** A built-in component definition (a serializable reference to its primitive kind). */
-export interface PrimitiveDef {
-  id: string
-  name: string
-  kind: 'primitive'
-  primitive: PrimitiveKind
-  ports: Port[]
-}
-
-/** A user-defined composite definition: a graph of instances wired by connections. */
+/**
+ * A user-defined composite definition: a graph of instances wired by connections. Owns
+ * its children inline — `instances` are the composite's internal components and
+ * `connections` its internal wiring.
+ */
 export interface CompositeDef {
+  kind: 'composite'
   id: string
   name: string
-  kind: 'composite'
   ports: Port[]
-  instances?: Instance[]
-  connections?: Connection[]
+  instances: Instance[]
+  connections: Connection[]
   /**
    * Lineage id. On an origin template it is the template's identity; on a copy
    * (embedded in the library or live in the content tree) it is a soft link back to
@@ -82,16 +77,22 @@ export interface CompositeDef {
 }
 
 /**
- * A component definition: a *type* (primitive or composite). Instances reference a
- * definition by `id`; the `kind` discriminates which arm is present.
+ * A child of a composite instance: either a shared built-in primitive (referenced by
+ * kind — the port groups and the join-point, whose ports are derived), an owned
+ * primitive fork (a placed primitive whose `ports` carry its per-instance inversion /
+ * arity), or an owned composite.
  */
-export type ComponentDef = PrimitiveDef | CompositeDef
+export type ChildDef =
+  | { kind: 'builtin'; primitive: PrimitiveKind }
+  | { kind: 'fork'; primitive: PrimitiveKind; ports: Port[] }
+  | CompositeDef
 
 export interface Instance {
   id: string
   name: string
-  defId: string
   pos: { x: number; y: number }
+  /** The owned child definition (built-in reference, primitive fork, or composite). */
+  def: ChildDef
   /** Per-instance custom property values (keys match the primitive's `properties()`). */
   props?: Record<string, PropertyValue>
 }
@@ -110,27 +111,14 @@ export interface Connection {
 }
 
 /**
- * The whole document, split into two disjoint parts:
- * - `library`: component templates (origin templates plus their embedded copies and
- *   primitive forks). Self-contained: a library entry's instances reference only
- *   built-in primitives or other library entries.
- * - `defs`: the content tree — the root composite, live copies, primitive forks, and
- *   the built-in primitives (stripped on save, regenerated on load).
- * A def is a template or a live object purely by which map it lives in (no flag).
+ * The whole document: the root composite (the content tree) plus the component
+ * library (templates). Both are nested — a composite owns its children as inline
+ * objects, so deleting a template deletes its children for free.
  */
 export interface Design {
   version: number
-  root: string
-  library: Record<string, ComponentDef>
-  defs: Record<string, ComponentDef>
-}
-
-/**
- * Look up a def by id across both the content tree and the library (ids are disjoint).
- * Used by editor/renderer lookups where a reference may point into either map.
- */
-export function getDef(design: Design, id: string): ComponentDef | undefined {
-  return design.defs[id] ?? design.library[id]
+  root: CompositeDef
+  library: Record<string, CompositeDef>
 }
 
 /** The id of the `index`-th input terminal (`in:0`, `in:1`, …). */
@@ -139,13 +127,13 @@ export const inputPortId = (index: number) => `in:${index}`
 export const outputPortId = (index: number) => `out:${index}`
 
 /** A definition's input ports (in declared order). */
-export function inputPorts(def: ComponentDef): Port[] {
-  return def.ports.filter((p) => p.direction === 'input')
+export function inputPorts(ports: Port[]): Port[] {
+  return ports.filter((p) => p.direction === 'input')
 }
 
 /** A definition's output ports (in declared order). */
-export function outputPorts(def: ComponentDef): Port[] {
-  return def.ports.filter((p) => p.direction === 'output')
+export function outputPorts(ports: Port[]): Port[] {
+  return ports.filter((p) => p.direction === 'output')
 }
 
 /**
@@ -153,9 +141,9 @@ export function outputPorts(def: ComponentDef): Port[] {
  * so that added ports never collide with existing ids (which may have gaps after
  * removals).
  */
-export function nextPortId(def: ComponentDef, direction: PortDirection): string {
+export function nextPortId(ports: Port[], direction: PortDirection): string {
   const prefix = direction === 'input' ? 'in' : 'out'
-  const used = def.ports
+  const used = ports
     .filter((p) => p.direction === direction)
     .map((p) => {
       const idx = Number(p.id.split(':')[1])
@@ -193,24 +181,13 @@ export function findConnectionTo(connections: Connection[], to: PinRef): Connect
   return connections.find((c) => pinRefEquals(c.to, to)) ?? null
 }
 
-/**
- * Every (composite def, instance) pair across the design — both the library and the
- * content tree — whose instance references `defId`, in def-then-instance order.
- */
-export function instancesReferencing(design: Design, defId: string): { def: CompositeDef; instance: Instance }[] {
-  const refs: { def: CompositeDef; instance: Instance }[] = []
-  for (const def of [...Object.values(design.library), ...Object.values(design.defs)]) {
-    if (def.kind !== 'composite') continue
-    for (const inst of def.instances ?? []) {
-      if (inst.defId === defId) refs.push({ def, instance: inst })
-    }
+/** Whether any other library entry references `defId` as an instance (i.e. it is embedded). */
+function isEmbeddedInLibrary(design: Design, defId: string): boolean {
+  for (const def of Object.values(design.library)) {
+    if (def.id === defId) continue
+    if (def.instances.some((i) => i.def.kind === 'composite' && i.def.id === defId)) return true
   }
-  return refs
-}
-
-/** True when any instance in the design references `defId` via its `defId`. */
-export function isDefReferenced(design: Design, defId: string): boolean {
-  return instancesReferencing(design, defId).length > 0
+  return false
 }
 
 /**
@@ -218,25 +195,16 @@ export function isDefReferenced(design: Design, defId: string): boolean {
  * embedded copy of another template (not referenced as an instance by any other
  * library entry). These are the components listed in the library panel.
  */
-export function isTemplateDef(design: Design, def: ComponentDef): boolean {
-  if (def.kind !== 'composite' || def.id === design.root) return false
-  if (!(def.id in design.library)) return false
+export function isTemplateDef(design: Design, def: CompositeDef): boolean {
+  if (def.id === design.root.id) return false
+  if (design.library[def.id] !== def) return false
   return !isEmbeddedInLibrary(design, def.id)
-}
-
-/** Whether any other library entry references `defId` as an instance (i.e. it is embedded). */
-function isEmbeddedInLibrary(design: Design, defId: string): boolean {
-  for (const def of Object.values(design.library)) {
-    if (def.kind !== 'composite' || def.id === defId) continue
-    if ((def.instances ?? []).some((i) => i.defId === defId)) return true
-  }
-  return false
 }
 
 /**
  * The display names of the origin templates. Used for name-collision checks when naming
  * or renaming a template — only other templates collide; names on live copies, embedded
- * copies, built-in primitives, and the root are ignored (names are display-only).
+ * copies, and the root are ignored (names are display-only).
  */
 export function templateNames(design: Design): Set<string> {
   const names = new Set<string>()

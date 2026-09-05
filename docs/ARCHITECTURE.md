@@ -52,9 +52,7 @@ type PrimitiveKind =
   | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'join-point'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
-// There is no flat id-lookup map (`defs`), no `variant` flag, and no `defId`
-// back-reference — ownership is structural, so deleting a composite deletes its
-// children for free.
+// Ownership is structural, so deleting a composite deletes its children for free.
 
 interface CompositeDef {
   id: string            // identity label (templates, root, and copies all keep one)
@@ -105,6 +103,72 @@ interface Design {
   root: CompositeDef
   library: Record<string, CompositeDef>
 }
+```
+
+### The nested tree: a concrete example
+
+Recursing the tree alternates between two node kinds: a composite owns placements
+(`instances: Instance[]`), and each placement holds its actual object inline
+(`def: ChildDef`). The leaves are instances whose `def` is a `fork` or `builtin`
+(they have `ports` but no `instances`).
+
+```
+CompositeDef ──instances──▶ Instance ──def──▶ ChildDef
+                                               ├─ builtin / fork  (leaf)
+                                               └─ CompositeDef    (recurse)
+```
+
+**Grouping a single AND gate** produces a library entry — a `CompositeDef` whose
+interface lives in `ports` (with `Port.terminal` back-references) and whose content is
+the AND fork plus two shared port-group builtins. (All ids below are illustrative — the
+real ones come from `uniqueId` against the current design.)
+
+```ts
+library['component'] = {
+  kind: 'composite', id: 'component', name: 'component', uuid: '<fresh>',
+  ports: [
+    { id: 'in:0', name: 'A', direction: 'input',
+      terminal: { instanceId: 'component-in', pinId: 'in:0' } },
+    { id: 'in:1', name: 'B', direction: 'input',
+      terminal: { instanceId: 'component-in', pinId: 'in:1' } },
+    { id: 'out:0', name: 'Y', direction: 'output',
+      terminal: { instanceId: 'component-out', pinId: 'out:0' } },
+  ],
+  instances: [
+    { id: 'and1', name: '', pos: { ... },
+      def: { kind: 'fork', primitive: 'and', ports: [/* in:0, in:1, out:0 */] } },
+    { id: 'component-in',  name: '', pos: { ... }, def: { kind: 'builtin', primitive: 'input-port' } },
+    { id: 'component-out', name: '', pos: { ... }, def: { kind: 'builtin', primitive: 'output-port' } },
+  ],
+  connections: [
+    { id: 'c-component-1', from: { instanceId: 'component-in',  portId: 'in:0' }, to: { instanceId: 'and1', portId: 'in:0' } },
+    { id: 'c-component-2', from: { instanceId: 'component-in',  portId: 'in:1' }, to: { instanceId: 'and1', portId: 'in:1' } },
+    { id: 'c-component-3', from: { instanceId: 'and1', portId: 'out:0' }, to: { instanceId: 'component-out', portId: 'out:0' } },
+  ],
+}
+```
+
+**Dragging that component onto the canvas** copy-on-places it: the placed thing is an
+`Instance` whose `def` is a *deep copy* of the template — a fresh composite `id`, the same
+`uuid` (the lineage soft link), and re-cloned children. The instance and the library
+template are independent object trees; they share only the `uuid`, never any object or id.
+
+```ts
+design.root.instances = [
+  // ...,
+  {
+    id: 'component', name: '', pos: { ... },
+    def: {
+      kind: 'composite',
+      id: 'component~2',          // fresh id (illustrative), NOT the template's id
+      name: 'component',
+      uuid: '<same as the template>',  // the only shared link
+      ports: [/* copied */],
+      instances: [/* the AND fork + port groups, re-cloned */],
+      connections: [/* copied */],
+    },
+  },
+]
 ```
 
 ### Key conventions
@@ -409,8 +473,8 @@ Implemented via `@gatefold/model`'s `group.ts`, driven by the toolbar **Group** 
   `Port.terminal`), wires the moved pins through those instances, then replaces the selection
   in the parent with a single instance at its centroid and re-wires the external connections
   to that instance's ports. Exposed (floating) ports are wired only internally — no external
-  connection is created. The moved instances carry their inline defs into the template (no
-  "relocate to library" step). The template's ports are **clean (non-inverted)**; inherited
+  connection is created. The moved instances carry their inline defs into the template. The
+  template's ports are **clean (non-inverted)**; inherited
   inversion is applied to the instance's copy by the store (`confirmGroup`) after
   copy-on-place (deep-clone of the template), so the instance never shares any data with the
   template.
@@ -524,11 +588,10 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 
 - **`serialize.ts`** — `buildProject` / `serializeDesign` / `parseDesign` / `sanitizeDesign`.
   A saved design is `{ version, root: <nested composite>, library: { id: <nested composite> } }`
-  (built-ins are inline `builtin` references, never stored as defs); `buildProject` rounds every
+  (built-ins are inline `builtin` references); `buildProject` rounds every
   `pos` coordinate to 2 decimals (sub-pixel) and sorts library keys for determinism.
-  `parseDesign` validates the shape, migrates legacy files (a v1 two-part flat `library`+`defs`
-  document, or the older flat-`variant` document, is inlined into the nested model), and throws
-  on malformed input. `sanitizeDesign` drops dangling connections (endpoints referencing a
+  `parseDesign` validates the shape, migrates older saved files to the current nested shape,
+  and throws on malformed input. `sanitizeDesign` drops dangling connections (endpoints referencing a
   missing instance); a dangling instance is structurally impossible.
 - **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` / `parseLibrary`).
   The library is kept normalized in memory, so `exportLibrary` is simply `buildProject(design).library`

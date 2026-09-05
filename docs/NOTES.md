@@ -9,12 +9,11 @@ HTML5 canvas, pnpm monorepo). The document is now a **nested object tree**: a co
 its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a nested
 `CompositeDef`), so deleting a template deletes its children for free — there is no flat
 `defs` map, no `defId` back-references, no `variant` flag, and no reachability GC. See
-`docs/ARCHITECTURE.md` (as-built design), `docs/GLOSSARY.md` (terminology),
-`docs/NESTED_MODEL_REFACTOR.md` (the plan + locked decisions).
+`docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
 
-- **Nested-object model redesign** (the `NESTED_MODEL_REFACTOR` task): replaced the flat
+- **Nested-object model redesign**: replaced the flat
   `Design = { root, library, defs }` + `Instance.defId` string lookups with a tree where a
   composite owns its children inline:
 

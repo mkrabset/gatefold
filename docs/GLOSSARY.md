@@ -6,8 +6,7 @@ authoritative — update this when a term's meaning changes.
 ## Core data
 
 - **Design** — the whole document: `{ version, root, library }`. The unit saved/loaded as JSON.
-  The model is **nested**: a composite owns its children as inline objects (there is no
-  flat id-lookup map).
+  The model is **nested**: a composite owns its children as inline objects.
 - **Definition** — a reusable *type*. Two kinds: a **primitive** (built-in behavior) or a
   **composite** (`CompositeDef`: `id`, `name`, `ports`, `instances`, `connections`, plus
   `uuid`/`category`).
@@ -17,7 +16,7 @@ authoritative — update this when a term's meaning changes.
   inversion/arity), or a nested `CompositeDef`.
 - **Instance** — a concrete placement of a definition at a position, with a unique `id`, a
   display `name` (not enforced unique; logic keys off `id` only), and an inline `def:
-  ChildDef` (owned by the parent composite). There is no `defId` string back-reference.
+  ChildDef` (owned by the parent composite).
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
   and the probe primitives 7-SEG, SWITCHES, LEDS. Not editable as a circuit.
@@ -56,8 +55,7 @@ authoritative — update this when a term's meaning changes.
   `initialValue` (boolean) sets every lane's starting state when simulation begins. A switch's
   `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`, default HEX) is the initial radix of its **set-value
   dialog**, and its `order` (`asc`/`desc`) picks which end of the bus is the least-significant
-  bit when a typed value is mapped onto the lanes. They
-  supersede the removed single-lane SWITCH and LED primitives.
+  bit when a typed value is mapped onto the lanes.
 - **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`) used to enter/display a multi-bit
   value. Shared by the 7-seg display's `mode` and the switch-array's `valueFormat`; the single
   `ValueFormat` type lives in the model's `value.ts`.
@@ -82,7 +80,7 @@ authoritative — update this when a term's meaning changes.
 - **Copy** — an instantiation of a template (or a fork of a primitive) that is a full, independent
   definition. A **live copy** lives in the content tree (a nested `CompositeDef` under `root`);
   an **embedded copy** lives inline inside a library template as "part of" it. Whether a def
-  is a template or a copy is determined purely by *location* — there is no `variant` flag.
+  is a template or a copy is determined purely by *location*.
 - **Content tree** — the live objects: the root composite plus every live copy, all nested
   under `design.root` (which is a `CompositeDef`).
 - **Library** — the set of templates (`design.library`): origin templates, keyed by id. A

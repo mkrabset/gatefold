@@ -37,61 +37,29 @@ sources, and user-defined sub-circuits) wired together and simulated with sequen
 
 ## 3. Core data model (`@gatefold/model`)
 
-The model cleanly separates **definitions** (types) from **instances** (usages).
-
-```ts
-type Signal = 0 | 1 | 'x'; // 3-state logic (0, 1, unknown)
-
-interface Port {
-  id: string;
-  name: string;
-  direction: 'input' | 'output';
-  terminal?: { instanceId: string; pinId: string }; // composite only: internal port instance
-}
-
-type PrimitiveKind = 'and' | 'or' | 'xor' | 'not' | 'clock' | 'fan-in' | 'fan-out' | 'input-port' | 'output-port';
-
-interface ComponentDef {
-  id: string;
-  name: string;                 // unique within its scope
-  kind: 'primitive' | 'composite';
-  primitive?: PrimitiveKind;    // present when kind === 'primitive'
-  ports: Port[];                // ordered: inputs first (in:0..n-1), then outputs (out:0..m-1)
-  // Composite internals:
-  instances?: Instance[];       // sub-components (including port instances)
-  connections?: Connection[];   // netlist wiring internal pins
-}
-
-interface Instance {
-  id: string;
-  name: string;                 // unique within the parent composite's scope
-  defId: string;                // reference into Design.defs
-  pos: { x: number; y: number }; // canvas placement
-}
-
-// A connection endpoint is always an instance pin.
-type PinRef = { instanceId: string; portId: string };
-
-interface Connection {
-  id: string;
-  from: PinRef;                 // driver (an output pin)
-  to: PinRef;                   // sink (an input pin)
-}
-
-interface Design {
-  version: number;
-  root: string;                 // id of the root composite definition
-  defs: Record<string, ComponentDef>;
-}
-```
+> The as-built model lives in `docs/ARCHITECTURE.md` §2 — a nested object tree:
+> `Design = { version, root: CompositeDef, library }`, where a composite owns its children as
+> inline objects (`Instance.def: ChildDef = builtin | fork | CompositeDef`). The notes below
+> are the design intent that still holds.
 
 ### Hierarchy / scope rules
 
 - A composite's internal instance names are unique **within that composite**.
-- Component definition names are unique **within the design** (flat registry is sufficient
-  for the MVP; namespacing can be added later).
 - Composites may nest arbitrarily; cycle detection in the instance graph is deferred until
   the simulation engine needs it.
+
+### Loose ends (possible improvements)
+
+- **Unify the join-point representation.** `addInstance` places a join-point as a `fork`
+  while `insertJoinPointAt` places the same primitive as a `builtin`; both behave identically,
+  but one representation should be chosen.
+- **Make the composite-`id` uniqueness invariant explicit.** `id` uniqueness across the whole
+  tree is load-bearing (`findComposite`, `allCompositeIds` seeding) but enforced only by
+  convention (clone uniquifies ids); it is untested, and a hand-built design with colliding
+  ids would silently misbehave.
+- **Harden the legacy migration.** Verify older saved files still load correctly: add a
+  round-trip test (nested → serialize → parse → serialize is byte-stable) and richer legacy
+  fixtures (primitive forks, port-group edge cases).
 
 ### Port conventions
 
@@ -224,7 +192,7 @@ adder from gates).
 5. Show a **review dialog** listing the inferred inputs/outputs with editable names
    (auto-names `in1`, `out1`). Confirm to create.
 6. `applyGroup` then:
-   - creates the new `ComponentDef` (unique name, inferred `ports`, moved `instances`
+   - creates the new `CompositeDef` (unique name, inferred `ports`, moved `instances`
      kept at their current positions, and internal connections);
     - for each direction with inferred ports, creates a single `input-port`/`output-port`
       **group instance** (linked via `Port.terminal`) and wires the moved pins through it
@@ -261,13 +229,10 @@ Zustand stores, split by concern:
 
 ## 9. JSON file format
 
-The `Design` object is serialized verbatim, with a schema `version` field for future
-migration. Primitive definitions are referenced by stable kind strings; layout positions are
-included so a load restores the schematic exactly. A saved design is self-contained.
-
-A separate **library file** (`{ version, components: ComponentDef[] }`) holds the custom
-component library: the template composites plus their transitive composite closure, with
-primitive references normalized to built-in ids.
+> See `docs/ARCHITECTURE.md` §8 for the as-built format. A saved design is
+> `{ version, root: <nested composite>, library: { id: <nested composite> } }`, with older
+> files migrated on load. The library export reuses the same `library` body (one code
+> path), so a saved project and an exported library are byte-identical in their library part.
 
 ---
 
@@ -311,7 +276,7 @@ primitive references normalized to built-in ids.
 | 5 | Component model UX — descend/ascend into any component, group into composite, ports editor, instance rename | ✅ done |
 | 6 | Simulation UI — run/step, clock source, live signal coloring | ⏳ pending |
 | 7 | Save/load — JSON import/export, file download/upload (done); component library export/import (done) | ✅ done |
-| 8 | Refinements — bezier wires, port components, copy-on-place variants, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |
+| 8 | Refinements — bezier wires, port components, copy-on-place copies, arity constraints, animated port reorder, theming, tooltips (done); buses (fan-in/fan-out, derived bus width) (done); truth-table view | ⏳ pending |
 | 9 | Verilog codegen — structural export for FPGA (see §12) | 🔄 in progress |
 
 ---

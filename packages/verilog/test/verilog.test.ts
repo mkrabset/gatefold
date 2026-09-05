@@ -12,7 +12,7 @@ const pgIn = (): Instance => ({ id: 'pi', name: '', defId: 'input-port', pos: { 
 const pgOut = (): Instance => ({ id: 'po', name: '', defId: 'output-port', pos: { x: 0, y: 0 } })
 
 function jsonOf(root: ComponentDef, extraDefs: Record<string, ComponentDef> = {}): string {
-  const design: Design = withBuiltinPrimitives({ version: 1, root: 'main', defs: { main: root, ...extraDefs } })
+  const design: Design = withBuiltinPrimitives({ version: 1, root: 'main', library: {}, defs: { main: root, ...extraDefs } })
   return serializeDesign(design)
 }
 

@@ -38,7 +38,7 @@ function buildHalfAdderDesign(): Design {
       conn('c6', iRef('and1', 'out:0'), iRef('or1', 'in:1')),
     ],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 describe('inferGroup', () => {
@@ -68,7 +68,7 @@ describe('applyGroup', () => {
     const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'])
 
     const main = result.defs['main'] as CompositeDef
-    const compDef = result.defs['component'] as CompositeDef
+    const compDef = result.library['component'] as CompositeDef
 
     expect(compDef).toBeDefined()
     expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
@@ -109,8 +109,8 @@ describe('applyGroup', () => {
   it('uses the supplied component name', () => {
     const design = buildHalfAdderDesign()
     const result = applyGroup(design, 'main', ['xor1', 'and1'], ['A', 'B'], ['S', 'C'], 'adder')
-    expect(result.defs['adder']).toBeDefined()
-    expect(result.defs['adder'].name).toBe('adder')
+    expect(result.library['adder']).toBeDefined()
+    expect(result.library['adder'].name).toBe('adder')
     // the parent instance is created with an empty default name, referencing the new def.
     const main = result.defs['main'] as CompositeDef
     expect(main.instances!.some((i) => i.defId === 'adder' && i.name === '')).toBe(true)
@@ -142,7 +142,7 @@ function buildFloatingPinsDesign(): Design {
     instances: [inst('src', 'clock', 0, 0), inst('and1', 'and', 200, 0)],
     connections: [conn('c1', iRef('src', 'out:0'), iRef('and1', 'in:0'))],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 describe('inferGroup — exposed (floating) pins', () => {
@@ -169,7 +169,7 @@ describe('applyGroup — exposed (floating) pins', () => {
     const result = applyGroup(design, 'main', ['and1'], ['A', 'B'], ['Y'])
 
     const main = result.defs['main'] as CompositeDef
-    const compDef = result.defs['component'] as CompositeDef
+    const compDef = result.library['component'] as CompositeDef
 
     expect(inputPorts(compDef).map((p) => p.name)).toEqual(['A', 'B'])
     expect(outputPorts(compDef).map((p) => p.name)).toEqual(['Y'])
@@ -218,7 +218,7 @@ function buildPortGroupDesign(): Design {
       conn('c3', iRef('a', 'out:0'), iRef('out', 'out:0')),
     ],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 describe('grouping with port groups in the selection', () => {
@@ -239,7 +239,7 @@ describe('grouping with port groups in the selection', () => {
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
 
     const main = result.defs['main'] as CompositeDef
-    const comp = result.defs['component'] as CompositeDef
+    const comp = result.library['component'] as CompositeDef
 
     // The new component holds the gate + its own port groups, not the parent's.
     expect(comp.instances!.map((i) => i.id).sort()).toEqual(['a', 'component-in', 'component-out'].sort())
@@ -261,7 +261,7 @@ describe('grouping with port groups in the selection', () => {
     const design = buildPortGroupDesign()
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B'], ['Y'])
 
-    const comp = result.defs['component'] as CompositeDef
+    const comp = result.library['component'] as CompositeDef
     const inGroup = comp.instances!.find((i) => i.defId === 'input-port')!
     const outGroup = comp.instances!.find((i) => i.defId === 'output-port')!
     // The parent's port groups were at (0,0) and (200,0); the new component inherits
@@ -310,7 +310,7 @@ function buildInheritedInterfaceDesign(): Design {
       conn('c4', iRef('a', 'out:0'), iRef('out', 'out:0')),
     ],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 describe('grouping with the parent port groups included', () => {
@@ -353,7 +353,7 @@ describe('grouping with the parent port groups included', () => {
     const result = applyGroup(design, 'main', ['a', 'in', 'out'], ['A', 'B', 'C', 'EXTRA'], ['Y'])
 
     const main = result.defs['main'] as CompositeDef
-    const comp = result.defs['component'] as CompositeDef
+    const comp = result.library['component'] as CompositeDef
 
     expect(inputPorts(comp).map((p) => p.name)).toEqual(['A', 'B', 'C', 'EXTRA'])
     expect(outputPorts(comp).map((p) => p.name)).toEqual(['Y'])

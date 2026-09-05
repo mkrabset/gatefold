@@ -57,34 +57,35 @@ describe('remapInstanceDefs', () => {
 })
 
 describe('unreachableDefIds', () => {
-  it('keeps root/templates/built-ins and reachable variants, returns orphaned variants', () => {
+  it('keeps root/templates/built-ins and reachable defs, returns orphaned content defs', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {
+        tpl: { id: 'tpl', name: 'tpl', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
       defs: {
         and: { id: 'and', name: 'AND', kind: 'primitive', primitive: 'and', ports: [] },
-        tpl: { id: 'tpl', name: 'tpl', kind: 'composite', ports: [], instances: [], connections: [] },
         main: {
           id: 'main',
           name: 'main',
           kind: 'composite',
           ports: [],
-          instances: [{ id: 'a', name: 'a', defId: 'tpl~x', pos: { x: 0, y: 0 } }],
+          instances: [{ id: 'a', name: 'a', defId: 'live', pos: { x: 0, y: 0 } }],
           connections: [],
         },
         // Reachable (referenced by main) — must be kept.
-        'tpl~x': { id: 'tpl~x', name: 'tpl', kind: 'composite', variant: true, ports: [], instances: [], connections: [] },
-        // Orphaned variant, and its nested orphan — must be returned.
+        live: { id: 'live', name: 'live', kind: 'composite', ports: [], instances: [], connections: [] },
+        // Orphaned def, and its nested orphan — must be returned.
         orphan: {
           id: 'orphan',
           name: 'old',
           kind: 'composite',
-          variant: true,
           ports: [],
           instances: [{ id: 'oi', name: 'oi', defId: 'orphan-inner', pos: { x: 0, y: 0 } }],
           connections: [],
         },
-        'orphan-inner': { id: 'orphan-inner', name: 'inner', kind: 'composite', variant: true, ports: [], instances: [], connections: [] },
+        'orphan-inner': { id: 'orphan-inner', name: 'inner', kind: 'composite', ports: [], instances: [], connections: [] },
       },
     }
 
@@ -92,11 +93,11 @@ describe('unreachableDefIds', () => {
   })
 
   it('returns an empty set when there are no orphans', () => {
-    const tpl: ComponentDef = { id: 'tpl', name: 'tpl', kind: 'composite', ports: [], instances: [], connections: [] }
     const design: Design = {
       version: 1,
       root: 'main',
-      defs: { main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] }, tpl },
+      library: {},
+      defs: { main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] } },
     }
     expect(unreachableDefIds(design)).toEqual(new Set())
   })

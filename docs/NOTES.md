@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-05 (switch-arrays can be set by typing a value in simulate mode).
+Last updated: 2026-09-05 (two-part model: library + content tree, `variant` flag removed).
 
 ## Where we are
 
@@ -8,10 +8,46 @@ Gatefold is a graphical logic-circuit designer/simulator (TypeScript + React + Z
 HTML5 canvas, pnpm monorepo). The editor is feature-complete for building/editing
 hierarchical circuits, with JSON save/load and library export/import, **and a working
 event-driven simulator** (combinational + gate-built latches/flip-flops, buses, probe
-components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md`
-(as-built design), `docs/GLOSSARY.md` (terminology).
+components, signal-colored wires). The document is now split into a **library** (templates)
+and a **content tree** (live objects), with `uuid` lineage soft-links instead of a `variant`
+flag. See `PLAN.md` (roadmap), `docs/ARCHITECTURE.md` (as-built design),
+`docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Two-part model: library + content tree, `variant` removed** — a large model/persistence
+  refactor so that "Save JSON" and "Export library" share one code path for the library body:
+
+  - **Model** (`packages/model/src/types.ts`) — `Design` is now `{ version, root, library,
+    defs }`: `library` holds the templates (origin templates + embedded copies + primitive
+    forks); `defs` holds the content tree (root + live copies + primitive forks + built-ins).
+    The `variant` boolean is **removed** from `PrimitiveDef`/`CompositeDef`; whether a def is a
+    template or a live object is determined purely by *location* (`getDef(design, id)` searches
+    `defs` then `library`). `CompositeDef.uuid` remains as the **lineage id**: identity on an
+    origin, a soft link back to the origin on a copy (embedded or live). `isTemplateDef` is now
+    "a composite in `library` not referenced by any other library entry".
+  - **Serialization** (`serialize.ts`) — `buildProject(design)` returns `{ version, root,
+    library, defs }` and is the single source of truth: `serializeDesign` stringifies it, and
+    `exportLibrary` returns its `library` field (so the library body of a saved project and an
+    exported library are **byte-identical**). `parseDesign` migrates legacy flat-`defs` files
+    (split on the old `variant` flag) and `unreachableDefIds` now GCs only the content tree.
+  - **Library exchange** (`library.ts`) — the library is kept normalized in memory, so
+    `exportLibrary` no longer transforms at export time; `importLibrary` merges into `library`
+    with fresh ids/names and remaps composite `uuid`s consistently (an imported template and its
+    embedded copies keep their shared soft link).
+  - **Copy-on-place** (`clipboard.ts`, `group.ts`, `editorStore.ts`) — a placed/grouped copy goes
+    into `defs` (live) or `library` (embedded, when editing a template) via `copyDefIntoSide`.
+    `applyGroup` creates the template in `library` and `relocateToLibrary`s the moved defs'
+    closure so the template is self-contained. Deleting a template now clears the `uuid` soft
+    link on its copies instead of refusing on "component in use".
+  - **App/UI** — `getDef` replaces `design.defs[...]` lookups across the editor/renderer/UI;
+    the library panel lists `design.library` origins; `applyTemplate` matches live `defs` by
+    `uuid`. `sim`/`verilog` were unaffected (they flatten the content tree only).
+  - Tests updated across model/sim/verilog/app, plus new coverage: save-vs-export library
+    identity, legacy migration, soft-link clearing, and embedded-copy export/import round-trip.
+    Architecture, glossary, and user guide updated.
+
+## Earlier (this session)
 
 - **Switch-array value entry (simulate mode)** — switches can now be set by typing a whole
   value instead of clicking lanes one at a time:
@@ -42,8 +78,6 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
   - Tests in `packages/model/test/value.test.ts` and `packages/sim/test/engine.test.ts`
     (`setSwitchLanes`/`switchLanesOf`); `array.test.ts` updated for the new props. User guide,
     glossary, and architecture updated.
-
-## Earlier (this session)
 
 - **Custom-component categories (library panel)** — the right-hand library's "My components"
   grid grew unbounded, so custom components are now organized into **categories** shown one at

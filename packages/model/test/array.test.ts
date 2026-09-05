@@ -46,6 +46,7 @@ describe('array primitives', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: {
         'switch-array': { id: 'switch-array', name: 'SWITCHES', kind: 'primitive', primitive: 'switch-array', ports: arrayPorts('output', 'wire', 1) },
         'fan-out': primitiveDef('fan-out'),
@@ -71,6 +72,7 @@ describe('array primitives', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: { bus: primitiveDef('bus'), and: primitiveDef('and'), main },
     }
     // b.out:0 is fixed width 8; and.in:0 is width 1 → mismatch.
@@ -92,6 +94,7 @@ describe('array primitives', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
     }
     expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
@@ -112,6 +115,7 @@ describe('array primitives', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: { bus: primitiveDef('bus'), 'seven-seg': primitiveDef('seven-seg'), main },
     }
     expect(connectionError(design, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')

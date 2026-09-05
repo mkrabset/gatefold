@@ -8,7 +8,7 @@ const inst = (id: string, defId: string, x: number, y: number): Instance => ({ i
 
 function mkDesign(instances: Instance[], connections: CompositeDef['connections']): { design: Design; main: ComponentDef } {
   const main: ComponentDef = { id: 'main', name: 'main', kind: 'composite', ports: [], instances, connections }
-  return { design: withBuiltinPrimitives({ version: 1, root: 'main', defs: { main } }), main }
+  return { design: withBuiltinPrimitives({ version: 1, root: 'main', library: {}, defs: { main } }), main }
 }
 
 describe('findWireAtLine', () => {

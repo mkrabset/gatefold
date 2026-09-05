@@ -141,7 +141,7 @@ describe('editorStore undo/redo + clipboard', () => {
   it('renames a composite template but not the root or primitives', () => {
     reset()
     useEditorStore.getState().renameDef('half-adder', 'RippleAdder')
-    expect(useEditorStore.getState().design.defs['half-adder'].name).toBe('RippleAdder')
+    expect(useEditorStore.getState().design.library['half-adder'].name).toBe('RippleAdder')
 
     useEditorStore.getState().renameDef('main', 'Nope')
     expect(useEditorStore.getState().design.defs['main'].name).toBe('main')
@@ -154,12 +154,12 @@ describe('editorStore undo/redo + clipboard', () => {
     reset()
     useEditorStore.getState().renameDef('half-adder', 'AND')
     expect(useEditorStore.getState().notice).toBe('A component named "AND" already exists')
-    expect(useEditorStore.getState().design.defs['half-adder'].name).toBe('half-adder')
+    expect(useEditorStore.getState().design.library['half-adder'].name).toBe('half-adder')
   })
 
   it('sets, renames, and clears a template category', () => {
     reset()
-    const def = () => useEditorStore.getState().design.defs['half-adder'] as CompositeDef
+    const def = () => useEditorStore.getState().design.library['half-adder'] as CompositeDef
 
     useEditorStore.getState().setDefCategory('half-adder', '  Arithmetic  ')
     expect(def().category).toBe('Arithmetic')
@@ -185,7 +185,7 @@ describe('editorStore undo/redo + clipboard', () => {
     expect((useEditorStore.getState().design.defs['and'] as CompositeDef).category).toBeUndefined()
   })
 
-  it('prunes a variant def once its last instance is deleted', () => {
+  it('prunes a live def once its last instance is deleted', () => {
     reset()
     const defId = mainInstances().find((i) => i.id === 'clk')!.defId
     expect(useEditorStore.getState().design.defs[defId]).toBeDefined()
@@ -195,7 +195,7 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(useEditorStore.getState().design.defs[defId]).toBeUndefined()
   })
 
-  it('promotes a single component to a new template, leaving the instance a variant', () => {
+  it('promotes a single component to a new template, leaving the instance a live copy', () => {
     reset()
     const state = useEditorStore.getState()
     state.setSelection(['ha1'])
@@ -204,15 +204,15 @@ describe('editorStore undo/redo + clipboard', () => {
     state.confirmGroup()
 
     const s = useEditorStore.getState()
-    // A new template exists with the dialog name (variant unset).
-    const template = Object.values(s.design.defs).find(
-      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'MyAdder',
+    // A new template exists in the library with the dialog name.
+    const template = Object.values(s.design.library).find(
+      (d) => d.kind === 'composite' && d.name === 'MyAdder',
     )
     expect(template).toBeDefined()
 
-    // The clicked instance still references its own variant def.
+    // The clicked instance still references its own live copy (in the content tree).
     const ha1 = mainInstances().find((i) => i.id === 'ha1')!
-    expect(s.design.defs[ha1.defId].variant).toBe(true)
+    expect(s.design.defs[ha1.defId]).toBeDefined()
 
     // The promoted template's internals are deep-copied (not shared with the instance).
     const instanceDef = s.design.defs[ha1.defId] as CompositeDef
@@ -230,19 +230,19 @@ describe('editorStore undo/redo + clipboard', () => {
     state.confirmGroup()
 
     const s = useEditorStore.getState()
-    const template = Object.values(s.design.defs).find(
-      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'combo',
+    const template = Object.values(s.design.library).find(
+      (d) => d.kind === 'composite' && d.name === 'combo',
     )!
     const newInst = mainInstances()[mainInstances().length - 1]
     const variant = s.design.defs[newInst.defId] as CompositeDef
-    expect(variant.variant).toBe(true)
+    expect(variant).toBeDefined()
 
     const templateHa = (template as CompositeDef).instances!.find((i) => i.id === 'ha1')!
     const variantHa = variant.instances!.find((i) => i.id === 'ha1')!
     expect(variantHa.defId).not.toBe(templateHa.defId)
   })
 
-  it('places the port groups outside the grouped components (template and variant)', () => {
+  it('places the port groups outside the grouped components (template and copy)', () => {
     reset()
     const state = useEditorStore.getState()
     // clk is at x=100, or1 at x=730 — a wide selection whose centroid ±120 placeholder
@@ -253,8 +253,8 @@ describe('editorStore undo/redo + clipboard', () => {
     state.confirmGroup()
 
     const s = useEditorStore.getState()
-    const template = Object.values(s.design.defs).find(
-      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'wide',
+    const template = Object.values(s.design.library).find(
+      (d) => d.kind === 'composite' && d.name === 'wide',
     )!
     const newInst = mainInstances()[mainInstances().length - 1]
     const variant = s.design.defs[newInst.defId] as CompositeDef
@@ -280,8 +280,8 @@ describe('editorStore undo/redo + clipboard', () => {
     state.confirmGroup()
 
     const s = useEditorStore.getState()
-    const template = Object.values(s.design.defs).find(
-      (d) => d.kind === 'composite' && !d.variant && d.id !== 'main' && d.name === 'sub',
+    const template = Object.values(s.design.library).find(
+      (d) => d.kind === 'composite' && d.name === 'sub',
     )!
     const newInst = mainDef().instances!.find((i) => s.design.defs[i.defId]?.name === 'sub')!
     const variant = s.design.defs[newInst.defId] as CompositeDef
@@ -296,11 +296,11 @@ describe('editorStore undo/redo + clipboard', () => {
     }
   })
 
-  it('keeps template ports clean and allows inverting a variant', () => {
+  it('keeps template ports clean and allows inverting a live copy', () => {
     reset()
     // A template's terminals cannot be inverted (even via an explicit defId).
     useEditorStore.setState({ navStack: ['half-adder'] })
-    const tPort = () => useEditorStore.getState().design.defs['half-adder'].ports.find((p) => p.id === 'in:0')!
+    const tPort = () => useEditorStore.getState().design.library['half-adder'].ports.find((p) => p.id === 'in:0')!
     useEditorStore.getState().setPortInverted('in:0', true, 'half-adder')
     expect(tPort().inverted).toBeUndefined()
 
@@ -401,7 +401,7 @@ function makeSplitterDesign(): Design {
     ],
     connections: [],
   }
-  return { version: 1, root: 'main', defs: { 'fan-in-5': fanIn, 'bus-split': split, main } }
+  return { version: 1, root: 'main', library: {}, defs: { 'fan-in-5': fanIn, 'bus-split': split, main } }
 }
 
 // A sample design with the built-in primitives, a half-adder, and a small demo circuit.
@@ -413,7 +413,8 @@ function makeTestDesign(): Design {
   defs['input-port'] = inputPortDef()
   defs['output-port'] = outputPortDef()
 
-  defs['half-adder'] = {
+  const library: Record<string, ComponentDef> = {}
+  library['half-adder'] = {
     id: 'half-adder',
     name: 'half-adder',
     kind: 'composite',
@@ -433,11 +434,14 @@ function makeTestDesign(): Design {
     connections: [],
   }
 
+  // Copy-on-place: a placed instance references a fresh copy (live in the content tree
+  // for the root, or embedded in the library for a template). Composites inherit the
+  // template's `uuid` (the lineage soft link).
+  const srcOf = (id: string): ComponentDef => (library[id] ?? defs[id])!
   const variantize = (templateId: string, suffix: string): string => {
     const copyId = `${templateId}~${suffix}`
-    const copy = cloneDef(defs[templateId])
+    const copy = cloneDef(srcOf(templateId))
     copy.id = copyId
-    copy.variant = true
     defs[copyId] = copy
     return copyId
   }
@@ -469,7 +473,7 @@ function makeTestDesign(): Design {
     ],
   }
 
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library, defs }
 }
 
 // A root with its own input/output port groups (at x=0 and x=200) wired through an AND.
@@ -501,5 +505,5 @@ function makePortGroupDesign(): Design {
       { id: 'c3', from: { instanceId: 'a', portId: 'out:0' }, to: { instanceId: 'out', portId: 'out:0' } },
     ],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }

@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useEditorStore } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore } from '../state/simStore'
-import { isTemplateDef } from '@gatefold/model'
+import { getDef, isTemplateDef } from '@gatefold/model'
 
 /**
  * Top toolbar: brand, group action, simulation controls (placeholders), breadcrumb
@@ -191,7 +191,7 @@ export function Toolbar() {
 
       <div className="breadcrumb">
         {navStack.map((id, i) => {
-          const def = design.defs[id]
+          const def = getDef(design, id)
           const name = def?.name ?? id
           const isLast = i === navStack.length - 1
           // Mark library templates (not the root, not an instance copy).

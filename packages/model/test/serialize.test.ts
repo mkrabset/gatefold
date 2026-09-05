@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { CompositeDef, Design } from '../src/types'
-import { primitiveDef, withBuiltinPrimitives } from '../src/primitives'
+import type { ComponentDef, CompositeDef, Design } from '../src/types'
+import { inputPortDef, outputPortDef, primitiveDef, withBuiltinPrimitives } from '../src/primitives'
 import { parseDesign, sanitizeDesign, serializeDesign, stripBuiltinPrimitives } from '../src/serialize'
 
 const mainDef = (design: Design): CompositeDef => design.defs['main'] as CompositeDef
@@ -21,7 +21,7 @@ function makeDesign(): Design {
     ],
     connections: [{ id: 'c1', from: { instanceId: 'a1', portId: 'out:0' }, to: { instanceId: 'n1', portId: 'in:0' } }],
   }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 describe('serializeDesign / parseDesign', () => {
@@ -37,18 +37,18 @@ describe('serializeDesign / parseDesign', () => {
     expect(withBuiltinPrimitives(parsed).defs['and']).toEqual(primitiveDef('and'))
   })
 
-  it('keeps referenced variant copies', () => {
+  it('keeps referenced primitive forks', () => {
     const design = makeDesign()
-    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1', variant: true }
+    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1' }
     mainDef(design).instances!.push({ id: 'a2', name: 'a2', defId: 'and~1', pos: { x: 0, y: 0 } })
     const parsed = parseDesign(serializeDesign(design))
     expect(parsed.defs['and~1']).toBeDefined()
     expect(parsed.defs['and']).toBeUndefined()
   })
 
-  it('drops unreferenced variant defs (GC on save)', () => {
+  it('drops unreferenced defs (GC on save)', () => {
     const design = makeDesign()
-    design.defs['and~orphan'] = { ...primitiveDef('and'), id: 'and~orphan', variant: true }
+    design.defs['and~orphan'] = { ...primitiveDef('and'), id: 'and~orphan' }
     const parsed = parseDesign(serializeDesign(design))
     expect(parsed.defs['and~orphan']).toBeUndefined()
   })
@@ -88,12 +88,44 @@ describe('serializeDesign / parseDesign', () => {
 describe('stripBuiltinPrimitives', () => {
   it('removes only canonical built-in primitive defs', () => {
     const design = makeDesign()
-    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1', variant: true }
+    design.defs['and~1'] = { ...primitiveDef('and'), id: 'and~1' }
     const stripped = stripBuiltinPrimitives(design)
     expect(stripped.defs['and']).toBeUndefined()
     expect(stripped.defs['not']).toBeUndefined()
     expect(stripped.defs['and~1']).toBeDefined()
     expect(stripped.defs['main']).toBeDefined()
+  })
+})
+
+describe('parseDesign (legacy migration)', () => {
+  it('splits a legacy flat defs map (with `variant`) into library + defs', () => {
+    const legacy = {
+      version: 1,
+      root: 'main',
+      defs: {
+        and: primitiveDef('and'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        tpl: { id: 'tpl', name: 'tpl', kind: 'composite', uuid: 'U', ports: [], instances: [], connections: [] },
+        'tpl~1': { id: 'tpl~1', name: 'tpl', kind: 'composite', variant: true, uuid: 'U', ports: [], instances: [], connections: [] },
+        main: {
+          id: 'main', name: 'main', kind: 'composite', ports: [],
+          instances: [{ id: 'a', name: 'a', defId: 'tpl~1', pos: { x: 0, y: 0 } }],
+          connections: [],
+        },
+      },
+    }
+
+    const design = parseDesign(JSON.stringify(legacy))
+    // Templates → library, live copies + root + built-ins → defs, `variant` dropped.
+    expect(design.library['tpl']).toBeDefined()
+    expect((design.library['tpl'] as ComponentDef & { variant?: boolean }).variant).toBeUndefined()
+    expect(design.defs['tpl~1']).toBeDefined()
+    expect(design.defs['main']).toBeDefined()
+    // Built-ins remain in `defs` (stripped only at save time).
+    expect(design.defs['and']).toBeDefined()
+    // Legacy field is gone from the parsed result.
+    expect((design.defs['tpl~1'] as ComponentDef & { variant?: boolean }).variant).toBeUndefined()
   })
 })
 

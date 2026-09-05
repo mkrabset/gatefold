@@ -31,7 +31,7 @@ function hasStorage(): boolean {
 export function repairDesign(json: string): { design: Design; issues: ReturnType<typeof sanitizeDesign>['issues'] } {
   const design = parseDesign(json)
   const repaired = sanitizeDesign(withBuiltinPrimitives(design))
-  for (const def of Object.values(repaired.design.defs)) {
+  for (const def of [...Object.values(repaired.design.library), ...Object.values(repaired.design.defs)]) {
     if (def.kind === 'composite' && !def.uuid) def.uuid = newUuid()
   }
   for (const id of unreachableDefIds(repaired.design)) delete repaired.design.defs[id]

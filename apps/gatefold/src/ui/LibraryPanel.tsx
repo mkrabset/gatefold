@@ -41,8 +41,8 @@ export function LibraryPanel({ width }: { width: number }) {
   const setDefCategory = useEditorStore((s) => s.setDefCategory)
   const simulating = useSimStore((s) => s.mode) === 'simulate'
   const fileRef = useRef<HTMLInputElement>(null)
-  const composites = Object.values(design.defs).filter((d): d is CompositeDef => isTemplateDef(design, d))
-  const activeDef = active ? design.defs[active] : null
+  const composites = Object.values(design.library).filter((d): d is CompositeDef => isTemplateDef(design, d))
+  const activeDef = active ? design.library[active] : null
   const activeTemplate = activeDef && isTemplateDef(design, activeDef) ? active : null
 
   // Distinct categories across the templates, sorted; "All" shows every component.

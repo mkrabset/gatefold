@@ -11,7 +11,7 @@ export function DeleteDialog() {
   const cancelDeleteTemplate = useEditorStore((s) => s.cancelDeleteTemplate)
 
   if (!pendingDelete) return null
-  const name = design.defs[pendingDelete]?.name ?? pendingDelete
+  const name = design.library[pendingDelete]?.name ?? pendingDelete
 
   return (
     <div className="dialog-overlay" onClick={cancelDeleteTemplate}>

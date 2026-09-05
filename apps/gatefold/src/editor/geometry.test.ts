@@ -32,7 +32,7 @@ function makeBusDesign(): Design {
     connections: [{ id: 'w', from: iref('fi', 'out:0'), to: iref('ci', 'in:0') }],
   }
 
-  return { version: 1, root: 'main', defs: { 'fan-in': fanIn, 'input-port': inputPort, comp, main } }
+  return { version: 1, root: 'main', library: {}, defs: { 'fan-in': fanIn, 'input-port': inputPort, comp, main } }
 }
 
 describe('pinWidth / isNeutralPin', () => {
@@ -126,6 +126,7 @@ function makeBusHolderDesign(): Design {
   return {
     version: 1,
     root: 'main',
+    library: {},
     defs: { 'fan-in': fanIn, 'fan-out': fanOut, 'input-port': inputPortDef(), 'output-port': outputPortDef(), and: andGate, 'bus-holder': busHolder, main },
   }
 }
@@ -157,7 +158,7 @@ function makeRelationDesign(n: number): Design {
       { id: 'c2', from: iref('bm', 'out:0'), to: iref('bs', 'in:0') },
     ],
   }
-  return { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, 'bus-merge': merge, main } }
+  return { version: 1, root: 'main', library: {}, defs: { [fanIn.id]: fanIn, 'bus-split': split, 'bus-merge': merge, main } }
 }
 
 describe('bus-split / bus-merge derived width', () => {
@@ -194,7 +195,7 @@ describe('bus-split / bus-merge derived width', () => {
       ],
       connections: [],
     }
-    const design: Design = { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
+    const design: Design = { version: 1, root: 'main', library: {}, defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
     expect(connectionError(design, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBe('Bus width must be even')
   })
 
@@ -209,7 +210,7 @@ describe('bus-split / bus-merge derived width', () => {
       ],
       connections: [],
     }
-    const design: Design = { version: 1, root: 'main', defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
+    const design: Design = { version: 1, root: 'main', library: {}, defs: { [fanIn.id]: fanIn, 'bus-split': split, main } }
     expect(connectionError(design, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBeNull()
   })
 })

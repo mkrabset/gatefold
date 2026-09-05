@@ -10,7 +10,7 @@ import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
 import type { Instance, PinRef } from '@gatefold/model'
-import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals, valueFormatOf, valueOrderOf } from '@gatefold/model'
+import { findConnectionTo, getDef, isNavigableDef, isTemplateDef, pinRefEquals, valueFormatOf, valueOrderOf } from '@gatefold/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -62,7 +62,7 @@ export function Canvas() {
       const ch = wrap.clientHeight
       // Editing a template (any non-root, non-variant composite in the nav path).
       const editingTemplate = state.navStack.some((id) => {
-        const d = state.design.defs[id]
+        const d = getDef(state.design, id)
         return !!d && isTemplateDef(state.design, d)
       })
       const simState = useSimStore.getState()
@@ -102,13 +102,13 @@ export function Canvas() {
 
     const currentInstances = (): Instance[] => {
       const state = useEditorStore.getState()
-      const def = state.design.defs[currentDefId(state)]
+      const def = getDef(state.design, currentDefId(state))!
       return def?.kind === 'composite' ? def.instances ?? [] : []
     }
 
     const currentConnections = () => {
       const state = useEditorStore.getState()
-      const def = state.design.defs[currentDefId(state)]
+      const def = getDef(state.design, currentDefId(state))!
       return def?.kind === 'composite' ? def.connections ?? [] : []
     }
 
@@ -132,7 +132,7 @@ export function Canvas() {
       const rect = wrap.getBoundingClientRect()
       const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
       const instances = currentInstances()
-      const def = state.design.defs[currentDefId(state)]
+      const def = getDef(state.design, currentDefId(state))!
       const hit = hitTest(w.x, w.y, instances, state.design, def)
       state.setHoverPort(null)
 
@@ -148,7 +148,7 @@ export function Canvas() {
         const sx = e.clientX - rect.left
         const sy = e.clientY - rect.top
         for (const inst of [...instances].reverse()) {
-          const instDef = state.design.defs[inst.defId]
+          const instDef = getDef(state.design, inst.defId)
           if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
           const badge = switchValueBadge(state.design, def, inst, instDef, wrap.clientWidth, wrap.clientHeight, state.viewport)
           if (badge && sx >= badge.x && sx <= badge.x + badge.s && sy >= badge.y && sy <= badge.y + badge.s) {
@@ -161,7 +161,7 @@ export function Canvas() {
         }
         // Toggle a switch-array lane by clicking its indicator circle (not its marker).
         for (const inst of [...instances].reverse()) {
-          const instDef = state.design.defs[inst.defId]
+          const instDef = getDef(state.design, inst.defId)
           if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
           const lane = hitArrayIndicator(w.x, w.y, state.design, def, inst, instDef, state.viewport.zoom)
           if (lane !== null) {
@@ -273,7 +273,7 @@ export function Canvas() {
       if (!d) {
         const rect = wrap.getBoundingClientRect()
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-        const def = state.design.defs[currentDefId(state)]
+        const def = getDef(state.design, currentDefId(state))!
         const port = hitTestPort(w.x, w.y, currentInstances(), state.design, def)
         state.setHoverPort(port ? port.ref : null)
         return
@@ -317,11 +317,11 @@ export function Canvas() {
           const y1 = Math.max(d.startWorld.y, cur.y)
           state.setMarquee({ x0, y0, x1, y1 })
           const instances = currentInstances()
-          const def = state.design.defs[currentDefId(state)]
+          const def = getDef(state.design, currentDefId(state))!
           // Axis-aligned rectangle intersection test against each instance's bounds.
           const selected = instances
             .filter((inst) => {
-              const instDef = state.design.defs[inst.defId]
+              const instDef = getDef(state.design, inst.defId)
               if (!instDef) return false
               const b = instanceBounds(state.design, def, inst, instDef)
               return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
@@ -342,7 +342,7 @@ export function Canvas() {
           state.setPendingWire({ from: d.from, x: cur.x, y: cur.y, originalId: d.originalId ?? undefined })
           // Highlight a sink under the cursor so it's obvious when the wire can be
           // released to connect (or re-target) there.
-          const def = state.design.defs[currentDefId(state)]
+          const def = getDef(state.design, currentDefId(state))!
           const target = hitTestPort(cur.x, cur.y, currentInstances(), state.design, def, 'sink')
           state.setHoverPort(target ? target.ref : null)
         }
@@ -367,7 +367,7 @@ export function Canvas() {
         const rect = wrap.getBoundingClientRect()
         const end = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         state.setCutLine(null)
-        const def = state.design.defs[currentDefId(state)]
+        const def = getDef(state.design, currentDefId(state))!
         const hit = findWireAtLine(state.design, def, d.startWorld, { x: end.x, y: end.y })
         if (hit) {
           state.insertJoinPointAt(hit.connection.id, hit.point)
@@ -378,7 +378,7 @@ export function Canvas() {
         const rect = wrap.getBoundingClientRect()
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         const instances = currentInstances()
-        const def = state.design.defs[currentDefId(state)]
+        const def = getDef(state.design, currentDefId(state))!
         const port = hitTestPort(w.x, w.y, instances, state.design, def, 'sink')
 
         if (port) {
@@ -425,13 +425,13 @@ export function Canvas() {
       const state = useEditorStore.getState()
       const rect = wrap.getBoundingClientRect()
       const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-      const def = state.design.defs[currentDefId(state)]
+      const def = getDef(state.design, currentDefId(state))!
       const instances = currentInstances()
       // In simulate mode, double-clicking a switch-array indicator just toggles it
       // again (handled on pointerdown); do not enter the array component scope.
       if (useSimStore.getState().mode === 'simulate') {
         for (const inst of [...instances].reverse()) {
-          const instDef = state.design.defs[inst.defId]
+          const instDef = getDef(state.design, inst.defId)
           if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
           if (hitArrayIndicator(w.x, w.y, state.design, def, inst, instDef, state.viewport.zoom) !== null) {
             return
@@ -439,7 +439,7 @@ export function Canvas() {
         }
       }
       const hit = hitTest(w.x, w.y, instances, state.design, def)
-      const hitDef = hit && state.design.defs[hit.defId]
+      const hitDef = hit && getDef(state.design, hit.defId)
       if (hit && hitDef && isNavigableDef(hitDef)) {
         if (useSimStore.getState().mode === 'simulate') {
           useSimStore.getState().descend(hit.id)
@@ -531,7 +531,7 @@ export function Canvas() {
       const state = useEditorStore.getState()
       if (state.fitToken === lastFitToken.current) return
       lastFitToken.current = state.fitToken
-      const currentDef = state.design.defs[currentDefId(state)]
+      const currentDef = getDef(state.design, currentDefId(state))
       if (!currentDef) return
       const bounds = defContentsBounds(state.design, currentDef)
       const wrap = wrapRef.current
@@ -561,7 +561,7 @@ export function Canvas() {
     const wy = state.viewport.y + (e.clientY - rect.top - rect.height / 2) / state.viewport.zoom
     // Dropping a NODE onto an existing single wire splits the wire at the drop point.
     if (defId === 'join-point') {
-      const def = state.design.defs[currentDefId(state)]
+      const def = getDef(state.design, currentDefId(state))!
       const hit = findJoinpointWire(state.design, def, { x: wx, y: wy })
       if (hit) {
         state.insertJoinPointAt(hit.connection.id, { x: wx, y: wy })

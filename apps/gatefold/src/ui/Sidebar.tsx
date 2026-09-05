@@ -3,7 +3,7 @@ import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
 import type { ComponentDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
-import { allowInversion, allowRenameTerminals, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
+import { allowInversion, allowRenameTerminals, getDef, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
 import { PRIMITIVE_ICONS } from '../icons'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
@@ -69,7 +69,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
   return (
     <>
       {instances?.map((inst: Instance) => {
-        const childDef = design.defs[inst.defId]
+        const childDef = getDef(design, inst.defId)
         const isComposite = childDef?.kind === 'composite'
         const isExpanded = expanded[inst.id] ?? false
         const primitiveKind = childDef && childDef.kind === 'primitive' ? childDef.primitive : undefined
@@ -115,8 +115,8 @@ export function Sidebar({ width }: { width: number }) {
     if (!simulating) navigateTo(defId)
   }
 
-  const rootDef = design.defs[design.root]
-  const current = design.defs[navStack[navStack.length - 1]]
+  const rootDef = getDef(design, design.root)!
+  const current = getDef(design, navStack[navStack.length - 1])!
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -173,7 +173,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   const currentDefId = navStack[navStack.length - 1]
   if (selectedIds.length === 0) {
     // Editing a composite template with nothing selected: allow renaming the template.
-    const current = design.defs[currentDefId]
+    const current = getDef(design, currentDefId)
     const isTemplate = !!current && isTemplateDef(design, current)
     if (isTemplate) {
       return (
@@ -190,12 +190,12 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   if (selectedIds.length > 1) {
     return <div className="props-empty">{selectedIds.length} components selected</div>
   }
-  const current = design.defs[currentDefId]
-  const inst = (current.kind === 'composite' ? current.instances : undefined)?.find((i) => i.id === selectedIds[0])
+  const current = getDef(design, currentDefId)
+  const inst = (current?.kind === 'composite' ? current.instances : undefined)?.find((i) => i.id === selectedIds[0])
   if (!inst) {
     return <div className="props-empty">Nothing selected</div>
   }
-  const def = design.defs[inst.defId]
+  const def = getDef(design, inst.defId)
   if (!def) {
     return <div className="props-empty">Nothing selected</div>
   }
@@ -309,7 +309,7 @@ function PortsGroups({ defId }: { defId?: string }) {
   const removePort = useEditorStore((s) => s.removePort)
   const setPortOrder = useEditorStore((s) => s.setPortOrder)
   const target = defId ?? navStack[navStack.length - 1]
-  const current = design.defs[target]
+  const current = getDef(design, target)!
   const renameAllowed = allowRenameTerminals(current)
   // Templates keep clean (non-inverted) terminals; inversion is instance-level. The
   // scope's own terminals (the input/output port groups, edited without a defId) are

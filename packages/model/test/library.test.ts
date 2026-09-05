@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ComponentDef, CompositeDef, Design, Instance, PrimitiveDef } from '../src/types'
-import { inputPortId, outputPortId } from '../src/types'
 import { inputPortDef, outputPortDef, primitiveDef } from '../src/primitives'
 import { cloneDef } from '../src/group'
 import { exportLibrary, importLibrary, parseLibrary, serializeLibrary } from '../src/library'
+import { buildProject } from '../src/serialize'
 
 const inst = (id: string, defId: string, x = 0, y = 0): Instance => ({ id, name: id, defId, pos: { x, y } })
 
@@ -13,99 +13,57 @@ function makeDesign(): Design {
     or: primitiveDef('or'),
     'input-port': inputPortDef(),
     'output-port': outputPortDef(),
-    // A variant primitive clone, as produced by copy-on-place (should normalize to 'and').
-    'and~v': { ...primitiveDef('and'), id: 'and~v', variant: true },
   }
-  defs['bar'] = {
+  const bar: CompositeDef = {
     id: 'bar',
     name: 'bar',
     kind: 'composite',
     ports: [],
+    uuid: 'uuid-bar',
     instances: [inst('o1', 'or')],
     connections: [],
     category: 'Logic',
   }
-  defs['foo'] = {
+  // `bar~x` is an embedded copy of `bar` (soft link: shared `uuid`).
+  const barCopy: CompositeDef = { ...cloneDef(bar), id: 'bar~x' } as CompositeDef
+  const foo: CompositeDef = {
     id: 'foo',
     name: 'foo',
     kind: 'composite',
     ports: [],
-    instances: [inst('a1', 'and~v'), inst('b1', 'bar', 100)],
+    uuid: 'uuid-foo',
+    instances: [inst('a1', 'and'), inst('b1', 'bar~x', 100)],
     connections: [],
   }
-  // An instance-local variant copy of foo — must NOT be exported as a library root.
-  defs['foo~x'] = { ...cloneDef(defs['foo']), id: 'foo~x', variant: true }
   defs['main'] = {
     id: 'main',
     name: 'main',
     kind: 'composite',
     ports: [],
-    instances: [inst('f1', 'foo~x')],
+    instances: [inst('f1', 'foo~1')],
     connections: [],
   }
-  return { version: 1, root: 'main', defs }
-}
-
-function makeNestedDesign(): Design {
-  const defs: Record<string, ComponentDef> = {
-    and: primitiveDef('and'),
-    'input-port': inputPortDef(),
-    'output-port': outputPortDef(),
-  }
-  defs['half-adder'] = {
-    id: 'half-adder',
-    name: 'half-adder',
-    kind: 'composite',
-    uuid: 'uuid-ha',
-    ports: [],
-    instances: [inst('x1', 'and')],
-    connections: [],
-  }
-  defs['adder'] = {
-    id: 'adder',
-    name: 'adder',
-    kind: 'composite',
-    uuid: 'uuid-adder',
-    ports: [],
-    // Copy-on-place: adder contains a variant copy of half-adder, not the template itself.
-    instances: [inst('h1', 'half-adder~2')],
-    connections: [],
-  }
-  defs['half-adder~2'] = { ...cloneDef(defs['half-adder']), id: 'half-adder~2', variant: true }
-  defs['adder~9'] = { ...cloneDef(defs['adder']), id: 'adder~9', variant: true }
-  defs['main'] = {
-    id: 'main',
-    name: 'main',
-    kind: 'composite',
-    ports: [],
-    instances: [inst('a1', 'adder~9')],
-    connections: [],
-  }
-  return { version: 1, root: 'main', defs }
+  // `foo~1` is a live copy of `foo` in the content tree.
+  defs['foo~1'] = { ...cloneDef(foo), id: 'foo~1' } as CompositeDef
+  return { version: 1, root: 'main', library: { bar, 'bar~x': barCopy, foo }, defs }
 }
 
 describe('exportLibrary', () => {
-  it('exports template composites and their composite closure only', () => {
-    const design = makeDesign()
-    const lib = exportLibrary(design)
+  it('exports the library only: templates + embedded copies, never the content tree', () => {
+    const lib = exportLibrary(makeDesign())
 
-    const ids = lib.components.map((c) => c.id).sort()
-    expect(ids).toEqual(['bar', 'foo'])
+    const ids = Object.keys(lib.library).sort()
+    expect(ids).toEqual(['bar', 'bar~x', 'foo'])
 
-    // No primitives, port groups, variants, or the root.
-    expect(lib.components.every((c) => c.kind === 'composite')).toBe(true)
-    expect(lib.components.every((c) => !c.variant)).toBe(true)
+    // No built-ins, port groups, root, or live copies.
+    expect(lib.library['main']).toBeUndefined()
+    expect(lib.library['foo~1']).toBeUndefined()
+    expect(lib.library['and']).toBeUndefined()
   })
 
-  it('normalizes references to variant primitive copies back to the built-in id', () => {
+  it('is byte-identical to the `library` field of Save JSON (shared code path)', () => {
     const design = makeDesign()
-    const lib = exportLibrary(design)
-    const foo = lib.components.find((c) => c.id === 'foo')! as CompositeDef
-    const a1 = foo.instances!.find((i) => i.id === 'a1')!
-    expect(a1.defId).toBe('and')
-    // Nested composite reference is preserved.
-    const b1 = foo.instances!.find((i) => i.id === 'b1')!
-    expect(b1.defId).toBe('bar')
+    expect(exportLibrary(design).library).toEqual(buildProject(design).library)
   })
 
   it('round-trips through serializeLibrary / parseLibrary', () => {
@@ -113,15 +71,15 @@ describe('exportLibrary', () => {
     expect(parseLibrary(serializeLibrary(exportLibrary(design)))).toEqual(exportLibrary(design))
   })
 
-  it('preserves a template\'s category through export and import', () => {
+  it('preserves a template category through export and import', () => {
     const design = makeDesign()
     const lib = exportLibrary(design)
-    const bar = lib.components.find((c) => c.id === 'bar')! as CompositeDef
-    expect(bar.category).toBe('Logic')
+    expect((lib.library['bar'] as CompositeDef).category).toBe('Logic')
 
     const target: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: {
         and: primitiveDef('and'),
         or: primitiveDef('or'),
@@ -131,165 +89,24 @@ describe('exportLibrary', () => {
       },
     }
     const result = importLibrary(target, lib)
-    expect((result.defs['bar'] as CompositeDef).category).toBe('Logic')
+    expect((result.library['bar'] as CompositeDef).category).toBe('Logic')
   })
 
   it('rejects invalid library JSON', () => {
     expect(() => parseLibrary('nope')).toThrow()
-    expect(() => parseLibrary('{"version":1,"components":[{}}]')).toThrow()
-  })
-
-  it('collapses variant copies back to their template so only templates are exported', () => {
-    const lib = exportLibrary(makeNestedDesign())
-
-    const ids = lib.components.map((c) => c.id).sort()
-    expect(ids).toEqual(['adder', 'half-adder'])
-
-    // The nested reference points at the template, not the variant copy.
-    const adder = lib.components.find((c) => c.id === 'adder')! as CompositeDef
-    expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder')
-  })
-
-  it('promotes an orphaned variant so the export stays self-contained', () => {
-    const design = makeNestedDesign()
-    // Delete the half-adder template, leaving only its variant copy referenced by adder.
-    delete design.defs['half-adder']
-
-    const lib = exportLibrary(design)
-    const ids = lib.components.map((c) => c.id).sort()
-    expect(ids).toEqual(['adder', 'half-adder~2'])
-
-    const adder = lib.components.find((c) => c.id === 'adder')! as CompositeDef
-    expect(adder.instances!.find((i) => i.id === 'h1')!.defId).toBe('half-adder~2')
-    expect(lib.components.every((c) => !c.variant)).toBe(true)
-  })
-
-  it('preserves a primitive variant with non-default ports (custom-arity fan-in)', () => {
-    const fanIn4: PrimitiveDef = {
-      id: 'fan-in~4',
-      name: 'FAN-IN',
-      kind: 'primitive',
-      primitive: 'fan-in',
-      variant: true,
-      ports: [
-        { id: inputPortId(0), name: 'A', direction: 'input' },
-        { id: inputPortId(1), name: 'B', direction: 'input' },
-        { id: inputPortId(2), name: 'C', direction: 'input' },
-        { id: inputPortId(3), name: 'D', direction: 'input' },
-        { id: outputPortId(0), name: 'BUS', direction: 'output' },
-      ],
-    }
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      defs: {
-        'fan-in': primitiveDef('fan-in'),
-        'input-port': inputPortDef(),
-        'output-port': outputPortDef(),
-        'fan-in~4': fanIn4,
-        foo: {
-          id: 'foo',
-          name: 'foo',
-          kind: 'composite',
-          ports: [],
-          instances: [inst('f1', 'fan-in~4')],
-          connections: [],
-        },
-        main: {
-          id: 'main',
-          name: 'main',
-          kind: 'composite',
-          ports: [],
-          instances: [inst('x1', 'foo')],
-          connections: [],
-        },
-      },
-    }
-
-    const lib = exportLibrary(design)
-
-    // The custom fan-in is exported as a primitive component with 4 inputs.
-    const fanInComponent = lib.components.find((c) => c.kind === 'primitive' && c.primitive === 'fan-in')
-    expect(fanInComponent).toBeDefined()
-    expect((fanInComponent as PrimitiveDef).ports.filter((p) => p.direction === 'input')).toHaveLength(4)
-
-    // The instance references the exported primitive component, not the built-in id.
-    const foo = lib.components.find((c) => c.id === 'foo')! as CompositeDef
-    expect(foo.instances!.find((i) => i.id === 'f1')!.defId).toBe('fan-in~4')
-  })
-
-  it('restores a custom-arity fan-in through export + import', () => {
-    const design: Design = {
-      version: 1,
-      root: 'main',
-      defs: {
-        'fan-in': primitiveDef('fan-in'),
-        'input-port': inputPortDef(),
-        'output-port': outputPortDef(),
-        'fan-in~4': {
-          id: 'fan-in~4',
-          name: 'FAN-IN',
-          kind: 'primitive',
-          primitive: 'fan-in',
-          variant: true,
-          ports: [
-            { id: inputPortId(0), name: 'A', direction: 'input' },
-            { id: inputPortId(1), name: 'B', direction: 'input' },
-            { id: inputPortId(2), name: 'C', direction: 'input' },
-            { id: inputPortId(3), name: 'D', direction: 'input' },
-            { id: outputPortId(0), name: 'BUS', direction: 'output' },
-          ],
-        },
-        foo: {
-          id: 'foo',
-          name: 'foo',
-          kind: 'composite',
-          ports: [],
-          instances: [inst('f1', 'fan-in~4')],
-          connections: [],
-        },
-        main: {
-          id: 'main',
-          name: 'main',
-          kind: 'composite',
-          ports: [],
-          instances: [inst('x1', 'foo')],
-          connections: [],
-        },
-      },
-    }
-
-    const lib = parseLibrary(serializeLibrary(exportLibrary(design)))
-
-    const target: Design = {
-      version: 1,
-      root: 'main',
-      defs: {
-        'fan-in': primitiveDef('fan-in'),
-        'input-port': inputPortDef(),
-        'output-port': outputPortDef(),
-        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] },
-      },
-    }
-
-    const result = importLibrary(target, lib)
-    const importedFoo = result.defs['foo'] as CompositeDef
-    const fanInId = importedFoo.instances!.find((i) => i.id === 'f1')!.defId
-    const importedFan = result.defs[fanInId] as PrimitiveDef
-    expect(importedFan.primitive).toBe('fan-in')
-    expect(importedFan.ports.filter((p) => p.direction === 'input')).toHaveLength(4)
+    expect(() => parseLibrary('{"version":1,"library":{"x":{}}}')).toThrow()
   })
 })
 
 describe('importLibrary', () => {
-  it('merges components into the design with fresh ids and names', () => {
+  it('merges components into the library with fresh ids and names', () => {
     const design = makeDesign()
     const lib = exportLibrary(design)
 
-    // Import into a clean target that only has the built-ins.
     const target: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: {
         and: primitiveDef('and'),
         or: primitiveDef('or'),
@@ -300,16 +117,15 @@ describe('importLibrary', () => {
     }
 
     const result = importLibrary(target, lib)
-    expect(result.defs['foo']).toBeDefined()
-    expect(result.defs['bar']).toBeDefined()
-    // Imported components get fresh lineage ids.
-    expect(result.defs['foo'].uuid).toBeTruthy()
-    expect(result.defs['bar'].uuid).toBeTruthy()
-    expect(result.defs['foo'].uuid).not.toBe(result.defs['bar'].uuid)
-    // Internal nested reference resolves to the imported bar.
-    const foo = result.defs['foo'] as CompositeDef
-    expect(foo.instances!.find((i) => i.id === 'b1')!.defId).toBe('bar')
-    // Primitive reference stays a built-in id.
+    expect(result.library['foo']).toBeDefined()
+    expect(result.library['bar']).toBeDefined()
+    // Embedded copy comes along, with its lineage soft-link preserved (same new uuid).
+    const foo = result.library['foo'] as CompositeDef
+    const barCopyId = foo.instances!.find((i) => i.id === 'b1')!.defId
+    const barCopy = result.library[barCopyId] as CompositeDef
+    expect(barCopy.uuid).toBe((result.library['bar'] as CompositeDef).uuid)
+    // Internal references resolve within the imported library / built-ins.
+    expect((result.library['bar'] as CompositeDef).instances!.find((i) => i.id === 'o1')!.defId).toBe('or')
     expect(foo.instances!.find((i) => i.id === 'a1')!.defId).toBe('and')
   })
 
@@ -321,11 +137,76 @@ describe('importLibrary', () => {
     const second = importLibrary(first, lib)
 
     // Original components survive, and the second import gets suffixed ids/names.
-    expect(second.defs['foo']).toBeDefined()
-    expect(second.defs['foo~2']).toBeDefined()
-    expect(second.defs['foo~2'].name).toBe('foo~2')
-    // The re-imported copy's nested reference remaps to its own 'bar~2'.
-    const foo2 = second.defs['foo~2'] as CompositeDef
-    expect(foo2.instances!.find((i) => i.id === 'b1')!.defId).toBe('bar~2')
+    expect(second.library['foo']).toBeDefined()
+    expect(second.library['foo~2']).toBeDefined()
+    expect((second.library['foo~2'] as CompositeDef).name).toBe('foo~2')
+  })
+
+  it('preserves a custom primitive fork in the library (custom-arity fan-in)', () => {
+    const fanIn4: PrimitiveDef = {
+      id: 'fan-in~4',
+      name: 'FAN-IN',
+      kind: 'primitive',
+      primitive: 'fan-in',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'in:2', name: 'C', direction: 'input' },
+        { id: 'in:3', name: 'D', direction: 'input' },
+        { id: 'out:0', name: 'BUS', direction: 'output' },
+      ],
+    }
+    const design: Design = {
+      version: 1,
+      root: 'main',
+      library: {
+        'fan-in~4': fanIn4,
+        foo: {
+          id: 'foo',
+          name: 'foo',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('f1', 'fan-in~4')],
+          connections: [],
+        },
+      },
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [inst('x1', 'foo~1')], connections: [] },
+        'foo~1': {
+          id: 'foo~1',
+          name: 'foo',
+          kind: 'composite',
+          ports: [],
+          instances: [inst('f1', 'fan-in~4')],
+          connections: [],
+        },
+      },
+    }
+
+    const lib = exportLibrary(design)
+    const fanInComponent = Object.values(lib.library).find((c) => c.kind === 'primitive' && c.primitive === 'fan-in')
+    expect(fanInComponent).toBeDefined()
+    expect((fanInComponent as PrimitiveDef).ports.filter((p) => p.direction === 'input')).toHaveLength(4)
+
+    const target: Design = {
+      version: 1,
+      root: 'main',
+      library: {},
+      defs: {
+        'fan-in': primitiveDef('fan-in'),
+        'input-port': inputPortDef(),
+        'output-port': outputPortDef(),
+        main: { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] },
+      },
+    }
+    const result = importLibrary(target, lib)
+    const importedFoo = result.library['foo'] as CompositeDef
+    const fanInId = importedFoo.instances!.find((i) => i.id === 'f1')!.defId
+    const importedFan = result.library[fanInId] as PrimitiveDef
+    expect(importedFan.primitive).toBe('fan-in')
+    expect(importedFan.ports.filter((p) => p.direction === 'input')).toHaveLength(4)
   })
 })

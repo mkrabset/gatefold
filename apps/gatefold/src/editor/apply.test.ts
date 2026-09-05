@@ -12,8 +12,9 @@ function makeApplyDesign(): Design {
     'input-port': inputPortDef(),
     'output-port': outputPortDef(),
   }
+  const library: Record<string, ComponentDef> = {}
 
-  defs['tpl'] = {
+  library['tpl'] = {
     id: 'tpl', name: 'tpl', kind: 'composite', uuid: 'U',
     ports: [
       { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 't-in', pinId: 'in:0' } },
@@ -32,9 +33,9 @@ function makeApplyDesign(): Design {
     ],
   }
 
-  // A matching variant: same interface, but OR internals and an inverted input.
+  // A matching live copy: same interface, but OR internals and an inverted input.
   defs['v'] = {
-    id: 'v', name: 'v', kind: 'composite', variant: true, uuid: 'U',
+    id: 'v', name: 'v', kind: 'composite', uuid: 'U',
     ports: [
       { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'v-in', pinId: 'in:0' }, inverted: true },
       { id: 'in:1', name: 'B', direction: 'input', terminal: { instanceId: 'v-in', pinId: 'in:1' } },
@@ -54,7 +55,7 @@ function makeApplyDesign(): Design {
 
   // A variant with a removed input port (only 1 of the template's 2) — should never match.
   defs['altered'] = {
-    id: 'altered', name: 'altered', kind: 'composite', variant: true, uuid: 'U',
+    id: 'altered', name: 'altered', kind: 'composite', uuid: 'U',
     ports: [
       { id: 'in:0', name: 'X', direction: 'input', terminal: { instanceId: 'a-in', pinId: 'in:0' } },
       { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'a-out', pinId: 'out:0' } },
@@ -68,7 +69,7 @@ function makeApplyDesign(): Design {
 
   // A variant with renamed ports (same ids/order/count) — should match, names overwritten.
   defs['renamed'] = {
-    id: 'renamed', name: 'renamed', kind: 'composite', variant: true, uuid: 'U',
+    id: 'renamed', name: 'renamed', kind: 'composite', uuid: 'U',
     ports: [
       { id: 'in:0', name: 'X', direction: 'input', terminal: { instanceId: 'r-in', pinId: 'in:0' }, inverted: true },
       { id: 'in:1', name: 'Z', direction: 'input', terminal: { instanceId: 'r-in', pinId: 'in:1' } },
@@ -88,7 +89,7 @@ function makeApplyDesign(): Design {
 
   // An out-of-scope variant living in a def `main` does not reference.
   defs['v2'] = {
-    id: 'v2', name: 'v2', kind: 'composite', variant: true, uuid: 'U',
+    id: 'v2', name: 'v2', kind: 'composite', uuid: 'U',
     ports: [],
     instances: [],
     connections: [],
@@ -109,7 +110,7 @@ function makeApplyDesign(): Design {
     connections: [],
   }
 
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library, defs }
 }
 
 describe('scopeDefIds', () => {

@@ -1,5 +1,5 @@
 import type { ComponentDef, Design, Instance, PinRef, Port } from '@gatefold/model'
-import { inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
+import { getDef, inputPorts, isNeutralPin, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount, undeterminedHint } from '@gatefold/model'
 
 export { isNeutralPin, pinWidth, undeterminedHint }
 
@@ -188,7 +188,7 @@ export function hitTest(
 ): Instance | null {
   for (let i = instances.length - 1; i >= 0; i--) {
     const inst = instances[i]
-    const def = design.defs[inst.defId]
+    const def = getDef(design, inst.defId)
     if (!def) continue
     const b = instanceBounds(design, parentDef, inst, def, 4)
     if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) {
@@ -235,7 +235,7 @@ export function hitTestPort(
   }
 
   for (const inst of instances) {
-    const def = design.defs[inst.defId]
+    const def = getDef(design, inst.defId)
     if (!def) continue
     const dir = portGroupDirection(def)
     if (dir === 'input') {
@@ -327,7 +327,7 @@ export function defContentsBounds(design: Design, def: ComponentDef): Bounds | n
   let maxX = -Infinity
   let maxY = -Infinity
   for (const inst of insts) {
-    const idef = design.defs[inst.defId]
+    const idef = getDef(design, inst.defId)
     if (!idef) continue
     const b = instanceBounds(design, def, inst, idef)
     minX = Math.min(minX, b.x)

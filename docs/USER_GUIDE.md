@@ -138,7 +138,7 @@ composite's terminal, select the composite instance on the parent sheet and inve
 
 ### Copy-on-place and templates
 
-When you place or group a component, Gatefold deep-copies its definition (a **variant**), so
+When you place or group a component, Gatefold deep-copies its definition (a **copy**), so
 every instance is independent. **My components** lists your templates; editing a template (via
 its library card) and pressing **Apply to instances** updates every matching instance — one
 whose terminals are the same (by id and order) as the template's. Port **names** don't affect

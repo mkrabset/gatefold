@@ -11,6 +11,11 @@ export function newUuid(): string {
   })
 }
 
+/** A flattened view of every def in the design (library + content tree). */
+export function combinedDefs(design: Design): Record<string, ComponentDef> {
+  return { ...design.library, ...design.defs }
+}
+
 /** Produce an id/name unique against `existing`: `base`, then `base<sep>2`, `base<sep>3`… */
 export function uniqueId(existing: Set<string>, base: string, sep = '-'): string {
   if (!existing.has(base)) return base
@@ -73,15 +78,18 @@ export function collectClosure(
 }
 
 /**
- * Ids of defs that are no longer reachable from the root or any non-variant def
- * (library template, built-in primitive, or port group). These are the orphaned
- * variant copies left behind when their instances are deleted or a template is removed.
+ * Ids of content-tree defs that are no longer reachable from the root. Only `defs`
+ * (the content tree) is collected — the library is never GC'd. Canonical built-in
+ * primitives (whose `id` equals their `primitive` kind) are always kept, even when
+ * nothing references them, since they are regenerated on load.
  */
 export function unreachableDefIds(design: Design): Set<string> {
   const defs = design.defs
-  const roots = Object.keys(defs).filter((id) => defs[id].variant !== true)
-  const reachable = collectClosure(defs, roots, () => false)
+  const reachable = collectClosure(defs, [design.root], () => false)
   const ids = new Set(Object.keys(defs))
   for (const id of reachable) ids.delete(id)
+  for (const [id, def] of Object.entries(defs)) {
+    if (def.kind === 'primitive' && def.id === def.primitive) ids.delete(id)
+  }
   return ids
 }

@@ -60,8 +60,6 @@ interface PrimitiveDef {
   kind: 'primitive'
   primitive: PrimitiveKind
   ports: Port[]                             // ordered: inputs first, then outputs
-  variant?: boolean                         // true = instance-local fork (hidden from library)
-  uuid?: string                             // lineage id: shared by a template and its variants
 }
 
 interface CompositeDef {
@@ -71,8 +69,9 @@ interface CompositeDef {
   ports: Port[]                             // ordered: inputs first, then outputs
   instances?: Instance[]                    // composite internals
   connections?: Connection[]
-  variant?: boolean                         // true = instance-local fork (hidden from library)
-  uuid?: string                             // lineage id: shared by a template and its variants
+  uuid?: string                             // lineage id: identity of an origin template, or the
+                                            // soft link a copy carries back to its origin
+  category?: string                         // library category (undefined = Uncategorized)
 }
 
 type ComponentDef = PrimitiveDef | CompositeDef
@@ -80,7 +79,7 @@ type ComponentDef = PrimitiveDef | CompositeDef
 interface Instance {
   id: string
   name: string                              // display label; unique within parent's scope
-  defId: string                             // -> Design.defs
+  defId: string                             // -> Design.library | Design.defs
   pos: { x: number; y: number }             // canvas position
   props?: Record<string, PropertyValue>     // per-instance property values (e.g. `lanes`, `order`)
 }
@@ -98,7 +97,17 @@ interface Connection {
   to: PinRef                                 // sink (an input pin)
 }
 
-interface Design { version: number; root: string; defs: Record<string, ComponentDef> }
+// The document is split into two disjoint parts (ids never collide across them):
+// - `library`: component templates (origin templates + their embedded copies + primitive forks).
+// - `defs`: the content tree — the root, live copies, primitive forks, and the built-in
+//   primitives (stripped on save, regenerated on load). Location (which map) determines
+//   whether a def is a template or a live object — there is no `variant` flag.
+interface Design {
+  version: number
+  root: string
+  library: Record<string, ComponentDef>
+  defs: Record<string, ComponentDef>
+}
 ```
 
 ### Key conventions
@@ -151,19 +160,22 @@ interface Design { version: number; root: string; defs: Record<string, Component
   or a failed `Primitive.widthError` constraint marks the sheet invalid — `widthError` carries
   a per-primitive validation message (e.g. the 7-seg requires a width divisible by 4 and ≤ 64).
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the
-  template (and its whole internal hierarchy) into `variant: true` defs, so every instance
-  owns its own content and edits never affect the template or sibling instances. A `uuid`
-  **lineage id** is shared by a template and its variants (and preserved by every copy), which
-  is how "apply template" later finds an instance's origin.
+  template (and its whole internal hierarchy) into a fresh copy, so every instance owns its
+  own content and edits never affect the template or sibling instances. A copy placed into a
+  live sheet lives in `defs`; a copy placed inside a template lives in `library` as an
+  *embedded copy* ("part of" that template). A `uuid` **lineage id** is shared by a template
+  and every copy derived from it (embedded or live), which is how "apply template" later finds
+  an instance's origin — and it is a *soft link*: deleting a template clears the `uuid` on its
+  copies rather than leaving a dangling pointer.
 - **Template apply**: `apply.ts` (`scopeDefIds` / `portsMatch` / `applyTemplate`) propagates a
-  template's edits to matching variants in the current scope (current def + transitive nested
+  template's edits to matching live copies in the current scope (current def + transitive nested
   defs). Matching requires the same lineage `uuid` and an unaltered interface (same ordered
   port ids; arity equal or either neutral). Port names are ignored during matching and
   overwritten from the template on apply. Inversion is treated as an external alteration and is
-  preserved from the variant; internals are re-instantiated from the template while external
+  preserved from the copy; internals are re-instantiated from the template while external
   wiring is kept intact.
 - **Terminal inversion is instance-level**: templates keep clean (non-inverted) ports;
-  `inverted` lives on variants. Grouping writes inversion onto the instance variant (not the
+  `inverted` lives on copies. Grouping writes inversion onto the instance copy (not the
   template); the ports editor / `i` shortcut are disabled while editing a template. Built-in
   primitives (NOT, BUFFER) keep their intrinsic inverted outputs.
 - **Custom properties**: a primitive declares its properties via `properties(): PropertySpec[]`
@@ -172,7 +184,7 @@ interface Design { version: number; root: string; defs: Record<string, Component
   editable in the sidebar's properties panel.
 - **Property-driven arity** (`switch-array`/`led-array`): the `terminalType` property
   (`wire`/`bus`) *changes the port count*. Since copy-on-place gives every placed
-  primitive its own `variant` def, the store regenerates that variant's ports
+  primitive its own fork def, the store regenerates that fork's ports
   (`arrayPorts`) and prunes orphaned connections when the type changes (or a wire terminal is
   added/removed via the ports editor). In `bus` mode the single port is **neutral**
   (intrinsic `null`), adopting the connected width and rendering a `?` while undetermined.
@@ -365,8 +377,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   `allowRenameTerminals`; reorder is animated via @dnd-kit. The store port actions take an
   optional `defId`, and `removePort` prunes the parent sheet's wires to a removed terminal.
 - **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
-  place a deep copy; `variant` defs are excluded). The "My components" grid scrolls
-  independently when it overflows.
+  place a deep copy; embedded copies are not listed as templates). The "My components" grid
+  scrolls independently when it overflows.
 - **GroupDialog** — names the inferred ports before creating a composite.
 - **SimSettingsDialog** — modal for simulation settings: default gate delay (ps) and the
   step mode (`quiescent` / `clock-edge`).
@@ -395,11 +407,11 @@ Implemented via `@gatefold/model`'s `group.ts`, driven by the toolbar **Group** 
   in the parent with a single instance at its centroid and re-wires the external connections
   to that instance's ports. Exposed (floating) ports are wired only internally — no external
   connection is created. The template's ports are **clean (non-inverted)**; inherited
-  inversion is applied to the instance's variant by the store (`confirmGroup`) after
+  inversion is applied to the instance's copy by the store (`confirmGroup`) after
   copy-on-place (`copyDefSubgraph`), so the instance never shares any data with the template.
 - **Promote ("Save as template")** — selecting a single custom component and grouping copies
   its def into a new library template with a *fresh* `uuid` (independent of the original) and
-  clean ports, leaving the instance and its variant untouched.
+  clean ports, leaving the instance and its live copy untouched.
 
 Pure (no input mutation) and fully unit-tested.
 
@@ -412,12 +424,12 @@ New `apps/gatefold/src/editor/apply.ts`, exposed via `applyTemplateToInstances(t
 - **Scope** — `scopeDefIds(design, currentDefId)` BFSs instance references downward, so the
   apply reaches matching instances in the currently-viewed def and everything nested in it
   (including components inside a template being edited).
-- **Matching** — a def is a candidate when it is a `variant` with the template's `uuid`; it
+- **Matching** — a def is a candidate when it is a live copy with the template's `uuid`; it
   matches when its ports are unaltered (same ordered ids) and each port's arity is equal or
   either side neutral. Port names are ignored during matching; `inverted` is deliberately
   excluded (external).
 - **Apply** — for each match, `copyDefSubgraph` re-instantiates the template's internals
-  (fresh nested variant closure); the variant keeps its id, port ids, `inverted` flags, and
+  (fresh nested copy closure); the copy keeps its id, port ids, `inverted` flags, and
   external wiring, and adopts the template's name, port names, and internals. Returns a count
   for the
   notice. Undoable via the normal history.
@@ -506,19 +518,19 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 
 ## 8. Serialization & library exchange
 
-- **`serialize.ts`** — `serializeDesign` / `parseDesign` / `stripBuiltinPrimitives`. A saved
-  design is *compact*, not verbatim: `serializeDesign` omits the canonical built-in primitive
-  defs (regenerated on load by `withBuiltinPrimitives`), drops unreferenced `variant` copies via
-  `unreachableDefIds` (the same reachability GC the loader runs), and rounds every `pos`
-  coordinate to 2 decimals (sub-pixel). `parseDesign` validates the shape and throws on
-  malformed input.
-- **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` /
-  `parseLibrary`). Export collects the template composites and their transitive composite
-  closure, deep-cloned with `variant` stripped; references to a template's `variant` copies are
-  collapsed back to the template via the shared lineage `uuid` (an orphaned variant with no
-  matching template is promoted so the file stays self-contained), and references to primitive
-  defs are normalized to built-in ids. Import merges with fresh collision-free ids/names (never
-  overwriting), assigns fresh lineage `uuid`s, and remaps internal references.
+- **`serialize.ts`** — `buildProject` / `serializeDesign` / `parseDesign` / `stripBuiltinPrimitives`.
+  A saved design is *compact*, not verbatim: `buildProject` (stringified by `serializeDesign`) emits
+  `{ version, root, library, defs }`, omits the canonical built-in primitive defs (regenerated on
+  load by `withBuiltinPrimitives`), drops unreferenced content-tree defs via `unreachableDefIds`
+  (the same reachability GC the loader runs), and rounds every `pos` coordinate to 2 decimals
+  (sub-pixel). `parseDesign` validates the shape, migrates legacy files (a flat `defs` map with
+  `variant` flags is split into `library` + `defs`), and throws on malformed input.
+- **`library.ts`** — `exportLibrary` / `importLibrary` (plus `serializeLibrary` / `parseLibrary`).
+  The library is kept normalized in memory, so `exportLibrary` is simply `buildProject(design).library`
+  — the **same code path** as Save JSON minus the content tree, so the library portion of a saved
+  project and an exported library are byte-identical. Import merges into `library` with fresh
+  collision-free ids/names (never overwriting), remaps internal references, and remaps composite
+  `uuid`s consistently so an imported template and its embedded copies keep their shared soft link.
 - **File I/O** lives in the app: the toolbar's Open/Save JSON buttons and the library
   panel's Export/Import buttons drive Blob downloads and a hidden file input. Load replaces
   the design and resets navigation/selection and the undo history.

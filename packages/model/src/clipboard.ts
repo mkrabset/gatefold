@@ -1,8 +1,8 @@
 import type { ComponentDef, Connection, Design, Instance } from './types'
-import { nextConnectionId } from './types'
+import { getDef, nextConnectionId } from './types'
 import { cloneDef, cloneDesign } from './group'
 import { isPortGroupDef } from './primitives'
-import { collectClosure, remapInstanceDefs, uniqueId } from './util'
+import { collectClosure, combinedDefs, remapInstanceDefs, uniqueId } from './util'
 
 /**
  * Copy/paste primitives. A clipboard is a self-contained snapshot: a set of
@@ -42,7 +42,6 @@ export function copyDefSubgraph(
   for (const oldId of closure) {
     const def = cloneDef(defs[oldId])
     def.id = idMap.get(oldId)!
-    def.variant = true
     remapInstanceDefs(def, idMap)
     result[def.id] = def
   }
@@ -52,13 +51,13 @@ export function copyDefSubgraph(
 
 /** Snapshot the selected instances (and their def closure) into a clipboard. */
 export function captureClipboard(design: Design, defId: string, instanceIds: string[]): Clipboard | null {
-  const def = design.defs[defId]
+  const def = getDef(design, defId)
   if (!def || def.kind !== 'composite') return null
   // Port-group instances (a composite's input/output terminal rectangles) are never
   // copied — they are derived from the enclosing composite's ports.
   const selected = (def.instances ?? []).filter((i) => {
     if (!instanceIds.includes(i.id)) return false
-    const idef = design.defs[i.defId]
+    const idef = getDef(design, i.defId)
     return !!idef && !isPortGroupDef(idef)
   })
   if (selected.length === 0) return null
@@ -69,7 +68,7 @@ export function captureClipboard(design: Design, defId: string, instanceIds: str
     .map((c) => ({ id: c.id, from: { ...c.from }, to: { ...c.to } }))
 
   const rootIds = selected.map((i) => i.defId)
-  const { defs, idMap } = copyDefSubgraph(design.defs, rootIds, new Set())
+  const { defs, idMap } = copyDefSubgraph(combinedDefs(design), rootIds, new Set())
 
   return {
     defs,
@@ -93,13 +92,19 @@ export function instantiateClipboard(
   offset: { x: number; y: number },
 ): { design: Design; newIds: string[] } {
   const result = cloneDesign(design)
-  const def = result.defs[defId]
+  const def = getDef(result, defId)
   if (!def || def.kind !== 'composite') return { design: result, newIds: [] }
+  // Pasted copies go into the map the target scope lives in (content tree or library).
+  const target: 'defs' | 'library' = defId in result.library ? 'library' : 'defs'
 
   const rootIds = clipboard.instances.map((i) => i.defId)
-  const { defs, idMap } = copyDefSubgraph(clipboard.defs, rootIds, new Set(Object.keys(result.defs)))
+  const { defs, idMap } = copyDefSubgraph(
+    clipboard.defs,
+    rootIds,
+    new Set([...Object.keys(result.library), ...Object.keys(result.defs)]),
+  )
   for (const [id, d] of Object.entries(defs)) {
-    result.defs[id] = d
+    result[target][id] = d
   }
 
   if (!def.instances) def.instances = []

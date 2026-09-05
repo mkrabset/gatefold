@@ -21,7 +21,7 @@ function mkDesign(
   defs['output-port'] = outputPortDef()
   Object.assign(defs, extraDefs)
   defs['main'] = { id: 'main', name: 'main', kind: 'composite', ports: [], instances, connections }
-  return { version: 1, root: 'main', defs }
+  return { version: 1, root: 'main', library: {}, defs }
 }
 
 /** A single clock (period 1000 ps) driving a chain of `n` buffers (n×100 ps path delay). */

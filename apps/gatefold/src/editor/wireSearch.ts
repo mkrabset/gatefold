@@ -1,5 +1,5 @@
 import type { ComponentDef, Connection, Design, PinRef } from '@gatefold/model'
-import { primitiveOf } from '@gatefold/model'
+import { getDef, primitiveOf } from '@gatefold/model'
 import { busWireOffsets, pinWidth, portPosition } from './geometry'
 import { wirePath } from './routing'
 import type { CubicBezier, Point } from './routing'
@@ -42,7 +42,7 @@ function resolve(design: Design, parentDef: ComponentDef, ref: PinRef): Endpoint
   if (parentDef.kind !== 'composite') return null
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return null
-  const instDef = design.defs[inst.defId]
+  const instDef = getDef(design, inst.defId)
   if (!instDef) return null
   return { pos: portPosition(design, parentDef, inst, instDef, ref.portId), join: isJoinpoint(instDef) }
 }

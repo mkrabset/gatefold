@@ -1,5 +1,5 @@
 import type { ComponentDef, CompositeDef, Design, PinRef, Port } from './types'
-import { pinKey } from './types'
+import { getDef, pinKey } from './types'
 import { primitiveOf } from './primitives'
 
 /**
@@ -40,7 +40,7 @@ function solveWidths(design: Design, defId: string): SheetWidths {
 }
 
 function computeSheet(design: Design, defId: string): SheetWidths {
-  const def = design.defs[defId]
+  const def = getDef(design, defId)
   const widths = new Map<string, number>()
   let invalid = false
   let reason: 'conflict' | 'non-integer' | 'constraint' | undefined
@@ -65,7 +65,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
 
   // Seed intrinsic constants and mirror composite terminals (internal is authoritative).
   for (const inst of def.instances ?? []) {
-    const idef = design.defs[inst.defId]
+    const idef = getDef(design, inst.defId)
     if (!idef) continue
     if (idef.kind === 'primitive') {
       const prim = primitiveOf(idef.primitive)
@@ -106,7 +106,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
       }
     }
     for (const inst of def.instances ?? []) {
-      const idef = design.defs[inst.defId]
+      const idef = getDef(design, inst.defId)
       if (!idef || idef.kind !== 'primitive') continue
       const prim = primitiveOf(idef.primitive)
       if (!prim.deriveWidth) continue
@@ -130,7 +130,7 @@ function computeSheet(design: Design, defId: string): SheetWidths {
 
   // Apply per-primitive width constraints (e.g. 7-seg must be a multiple of 4).
   for (const inst of def.instances ?? []) {
-    const idef = design.defs[inst.defId]
+    const idef = getDef(design, inst.defId)
     if (!idef || idef.kind !== 'primitive') continue
     const prim = primitiveOf(idef.primitive)
     if (!prim.widthError) continue
@@ -169,7 +169,7 @@ export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: P
   if (parentDef.kind !== 'composite') return null
   const inst = parentDef.instances?.find((i) => i.id === ref.instanceId)
   if (!inst) return null
-  const def = design.defs[inst.defId]
+  const def = getDef(design, inst.defId)
   if (!def || def.kind !== 'primitive') return null
   const prim = primitiveOf(def.primitive)
   if (!prim.undeterminedHint) return null
@@ -184,7 +184,10 @@ export function undeterminedHint(design: Design, parentDef: ComponentDef, ref: P
  */
 export function connectionError(design: Design, def: CompositeDef, from: PinRef, to: PinRef): string | null {
   const testDef: CompositeDef = { ...def, connections: [...(def.connections ?? []), { id: '__test__', from, to }] }
-  const testDesign: Design = { ...design, defs: { ...design.defs, [def.id]: testDef } }
+  const testDesign: Design =
+    def.id in design.library
+      ? { ...design, library: { ...design.library, [def.id]: testDef } }
+      : { ...design, defs: { ...design.defs, [def.id]: testDef } }
   const result = solveWidths(testDesign, def.id)
   if (!result.invalid) return null
   if (result.message) return result.message

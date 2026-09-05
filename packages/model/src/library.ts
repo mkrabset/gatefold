@@ -1,108 +1,24 @@
-import type { ComponentDef, Design, Port, PrimitiveDef } from './types'
-import { isTemplateDef } from './types'
+import type { ComponentDef, Design } from './types'
 import { cloneDef, cloneDesign } from './group'
-import { primitiveDef } from './primitives'
-import { isComponentDef, isRecord, parseJson, stringifyJson } from './serialize'
+import { buildProject, isComponentDef, isRecord, parseJson, stringifyJson } from './serialize'
 import { newUuid, remapInstanceDefs, uniqueId } from './util'
 
 /**
- * Export/import of the custom component library. A library file is the set of
- * template composites (plus their transitive closure of composite defs), with all
- * references to built-in primitives normalized so the file is self-contained against
- * the target's primitive library.
+ * Export/import of the custom component library. A library file is the library part of
+ * a saved project: it is produced by `buildProject` (the same code path as "Save JSON",
+ * minus the content tree), so the library portion of the two files is byte-identical.
  */
 
 export const LIBRARY_VERSION = 1
 
 export interface LibraryFile {
   version: number
-  components: ComponentDef[]
+  library: Record<string, ComponentDef>
 }
 
-const isPrimitiveDef = (def: ComponentDef | undefined): def is PrimitiveDef => !!def && def.kind === 'primitive'
-
-/** Whether two port lists are structurally identical (id, name, direction, inversion). */
-function portsEqual(a: Port[], b: Port[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((p, i) => {
-    const q = b[i]
-    return p.id === q.id && p.name === q.name && p.direction === q.direction && p.inverted === q.inverted
-  })
-}
-
-/**
- * Collect the library's template composites (and their composite def closure) for export,
- * deep-cloned with `variant` stripped. References to a template's variant copies are collapsed
- * back to the template itself via the shared lineage `uuid`, so only the library templates are
- * exported — never the instance-local copies. Instance references to primitive defs are normalized
- * to their built-in id when they match the built-in's ports; a `variant` primitive copy whose
- * ports differ (e.g. a custom-arity FAN-IN) is exported as a primitive component instead, so its
- * configuration survives the round-trip and imports always resolve.
- */
+/** Produce the library file for a design (identical to the `library` field of Save JSON). */
 export function exportLibrary(design: Design): LibraryFile {
-  const templates = Object.values(design.defs).filter((d) => isTemplateDef(design, d))
-
-  // Map each template's lineage uuid to its id, so a variant copy can be collapsed back to
-  // the template it was copied from.
-  const uuidToTemplate = new Map<string, string>()
-  for (const t of templates) if (t.uuid) uuidToTemplate.set(t.uuid, t.id)
-
-  /** The library template a composite def belongs to, or null (primitive / unresolved). */
-  const templateIdOf = (defId: string): string | null => {
-    const ref = design.defs[defId]
-    if (!ref || ref.kind !== 'composite') return null
-    if (ref.variant !== true) return ref.id
-    return (ref.uuid && uuidToTemplate.get(ref.uuid)) ?? null
-  }
-
-  // Walk the templates' instance graph, collapsing variants to their templates. A variant
-  // with no matching template is promoted (exported with `variant` stripped) so the file
-  // stays self-contained rather than carrying a dangling reference.
-  const exportIds = new Set<string>()
-  const visit = (defId: string): void => {
-    if (exportIds.has(defId)) return
-    const def = design.defs[defId]
-    if (!def || def.kind !== 'composite') return
-    exportIds.add(defId)
-    for (const inst of def.instances ?? []) {
-      const ref = design.defs[inst.defId]
-      if (!ref) continue
-      if (ref.kind === 'primitive') continue
-      const tid = templateIdOf(ref.id)
-      visit(tid ?? ref.id)
-    }
-  }
-  for (const t of templates) visit(t.id)
-
-  const components: ComponentDef[] = []
-  const extraPrimitiveIds = new Set<string>()
-  for (const id of exportIds) {
-    const def = cloneDef(design.defs[id])
-    delete def.variant
-    if (def.kind !== 'composite') continue
-    for (const inst of def.instances ?? []) {
-      const ref = design.defs[inst.defId]
-      if (!ref) continue
-      if (isPrimitiveDef(ref)) {
-        if (portsEqual(ref.ports, primitiveDef(ref.primitive).ports)) {
-          inst.defId = ref.primitive
-        } else {
-          extraPrimitiveIds.add(ref.id)
-        }
-      } else if (ref.kind === 'composite') {
-        const tid = templateIdOf(ref.id)
-        if (tid !== null) inst.defId = tid
-      }
-    }
-    components.push(def)
-  }
-  for (const id of extraPrimitiveIds) {
-    const def = cloneDef(design.defs[id])
-    delete def.variant
-    components.push(def)
-  }
-
-  return { version: LIBRARY_VERSION, components }
+  return { version: LIBRARY_VERSION, library: buildProject(design).library }
 }
 
 /** Serialize a library file to JSON. */
@@ -118,37 +34,45 @@ export function parseLibrary(json: string): LibraryFile {
 function isLibraryFile(v: unknown): v is LibraryFile {
   if (!isRecord(v)) return false
   if (typeof v.version !== 'number') return false
-  if (!Array.isArray(v.components)) return false
-  return v.components.every(isComponentDef)
+  if (!isRecord(v.library)) return false
+  return Object.values(v.library).every(isComponentDef)
 }
 
 /**
  * Merge a library into a design, returning a new design. Imported components get fresh,
  * unique ids (collision-free against the design and each other) and unique names, and
  * their internal references to other imported components are remapped accordingly.
- * Existing defs are never overwritten.
+ * Composite lineage (`uuid`) is remapped consistently so an imported template and its
+ * embedded copies keep their shared soft link. Existing defs are never overwritten.
  */
 export function importLibrary(design: Design, lib: LibraryFile): Design {
   const result = cloneDesign(design)
 
-  const usedIds = new Set(Object.keys(result.defs))
+  const usedIds = new Set([...Object.keys(result.library), ...Object.keys(result.defs)])
   const idMap = new Map<string, string>()
-  for (const c of lib.components) {
+  for (const c of Object.values(lib.library)) {
     const newId = uniqueId(usedIds, c.id, '~')
     usedIds.add(newId)
     idMap.set(c.id, newId)
   }
 
-  const usedNames = new Set(Object.values(result.defs).map((d) => d.name))
-  for (const c of lib.components) {
+  const usedNames = new Set([...Object.values(result.library), ...Object.values(result.defs)].map((d) => d.name))
+  const uuidMap = new Map<string, string>()
+  for (const c of Object.values(lib.library)) {
     const def = cloneDef(c)
     def.id = idMap.get(c.id) ?? c.id
-    delete def.variant
-    def.uuid = newUuid()
+    if (def.kind === 'composite' && def.uuid) {
+      let nu = uuidMap.get(def.uuid)
+      if (!nu) {
+        nu = newUuid()
+        uuidMap.set(def.uuid, nu)
+      }
+      def.uuid = nu
+    }
     def.name = uniqueId(usedNames, def.name || 'component', '~')
     usedNames.add(def.name)
     remapInstanceDefs(def, idMap)
-    result.defs[def.id] = def
+    result.library[def.id] = def
   }
 
   return result

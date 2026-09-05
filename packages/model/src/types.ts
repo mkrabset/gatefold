@@ -61,10 +61,6 @@ export interface PrimitiveDef {
   kind: 'primitive'
   primitive: PrimitiveKind
   ports: Port[]
-  /** True when this def is an instance-local fork (hidden from the library). */
-  variant?: boolean
-  /** Lineage id: shared by a template and every variant copied from it. */
-  uuid?: string
 }
 
 /** A user-defined composite definition: a graph of instances wired by connections. */
@@ -75,9 +71,11 @@ export interface CompositeDef {
   ports: Port[]
   instances?: Instance[]
   connections?: Connection[]
-  /** True when this def is an instance-local fork (hidden from the library). */
-  variant?: boolean
-  /** Lineage id: shared by a template and every variant copied from it. */
+  /**
+   * Lineage id. On an origin template it is the template's identity; on a copy
+   * (embedded in the library or live in the content tree) it is a soft link back to
+   * the origin template that instantiated it. Cleared when the origin is deleted.
+   */
   uuid?: string
   /** User-defined grouping shown in the library; `undefined` = Uncategorized. */
   category?: string
@@ -111,11 +109,28 @@ export interface Connection {
   to: PinRef
 }
 
-/** The whole document: a registry of component definitions plus the root sheet id. */
+/**
+ * The whole document, split into two disjoint parts:
+ * - `library`: component templates (origin templates plus their embedded copies and
+ *   primitive forks). Self-contained: a library entry's instances reference only
+ *   built-in primitives or other library entries.
+ * - `defs`: the content tree — the root composite, live copies, primitive forks, and
+ *   the built-in primitives (stripped on save, regenerated on load).
+ * A def is a template or a live object purely by which map it lives in (no flag).
+ */
 export interface Design {
   version: number
   root: string
+  library: Record<string, ComponentDef>
   defs: Record<string, ComponentDef>
+}
+
+/**
+ * Look up a def by id across both the content tree and the library (ids are disjoint).
+ * Used by editor/renderer lookups where a reference may point into either map.
+ */
+export function getDef(design: Design, id: string): ComponentDef | undefined {
+  return design.defs[id] ?? design.library[id]
 }
 
 /** The id of the `index`-th input terminal (`in:0`, `in:1`, …). */
@@ -179,13 +194,12 @@ export function findConnectionTo(connections: Connection[], to: PinRef): Connect
 }
 
 /**
- * Every (composite def, instance) pair across the design whose instance references
- * `defId`, in def-then-instance order. Only composites contain instances, so each
- * returned def is a composite.
+ * Every (composite def, instance) pair across the design — both the library and the
+ * content tree — whose instance references `defId`, in def-then-instance order.
  */
 export function instancesReferencing(design: Design, defId: string): { def: CompositeDef; instance: Instance }[] {
   const refs: { def: CompositeDef; instance: Instance }[] = []
-  for (const def of Object.values(design.defs)) {
+  for (const def of [...Object.values(design.library), ...Object.values(design.defs)]) {
     if (def.kind !== 'composite') continue
     for (const inst of def.instances ?? []) {
       if (inst.defId === defId) refs.push({ def, instance: inst })
@@ -200,11 +214,23 @@ export function isDefReferenced(design: Design, defId: string): boolean {
 }
 
 /**
- * True for a reusable composite template: a non-root composite that is not an
- * instance-local variant copy (so it is listed in the library and editable).
+ * True for a reusable origin template: a composite in the library that is not an
+ * embedded copy of another template (not referenced as an instance by any other
+ * library entry). These are the components listed in the library panel.
  */
 export function isTemplateDef(design: Design, def: ComponentDef): boolean {
-  return def.kind === 'composite' && def.variant !== true && def.id !== design.root
+  if (def.kind !== 'composite' || def.id === design.root) return false
+  if (!(def.id in design.library)) return false
+  return !isEmbeddedInLibrary(design, def.id)
+}
+
+/** Whether any other library entry references `defId` as an instance (i.e. it is embedded). */
+function isEmbeddedInLibrary(design: Design, defId: string): boolean {
+  for (const def of Object.values(design.library)) {
+    if (def.kind !== 'composite' || def.id === defId) continue
+    if ((def.instances ?? []).some((i) => i.defId === defId)) return true
+  }
+  return false
 }
 
 /** The category shown for a template with no explicit `category` assigned. */

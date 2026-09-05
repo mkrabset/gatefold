@@ -1,5 +1,5 @@
 import type {ComponentDef, Design, Instance, Palette, PinRef, Port, PrimitiveDef, Signal} from '@gatefold/model'
-import {inputPorts, invertSignal, isPortGroupDef, outputPorts, periodOf, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, UnionFind} from '@gatefold/model'
+import {getDef, inputPorts, invertSignal, isPortGroupDef, outputPorts, periodOf, pinKey, portGroupDirection, portWidth, primitiveOf, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, UnionFind} from '@gatefold/model'
 import {formatFrequency} from '../util/format'
 import {
     arrayIndicatorLanes,
@@ -362,7 +362,7 @@ function drawJoinpointNode(
     hovered: boolean,
     sim: SimView | undefined,
 ) {
-    const def = design.defs[instance.defId]
+    const def = getDef(design, instance.defId)!
     const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
     if (selected) {
         const b = instanceBounds(design, parentDef, instance, def, 6)
@@ -718,7 +718,7 @@ export function drawScene(
     p: Palette,
     sim?: SimView,
 ) {
-    const def = design.defs[defId]
+    const def = getDef(design, defId)
     const bg = sim ? p.simBg : editingTemplate ? p.templateBg : p.bg
 
     ctx.fillStyle = bg
@@ -758,14 +758,14 @@ export function drawScene(
     const resolveEndpoint = (ref: PinRef): { x: number; y: number } | null => {
         const inst = byId.get(ref.instanceId)
         if (!inst) return null
-        const instDef = design.defs[inst.defId]
+        const instDef = getDef(design, inst.defId)
         if (!instDef) return null
         return portPosition(design, def, inst, instDef, ref.portId)
     }
 
     const isJoin = (ref: PinRef): boolean => {
         const inst = byId.get(ref.instanceId)
-        const instDef = inst && design.defs[inst.defId]
+        const instDef = inst && getDef(design, inst.defId)
         return !!instDef && instDef.kind === 'primitive' && instDef.primitive === 'join-point'
     }
 
@@ -786,7 +786,7 @@ export function drawScene(
 
     const joinPoints: Instance[] = []
     for (const inst of instances) {
-        const idef = design.defs[inst.defId]
+        const idef = getDef(design, inst.defId)
         if (idef?.kind === 'primitive' && idef.primitive === 'join-point') {
             uf.union(pinKey({instanceId: inst.id, portId: 'in:0'}), pinKey({instanceId: inst.id, portId: 'out:0'}))
             joinPoints.push(inst)
@@ -929,7 +929,7 @@ export function drawScene(
     }
 
     for (const inst of instances) {
-        const instDef = design.defs[inst.defId]
+        const instDef = getDef(design, inst.defId)
         if (!instDef) continue
         // Join-points are rendered with their net in the wire pass above.
         if (instDef.kind === 'primitive' && instDef.primitive === 'join-point') continue

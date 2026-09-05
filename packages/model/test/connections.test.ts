@@ -41,6 +41,7 @@ describe('isDefReferenced', () => {
     const design: Design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: {
         main: {
           id: 'main',

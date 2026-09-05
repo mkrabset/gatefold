@@ -297,6 +297,7 @@ describe('model primitives', () => {
     const design = {
       version: 1,
       root: 'main',
+      library: {},
       defs: { main: { id: 'main', name: 'main', kind: 'composite' as const, ports: [], instances: [], connections: [] } },
     }
     const ensured = withBuiltinPrimitives(design)

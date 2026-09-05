@@ -53,23 +53,33 @@ authoritative — update this when a term's meaning changes.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a
   CLOCK's `period`, a BUS's `lanes`, a 7-SEG's `order`. For arrays, `terminalType` is
-  *property-driven*: changing it regenerates the instance's variant-def ports.
+  *property-driven*: changing it regenerates the instance's fork-def ports.
 - **Composite / custom component** — a user-defined component whose behavior is its
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
-- **Template** — a definition in the library (`variant` not set). Placed via drag; edited
-  by double-clicking its library card; never mutated by editing an instance.
+- **Template** — a component definition that lives in the **library** (`design.library`) and is
+  shown in the "My components" panel. Placed via drag; edited by double-clicking its library
+  card; never mutated by editing an instance. An **origin template** is one that is not itself an
+  embedded part of another template.
 - **Category** — an optional user-defined grouping (`CompositeDef.category`) that organizes
   the library's custom components; `undefined`/blank reads as **Uncategorized**. The library
   panel shows one category at a time via a dropdown, and a component is moved by selecting its
   card and choosing a category (or typing a new one). Serialized with the design and carried
   through library export/import.
-- **Variant** — an instance-local copy of a definition (`variant: true`), created on
-  placement/grouping (see **Copy-on-place**). Hidden from the library.
-- **Lineage id (`uuid`)** — a `ComponentDef.uuid` shared by a template and every variant
-  copied from it, marking which template a variant originated from. `id` stays the unique key;
-  `uuid` is for origin/apply. Preserved by all copies; freshly assigned on grouping, promote,
-  import, and load-migration.
-- **Root** — the top-level composite (`design.root`, usually `main`); the outermost sheet.
+- **Copy** — an instantiation of a template (or a fork of a primitive) that is a full, independent
+  definition. A **live copy** lives in the content tree (`design.defs`); an **embedded copy** lives
+  in the library as "part of" a template (referenced by that template's instances). Whether a def
+  is a template or a copy is determined purely by *location* — there is no `variant` flag.
+- **Content tree** — the live objects: the root composite plus every live copy, keyed in
+  `design.defs` (which also holds the built-in primitives). `design.root` points at the root node.
+- **Library** — the set of templates (`design.library`): origin templates plus their embedded
+  copies and primitive forks. Self-contained: a library entry's instances reference only built-in
+  primitives or other library entries.
+- **Lineage id (`uuid`)** — a `CompositeDef.uuid`. On an origin template it is the template's
+  identity; on a copy (embedded or live) it is a **soft link** back to the origin template that
+  instantiated it. `id` stays the unique key; `uuid` is for origin/apply. Deleting a template
+  clears the `uuid` on its copies rather than leaving a dangling pointer.
+- **Root** — the top-level composite (`design.root`, usually `main`); the outermost sheet, in the
+  content tree.
 
 ## Terminals & wiring
 
@@ -77,7 +87,7 @@ authoritative — update this when a term's meaning changes.
   inputs-first. For composites, `terminal` links it to its internal port-group pin.
 - **Inverted terminal** — a port whose `inverted` flag is set, rendered as a hollow ring
   just outside the pin (a logic negation bubble). Instance-level: templates keep clean
-  (non-inverted) ports, and inversion lives on variants (preserved when a template is applied).
+  (non-inverted) ports, and inversion lives on copies (preserved when a template is applied).
   Inversion is **external-only**: a component's own terminals as seen from *inside* (the
   `input-port`/`output-port` port groups) are never invertable and never show a bubble — you
   invert a terminal on a placed instance, never on the scope's own ports.
@@ -117,12 +127,13 @@ authoritative — update this when a term's meaning changes.
 ## Editing operations
 
 - **Copy-on-place** — placing (drag) or grouping deep-copies a template and its whole
-  hierarchy into `variant` defs, so instances are independent from birth.
+  hierarchy into fresh copies (live in the content tree, or embedded in the library when
+  editing a template), so instances are independent from birth.
 - **Grouping** — turning a selection into a composite (`inferGroup` → naming dialog →
   `applyGroup`); a single selected custom component is *promoted* to a template instead.
-- **Apply template** — propagating a template's edits to every matching variant in the current
+- **Apply template** — propagating a template's edits to every matching live copy in the current
   scope (same lineage `uuid` + same ordered port ids). Port names are ignored and overwritten
-  from the template. Replaces internals, preserves external wiring and the variant's inversion.
+  from the template. Replaces internals, preserves external wiring and the copy's inversion.
 - **Navigation (descend/ascend)** — the `navStack` of def ids; double-click a component to
   enter it, Escape / breadcrumb ↑ to exit.
 - **Fit-to-view** — when you enter a component, the canvas auto-zooms/pans so its internals

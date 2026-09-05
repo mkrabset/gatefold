@@ -179,12 +179,12 @@ parent sheet and invert it there.
 ==== Copy-on-place and templates
 
 When you place or group a component, Gatefold deep-copies its definition
-(a *variant*), so every instance is independent. *My components* lists
-your templates; editing a template (via its library card) and pressing
-*Apply to instances* updates every matching instance — one whose
-terminals are the same (by id and order) as the template’s. Port *names*
-don’t affect matching and are overwritten with the template’s names, so
-renaming a template’s ports bulk-updates its instances.
+(a *copy*), so every instance is independent. *My components* lists your
+templates; editing a template (via its library card) and pressing *Apply
+to instances* updates every matching instance — one whose terminals are
+the same (by id and order) as the template’s. Port *names* don’t affect
+matching and are overwritten with the template’s names, so renaming a
+template’s ports bulk-updates its instances.
 
 '''''
 
@@ -282,14 +282,14 @@ the clock. On power-on `Q` starts at the *Initial value*.
 
 ==== FAN-IN
 
-* *Inputs:* 2{plus} (single-wire) · *Outputs:* 1 (`BUS`) · _inputs
-variable_
+* *Inputs:* 2{plus} (single-wire), default 4 · *Outputs:* 1 (`BUS`) ·
+_inputs variable_
 * Bundles its `n` single-wire inputs into one `n`-wide bus output.
 
 ==== FAN-OUT
 
-* *Inputs:* 1 (`BUS`) · *Outputs:* 2{plus} (single-wire) · _outputs
-variable_
+* *Inputs:* 1 (`BUS`) · *Outputs:* 2{plus} (single-wire), default 4 ·
+_outputs variable_
 * Splits one `n`-wide bus input into `n` single-wire outputs.
 
 ==== BUS-SPLIT
@@ -523,6 +523,6 @@ falls back to the normal launch path (localStorage default, then an
 empty design).
 
 Saved designs (JSON files, the launch default, and share links alike)
-are stored compactly: built-in primitive definitions and unreferenced
-copies are omitted, and component coordinates are rounded to two
-decimals — all regenerated or inconsequential on load.
+are stored compactly: built-in primitives are inline references (never
+stored as definitions), and component coordinates are rounded to two
+decimals.

@@ -66,7 +66,7 @@ export interface Rect {
 }
 
 /** Values captured in the group dialog while awaiting confirmation. */
-interface PendingGroup {
+export interface PendingGroup {
   name: string
   inputs: string[]
   outputs: string[]

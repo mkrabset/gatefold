@@ -613,6 +613,33 @@ body {
   margin-bottom: 4px;
 }
 
+.dialog-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dialog-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dialog-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialog-error {
+  color: var(--red);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

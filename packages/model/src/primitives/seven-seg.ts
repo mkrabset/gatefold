@@ -1,5 +1,7 @@
 import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId } from '../types'
+import type { ValueFormat } from '../value'
+import { toValueFormat } from '../value'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
@@ -84,15 +86,9 @@ export function sevenSegDigit(bits: Signal[]): number[] | undefined {
   return SEGMENT_PATTERNS[value]
 }
 
-/** Display modes for a 7-seg: hexadecimal, unsigned decimal, or two's-complement decimal. */
-export type SevenSegMode = 'HEX' | 'DEC' | 'SIGNED DEC'
-
-/** Resolve an instance's `mode` property to a `SevenSegMode` (defaulting to HEX). */
-export function sevenSegModeOf(props: Record<string, PropertyValue> | undefined): SevenSegMode {
-  const mode = props?.mode
-  if (mode === 'DEC') return 'DEC'
-  if (mode === 'SIGNED DEC') return 'SIGNED DEC'
-  return 'HEX'
+/** Resolve an instance's `mode` property to a `ValueFormat` (defaulting to HEX). */
+export function sevenSegModeOf(props: Record<string, PropertyValue> | undefined): ValueFormat {
+  return toValueFormat(props?.mode)
 }
 
 /** Segment mask for a minus sign (segment `g` only). */
@@ -104,14 +100,14 @@ function pow2Digits(pow2: number): number {
 }
 
 /** Number of display slots (incl. a sign slot for SIGNED DEC) for a bus width. */
-export function sevenSegPositionCount(width: number, mode: SevenSegMode): number {
+export function sevenSegPositionCount(width: number, mode: ValueFormat): number {
   if (mode === 'DEC') return pow2Digits(width)
   if (mode === 'SIGNED DEC') return 1 + pow2Digits(width - 1)
   return Math.max(1, Math.floor(width / 4))
 }
 
 /** Segment masks per display slot (left-to-right), or null for a blank slot. */
-export function sevenSegDigits(bits: Signal[], mode: SevenSegMode): (number[] | null)[] {
+export function sevenSegDigits(bits: Signal[], mode: ValueFormat): (number[] | null)[] {
   const positions = sevenSegPositionCount(bits.length, mode)
 
   if (mode !== 'DEC' && mode !== 'SIGNED DEC') {

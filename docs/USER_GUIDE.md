@@ -263,11 +263,13 @@ its properties, and what it does.
   **Order** selects which end of the bus is the least-significant bit.
 
 ### SWITCHES
-- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`) and **Initial value** (boolean, default off)
+- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (boolean, default off), **Value format** (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), and **Order** (`asc` / `desc`, default `asc`)
 - A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
   mode a single bus output carries one lane per wire. Every lane starts at the **Initial value**
   when simulation starts (and shows that state, colored, in design mode). In simulate mode,
   click an indicator circle to toggle its lane.
+- **Value format** is the radix used by the set-value dialog (see §7); **Order** selects which
+  end of the bus is the least-significant bit (`asc` = lane 0 is the LSB).
 
 ### LEDS
 - **Inputs:** 1+ · **Outputs:** none · Property **Terminal type** (`wire` / `bus`, default `bus`)
@@ -338,6 +340,21 @@ to a stable state; a true oscillator is detected and shown as `x`.
   toggles twice — it does *not* enter the component).
 - **LEDS** lanes light when their signal is `1`.
 - **7-SEG** displays the value of each 4-bit nibble of its bus.
+
+### Setting a switch value
+
+Each **SWITCHES** component shows a small **#** badge in its top-left corner while
+simulating. Click it to type a value into that switch instead of clicking lanes one by
+one: a dialog titled *"enter N-bit value in …"* opens with a radix dropdown
+(**HEX** / **DEC** / **SIGNED DEC**, initialized from the instance's *Value format*)
+and an input pre-filled with the current value (selected, so typing replaces it).
+
+- **Enter** parses the value (in the chosen radix) and sets the switches, closing the
+  dialog; an out-of-range or malformed value shows an error and stays open.
+- **Escape** (or **Cancel**) closes without changing anything.
+- The radix chosen in the dialog only affects that dialog — it does not change the
+  instance's *Value format*. The instance's *Order* is applied when the typed value is
+  mapped onto the lanes.
 
 ### Step mode
 

@@ -39,8 +39,17 @@ authoritative — update this when a term's meaning changes.
   `wire` (one single-wire terminal per lane, added/removed via the ports editor) or `bus`
   (one terminal whose width is adopted from the connection, rendering a `?` while
   undetermined); `bus` is the default. Each lane toggles/reads independently; the switch-array's
-  `initialValue` (boolean) sets every lane's starting state when simulation begins. They
+  `initialValue` (boolean) sets every lane's starting state when simulation begins. A switch's
+  `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`, default HEX) is the initial radix of its **set-value
+  dialog**, and its `order` (`asc`/`desc`) picks which end of the bus is the least-significant
+  bit when a typed value is mapped onto the lanes. They
   supersede the removed single-lane SWITCH and LED primitives.
+- **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`) used to enter/display a multi-bit
+  value. Shared by the 7-seg display's `mode` and the switch-array's `valueFormat`; the single
+  `ValueFormat` type lives in the model's `value.ts`.
+- **Set-value dialog** — a simulate-mode dialog (opened from a switch-array's `#` badge) that
+  types a whole value into a switch instead of clicking lanes. Its radix dropdown is local to
+  the dialog (does not alter the instance's `valueFormat`); `Enter` commits, `Escape` cancels.
 - **Property** — a user-configurable value declared by a primitive (`PropertySpec`, with a
   default + unit/min/max/`select` options); stored per-instance in `Instance.props`. E.g. a
   CLOCK's `period`, a BUS's `lanes`, a 7-SEG's `order`. For arrays, `terminalType` is

@@ -1,6 +1,7 @@
 // Barrel export for `@gatefold/model` — the shared, framework-free domain model.
 export * from './types'
 export * from './util'
+export * from './value'
 export * from './widths'
 export * from './primitives'
 export * from './group'

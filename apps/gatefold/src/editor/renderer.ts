@@ -45,6 +45,33 @@ const WIRE_WIDTH = 1.5
 /** Extra halo width on each side of a wire, in screen pixels (zoom-independent). */
 const HALO_MARGIN = 3
 
+/** Screen size (px) of a switch-array's "#" value-entry badge. */
+const SWITCH_VALUE_BADGE = 16
+
+/**
+ * Screen-space rect of a switch-array's "#" badge (top-left corner of its body), or
+ * null when `def` is not a switch-array. This is the single source of truth for the
+ * badge geometry, shared by the renderer and the canvas hit-testing.
+ */
+export function switchValueBadge(
+    design: Design,
+    parentDef: ComponentDef,
+    instance: Instance,
+    def: ComponentDef,
+    cw: number,
+    ch: number,
+    vp: Viewport,
+): { x: number; y: number; s: number } | null {
+    if (def.kind !== 'primitive' || def.primitive !== 'switch-array') return null
+    const c = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
+    const size = instanceBodySize(design, parentDef, instance, def)
+    return {
+        x: c.x - (size.w * vp.zoom) / 2 + 4,
+        y: c.y - (size.h * vp.zoom) / 2 + 4,
+        s: SWITCH_VALUE_BADGE,
+    }
+}
+
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
 function pinRadius(width: number, zoom: number): number {
     return pinRadiusWorld(width) * zoom
@@ -204,6 +231,16 @@ function drawUndetermined(ctx: CanvasRenderingContext2D, cx: number, cy: number,
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('?', cx, cy)
+}
+
+/** Draw a switch-array's "#" value-entry badge at (x, y), `s` px square. */
+function drawSwitchValueBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, p: Palette) {
+    drawRoundedBox(ctx, x, y, s, s, 3, p.gateFill, p.gateStroke, 1.5)
+    ctx.fillStyle = p.text
+    ctx.font = `${Math.round(s * 0.72)}px system-ui, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('#', x + s / 2, y + s / 2 + 0.5)
 }
 
 /** Stroke a dashed rectangle (selection / marquee outline). */
@@ -644,6 +681,12 @@ function drawArrayBody(
             sig = 1
         }
         drawArrayCell(ctx, cx, y, r, isSwitch, sig, p)
+    }
+
+    // The "#" value-entry badge sits in the body's top-left corner (simulate mode only).
+    if (isSwitch && sim) {
+        const badge = switchValueBadge(design, parentDef, instance, def, cw, ch, vp)
+        if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
     }
 }
 

@@ -646,6 +646,60 @@ describe('Simulation engine', () => {
     expect(sim.signal('fo', 'out:3')).toBe(1)
   })
 
+  it('sets a switch-array\'s whole lane vector in BUS mode', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [{ id: 'out:0', name: 'BUS', direction: 'output' }],
+    }
+    const fo4: ComponentDef = {
+      id: 'fo4',
+      name: 'FO',
+      kind: 'primitive',
+      primitive: 'fan-out',
+      ports: [
+        { id: 'in:0', name: 'BUS', direction: 'input' },
+        { id: 'out:0', name: 'Y1', direction: 'output' },
+        { id: 'out:1', name: 'Y2', direction: 'output' },
+        { id: 'out:2', name: 'Y3', direction: 'output' },
+        { id: 'out:3', name: 'Y4', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign([inst('sa', 'sa'), inst('fo', 'fo4')], [conn('c1', iref('sa', 'out:0'), iref('fo', 'in:0'))], { sa, fo4 }),
+    )
+    sim.setSwitchLanes('sa', [1, 0, 1, 0])
+    sim.step()
+    expect(sim.signalOf('sa', 'out:0')).toEqual([1, 0, 1, 0])
+    expect(sim.signal('fo', 'out:0')).toBe(1)
+    expect(sim.signal('fo', 'out:1')).toBe(0)
+    expect(sim.signal('fo', 'out:2')).toBe(1)
+    expect(sim.signal('fo', 'out:3')).toBe(0)
+  })
+
+  it('reports a switch-array\'s current raw lanes, padded to its lane count', () => {
+    const sa: ComponentDef = {
+      id: 'sa',
+      name: 'SA',
+      kind: 'primitive',
+      primitive: 'switch-array',
+      ports: [
+        { id: 'out:0', name: 'Y0', direction: 'output' },
+        { id: 'out:1', name: 'Y1', direction: 'output' },
+        { id: 'out:2', name: 'Y2', direction: 'output' },
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign([{ id: 'sa', name: 'sa', defId: 'sa', pos: { x: 0, y: 0 }, props: { initialValue: true } }], [], { sa }),
+    )
+    expect(sim.switchLanesOf('sa')).toEqual([1, 1, 1])
+    sim.setSwitchLanes('sa', [0, 1])
+    expect(sim.switchLanesOf('sa')).toEqual([0, 1, 0])
+    expect(sim.switchLanesOf('nope')).toBeUndefined()
+  })
+
   it('passes a fixed-width bus through the BUS primitive', () => {
     const sa: ComponentDef = {
       id: 'sa',

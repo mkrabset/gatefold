@@ -176,6 +176,12 @@ interface Design { version: number; root: string; defs: Record<string, Component
   (`arrayPorts`) and prunes orphaned connections when the type changes (or a wire terminal is
   added/removed via the ports editor). In `bus` mode the single port is **neutral**
   (intrinsic `null`), adopting the connected width and rendering a `?` while undetermined.
+- **Value entry** (`value.ts`): a `ValueFormat` (`HEX`/`DEC`/`SIGNED DEC`) shared by the 7-seg
+  `mode` and the switch-array `valueFormat`, plus `ValueOrder` (`asc`/`desc`). Pure, BigInt-based
+  `parseSwitchValue`/`formatSwitchValue` (LSB-first bits) and `applyValueOrder` (desc reverses)
+  back the switch-array's **set-value dialog**; the switch's `valueFormat` is the dialog's initial
+  radix and its `order` maps typed values onto lanes (asc = lane 0 is the LSB). `SevenSegMode` is
+  gone — `sevenSegModeOf` now returns `ValueFormat`.
 - **Clipboard** (`clipboard.ts`): pure `copyDefSubgraph` / `captureClipboard` /
   `instantiateClipboard` for in-app copy/paste with deep, id-rewritten copies.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
@@ -231,9 +237,11 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 - `engine: Simulation | null` — the `@gatefold/sim` engine (rebuilt on `toggleMode`/`reset`/
   `setDefaultDelay`); it **never mutates the design**.
 - `running`, `path` (instance-id path parallel to `navStack`), `version` (redraw trigger),
-  `stepMode`, `defaultDelay`, `settingsOpen`.
-- Actions: `toggleMode`, `run`/`step`/`stop`/`reset`, `toggleSwitch`, `descend`/`ascend`,
-  `setStepMode`/`setDefaultDelay`, `openSettings`/`closeSettings`.
+  `stepMode`, `defaultDelay`, `settingsOpen`, and `switchDialog` (the set-value dialog target:
+  instance id, lane count, current lanes, format, and order).
+- Actions: `toggleMode`, `run`/`step`/`stop`/`reset`, `toggleSwitch`, `openSwitchDialog`/
+  `closeSwitchDialog`/`setSwitchValue` (the last drives `engine.setSwitchLanes` + `step`),
+  `descend`/`ascend`, `setStepMode`/`setDefaultDelay`, `openSettings`/`closeSettings`.
 - View helpers `simColorOf`/`simValueOf` (kept out of the store state) map a flattened pin's
   signal to a theme-aware wire color (`1`→red, `0`→black, `x`→gray).
 
@@ -303,7 +311,9 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   bus lane; each circle fills red/amber when its lane is `1`. The 7-seg draws a body and
   renders one **hexagon-segment digit per 4-bit nibble** (lit vs unlit segments), MSD
   leftmost, honoring its `order` property; its body/border/segment colors come from the palette
-  (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme.
+  (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme. A
+  switch-array also draws a small **`#` badge** in its body's top-left corner while simulating
+  (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog.
 - **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
   (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
   small bubble per lane (aligned with each individual wire). Inversion is instance-level
@@ -551,8 +561,11 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   `isArrayDef`/`arrayDirection`, `sevenSegModeOf`, and `periodOf`.
 - `packages/model/test/util.test.ts` — `uniqueId`, `collectClosure`, `remapInstanceDefs`,
   `unreachableDefIds`.
-- `packages/model/test/array.test.ts` — `arrayPorts`, array WIRE/BUS defaults, and width
-  constraints via `connectionError` (BUS fixes width; 7-seg multiple-of-4 / ≤64).
+- `packages/model/test/value.test.ts` — `toValueFormat`/`valueFormatOf`/`valueOrderOf`,
+  `parseSwitchValue` (HEX/DEC/signed ranges, invalid input), `formatSwitchValue`, `applyValueOrder`.
+- `packages/model/test/array.test.ts` — `arrayPorts`, array WIRE/BUS defaults (incl. the new
+  `valueFormat`/`order` props), and width constraints via `connectionError` (BUS fixes width;
+  7-seg multiple-of-4 / ≤64).
 - `packages/model/test/connections.test.ts` — `pinRefEquals` / `findConnectionTo` /
   `nextConnectionId`.
 - `packages/model/test/group.test.ts` — `inferGroup`/`applyGroup` (port instances, boundary
@@ -566,8 +579,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   reshape.
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
-  port-group/composite signal resolution, and the DFF (posedge/negedge, async reset, initial value,
-  shift register, composite).
+  port-group/composite signal resolution, the DFF (posedge/negedge, async reset, initial value,
+  shift register, composite), and switch-array lane setting (`setSwitchLanes`/`switchLanesOf`).
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
   reset, negedge, `initialValue`, active-low reset), fan-in bus concatenation, bus-split slicing,
   nested composite modules, identifier sanitization, floating-net warning, and the nested-switch

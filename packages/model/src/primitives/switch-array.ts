@@ -18,6 +18,8 @@ export class SwitchArray extends ArrayPrimitive {
     return [
       ...super.properties(),
       { name: 'initialValue', label: 'Initial value', type: 'boolean', default: false },
+      { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC'] },
+      { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
     ]
   }
 }

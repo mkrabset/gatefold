@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Signal } from '@gatefold/model'
+import type { Signal, ValueFormat, ValueOrder } from '@gatefold/model'
 import { Simulation } from '@gatefold/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
 import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
@@ -35,12 +35,17 @@ interface SimState {
   /** Simulated-time per real-time multiplier (1 = real-time). */
   timeScale: number
   settingsOpen: boolean
+  /** The set-value dialog target (a switch-array), or null when closed. */
+  switchDialog: { instanceId: string; size: number; lanes: Signal[]; format: ValueFormat; order: ValueOrder } | null
   toggleMode: () => void
   run: () => void
   step: () => void
   stop: () => void
   reset: () => void
   toggleSwitch: (instanceId: string, lane?: number) => void
+  openSwitchDialog: (instanceId: string, size: number, format: ValueFormat, order: ValueOrder) => void
+  closeSwitchDialog: () => void
+  setSwitchValue: (instanceId: string, lanes: Signal[]) => void
   descend: (instanceId: string) => void
   ascend: () => void
   setStepMode: (mode: SimConfig['stepMode']) => void
@@ -77,6 +82,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     defaultDelay: DEFAULT_CONFIG.defaultDelay,
     timeScale: DEFAULT_TIME_SCALE,
     settingsOpen: false,
+    switchDialog: null,
 
     toggleMode: () => {
       if (get().mode === 'design') {
@@ -137,6 +143,24 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       engine.toggleSwitch(id, lane)
       engine.step()
       set((s) => ({ version: s.version + 1 }))
+    },
+
+    openSwitchDialog: (instanceId, size, format, order) => {
+      const { engine } = get()
+      if (!engine || !viewingLive()) return
+      const lanes = engine.switchLanesOf(flatId(instanceId))
+      if (!lanes) return
+      set({ switchDialog: { instanceId, size, lanes, format, order } })
+    },
+
+    closeSwitchDialog: () => set({ switchDialog: null }),
+
+    setSwitchValue: (instanceId, lanes) => {
+      const { engine } = get()
+      if (!engine || !viewingLive()) return
+      engine.setSwitchLanes(flatId(instanceId), lanes)
+      engine.step()
+      set((s) => ({ switchDialog: null, version: s.version + 1 }))
     },
 
     descend: (instanceId) => set((s) => ({ path: [...s.path, instanceId] })),

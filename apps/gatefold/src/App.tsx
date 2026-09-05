@@ -7,6 +7,7 @@ import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
 import { DeleteDialog } from './ui/DeleteDialog'
 import { SimSettingsDialog } from './ui/SimSettingsDialog'
+import { SwitchValueDialog } from './ui/SwitchValueDialog'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
@@ -91,6 +92,7 @@ export default function App() {
       <GroupDialog />
       <DeleteDialog />
       <SimSettingsDialog />
+      <SwitchValueDialog />
       <Toast />
     </div>
   )

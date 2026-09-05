@@ -3,14 +3,14 @@ import { currentDefId, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds } from './geometry'
-import { drawScene } from './renderer'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount } from './geometry'
+import { drawScene, switchValueBadge } from './renderer'
 import { findJoinpointWire, findWireAtLine } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
 import type { Instance, PinRef } from '@gatefold/model'
-import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals } from '@gatefold/model'
+import { findConnectionTo, isNavigableDef, isTemplateDef, pinRefEquals, valueFormatOf, valueOrderOf } from '@gatefold/model'
 import type { Viewport } from '../state/editorStore'
 
 /**
@@ -143,6 +143,21 @@ export function Canvas() {
           canvas.style.cursor = 'grabbing'
           canvas.setPointerCapture(e.pointerId)
           return
+        }
+        // The "#" badge (top-left corner of a switch-array) opens the set-value dialog.
+        const sx = e.clientX - rect.left
+        const sy = e.clientY - rect.top
+        for (const inst of [...instances].reverse()) {
+          const instDef = state.design.defs[inst.defId]
+          if (!instDef || instDef.kind !== 'primitive' || instDef.primitive !== 'switch-array') continue
+          const badge = switchValueBadge(state.design, def, inst, instDef, wrap.clientWidth, wrap.clientHeight, state.viewport)
+          if (badge && sx >= badge.x && sx <= badge.x + badge.s && sy >= badge.y && sy <= badge.y + badge.s) {
+            const size = arrayLaneCount(state.design, def, inst, instDef)
+            if (size !== null) {
+              useSimStore.getState().openSwitchDialog(inst.id, size, valueFormatOf(inst.props), valueOrderOf(inst.props))
+            }
+            return
+          }
         }
         // Toggle a switch-array lane by clicking its indicator circle (not its marker).
         for (const inst of [...instances].reverse()) {
@@ -443,6 +458,8 @@ export function Canvas() {
       useEditorStore.getState().setHoverPort(null)
     }
     const onKeyDown = (e: KeyboardEvent) => {
+      // While the set-value dialog is open, its own Escape handling takes over.
+      if (useSimStore.getState().switchDialog) return
       if (e.key === 'Escape' && pointerOver) {
         const sim = useSimStore.getState()
         // At the top level in simulate mode, Escape leaves simulation entirely.

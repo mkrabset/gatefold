@@ -425,6 +425,25 @@ export class Simulation {
     this.setLane(id, lane, this.laneValue(id, lane) === 1 ? 0 : 1)
   }
 
+  /** Replace a switch source's whole lane vector with `bits` (padded/truncated to its lane count). */
+  setSwitchLanes(id: string, bits: Signal[]): void {
+    const inst = this.instances.find((i) => i.id === id)
+    if (!inst) return
+    const lanes = this.laneCount(inst)
+    const state: Signal[] = []
+    for (let i = 0; i < lanes; i++) state.push(bits[i] ?? 0)
+    this.switchState.set(id, state)
+    this.driveSource(inst, this.timeValue)
+  }
+
+  /** The current raw lane vector of a switch source (its switch settings), or undefined. */
+  switchLanesOf(id: string): Signal[] | undefined {
+    const inst = this.instances.find((i) => i.id === id)
+    if (!inst) return undefined
+    const lanes = this.laneCount(inst)
+    return (this.switchState.get(id) ?? this.defaultLanes(inst)).slice(0, lanes)
+  }
+
   private laneValue(id: string, lane: number): Signal {
     const inst = this.instances.find((i) => i.id === id)
     if (!inst) return 0

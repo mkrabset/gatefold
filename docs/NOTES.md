@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-04 (custom components can now be organized into categories in the library panel).
+Last updated: 2026-09-05 (switch-arrays can be set by typing a value in simulate mode).
 
 ## Where we are
 
@@ -12,6 +12,38 @@ components, signal-colored wires). See `PLAN.md` (roadmap), `docs/ARCHITECTURE.m
 (as-built design), `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Switch-array value entry (simulate mode)** — switches can now be set by typing a whole
+  value instead of clicking lanes one at a time:
+  - **Model** (`packages/model/src/value.ts`, new) — a single `ValueFormat` (`HEX`/`DEC`/
+    `SIGNED DEC`) and `ValueOrder` (`asc`/`desc`) with `toValueFormat`/`valueFormatOf`/
+    `valueOrderOf` (defaulting to HEX/asc, so old JSONs load unchanged), BigInt-based
+    `parseSwitchValue(text, format, width)` (LSB-first bits, `null` on invalid/out-of-range),
+    `formatSwitchValue` (inverse), and `applyValueOrder` (desc reverses the vector). The 7-seg's
+    `SevenSegMode` is **removed** and consolidated into `ValueFormat` (`sevenSegModeOf` now
+    returns `ValueFormat`; `sevenSegPositionCount`/`sevenSegDigits` take it).
+  - **Switch-array properties** (`switch-array.ts`) — new `valueFormat` (default HEX) and
+    `order` (default asc) selects; both appear in the sidebar. `valueFormat` is the set-value
+    dialog's initial radix; `order` maps typed values onto lanes (asc = lane 0 is the LSB).
+    Missing keys on import fall back to HEX/asc (no `Design.version` bump).
+  - **Engine** (`packages/sim/src/engine.ts`) — `setSwitchLanes(id, bits)` (pad/truncate to the
+    lane count and re-drive) and `switchLanesOf(id)` (raw current lanes, for pre-fill); both work
+    for WIRE and BUS modes.
+  - **simStore** — `switchDialog` state (`{ instanceId, size, lanes, format, order }`) plus
+    `openSwitchDialog`/`closeSwitchDialog`/`setSwitchValue` (viewingLive-guarded, mirrors
+    `toggleSwitch`).
+  - **Renderer/Canvas** — `switchValueBadge(...)` is the single source of truth for the `#` badge
+    (drawn in the top-left corner of each switch body in sim mode); `Canvas` hit-tests it and opens
+    the dialog (skipping a switch whose bus width is undetermined). Canvas Escape is suppressed
+    while the dialog is open.
+  - **UI** — new `SwitchValueDialog.tsx` (radix dropdown initialized from `valueFormat`, input
+    pre-filled with the current value and selected, Enter commits / Escape cancels) registered in
+    `App.tsx`; `.dialog-select`/`.dialog-error`/`.dialog-title-row` CSS.
+  - Tests in `packages/model/test/value.test.ts` and `packages/sim/test/engine.test.ts`
+    (`setSwitchLanes`/`switchLanesOf`); `array.test.ts` updated for the new props. User guide,
+    glossary, and architecture updated.
+
+## Earlier (this session)
 
 - **Custom-component categories (library panel)** — the right-hand library's "My components"
   grid grew unbounded, so custom components are now organized into **categories** shown one at

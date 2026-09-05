@@ -219,11 +219,11 @@ its properties, and what it does.
   the clock. On power-on `Q` starts at the **Initial value**.
 
 ### FAN-IN
-- **Inputs:** 2+ (single-wire) · **Outputs:** 1 (`BUS`) · *inputs variable*
+- **Inputs:** 2+ (single-wire), default 4 · **Outputs:** 1 (`BUS`) · *inputs variable*
 - Bundles its `n` single-wire inputs into one `n`-wide bus output.
 
 ### FAN-OUT
-- **Inputs:** 1 (`BUS`) · **Outputs:** 2+ (single-wire) · *outputs variable*
+- **Inputs:** 1 (`BUS`) · **Outputs:** 2+ (single-wire), default 4 · *outputs variable*
 - Splits one `n`-wide bus input into `n` single-wire outputs.
 
 ### BUS-SPLIT

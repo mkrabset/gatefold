@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CompositeDef, Design, Instance, PinRef, Port } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port } from '@gatefold/model'
 import { builtinOf, forkOf, serializeDesign } from '@gatefold/model'
 import { exportVerilog } from '../src/index'
 
@@ -18,6 +18,17 @@ const prim = (id: string, kind: Parameters<typeof forkOf>[0], props?: Instance['
   ...(props ? { props } : {}),
 })
 const composite = (id: string, def: CompositeDef): Instance => ({ id, name: id, def, pos: { x: 0, y: 0 } })
+const fork = (id: string, def: ChildDef): Instance => ({ id, name: id, def, pos: { x: 0, y: 0 } })
+
+const fanIn2: ChildDef = {
+  kind: 'fork',
+  primitive: 'fan-in',
+  ports: [
+    { id: 'in:0', name: 'A', direction: 'input' },
+    { id: 'in:1', name: 'B', direction: 'input' },
+    { id: 'out:0', name: 'BUS', direction: 'output' },
+  ],
+}
 
 function jsonOf(root: CompositeDef): string {
   const design: Design = { version: 2, root, library: {} }
@@ -159,7 +170,7 @@ describe('exportVerilog', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',
       ports: [input('in:0', 'A'), input('in:1', 'B'), output('out:0', 'BUS')],
-      instances: [pgIn(), prim('fi', 'fan-in'), pgOut()],
+      instances: [pgIn(), fork('fi', fanIn2), pgOut()],
       connections: [
         { id: 'c1', from: iref('pi', 'in:0'), to: iref('fi', 'in:0') },
         { id: 'c2', from: iref('pi', 'in:1'), to: iref('fi', 'in:1') },
@@ -334,7 +345,7 @@ describe('exportVerilog', () => {
       ports: [input('in:0', 'A'), input('in:1', 'B'), output('out:0', 'Y1'), output('out:1', 'Y2')],
       instances: [
         pgIn(),
-        prim('fi', 'fan-in'),
+        fork('fi', fanIn2),
         prim('bs', 'bus-split'),
         pgOut(),
       ],

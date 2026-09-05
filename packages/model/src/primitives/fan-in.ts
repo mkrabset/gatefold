@@ -14,6 +14,8 @@ export class FanIn extends Gate {
     return [
       { id: inputPortId(0), name: 'A', direction: 'input' },
       { id: inputPortId(1), name: 'B', direction: 'input' },
+      { id: inputPortId(2), name: 'C', direction: 'input' },
+      { id: inputPortId(3), name: 'D', direction: 'input' },
       { id: outputPortId(0), name: 'BUS', direction: 'output' },
     ]
   }

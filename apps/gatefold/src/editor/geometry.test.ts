@@ -5,6 +5,7 @@ import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, 
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
+const gateDef = (id: string, def: ChildDef, x = 0, y = 0) => ({ id, name: id, def, pos: { x, y } })
 const pg = (id: string, kind: 'input-port' | 'output-port', x = 0, y = 0) => ({ id, name: '', def: builtinOf(kind), pos: { x, y } })
 
 function makeBusDesign(): Design {
@@ -22,7 +23,7 @@ function makeBusDesign(): Design {
     name: 'main',
     kind: 'composite',
     ports: [],
-    instances: [gate('fi', 'fan-in'), { id: 'ci', name: 'ci', def: comp, pos: { x: 120, y: 0 } }],
+    instances: [gateDef('fi', makeFanIn(2)), { id: 'ci', name: 'ci', def: comp, pos: { x: 120, y: 0 } }],
     connections: [{ id: 'w', from: iref('fi', 'out:0'), to: iref('ci', 'in:0') }],
   }
 
@@ -84,8 +85,8 @@ function makeBusHolderDesign(): Design {
     instances: [
       pg('bh-in', 'input-port', 0, -40),
       pg('bh-out', 'output-port', 240, -40),
-      gate('bh-fo', 'fan-out', 120, -40),
-      gate('bh-fi', 'fan-in', 120, 40),
+      gateDef('bh-fo', makeFanOut(2), 120, -40),
+      gateDef('bh-fi', makeFanIn(2), 120, 40),
     ],
     connections: [
       { id: 'c-in', from: iref('bh-in', 'in:0'), to: iref('bh-fo', 'in:0') },
@@ -113,6 +114,12 @@ function makeFanIn(n: number): ChildDef {
   for (let i = 0; i < n; i++) ports.push({ id: `in:${i}`, name: `A${i}`, direction: 'input' })
   ports.push({ id: 'out:0', name: 'BUS', direction: 'output' })
   return { kind: 'fork', primitive: 'fan-in', ports }
+}
+
+function makeFanOut(n: number): ChildDef {
+  const ports: Port[] = [{ id: 'in:0', name: 'BUS', direction: 'input' }]
+  for (let i = 0; i < n; i++) ports.push({ id: `out:${i}`, name: `Y${i + 1}`, direction: 'output' })
+  return { kind: 'fork', primitive: 'fan-out', ports }
 }
 
 function makeRelationDesign(n: number): Design {

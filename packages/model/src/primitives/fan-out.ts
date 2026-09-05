@@ -17,6 +17,8 @@ export class FanOut extends Gate {
       { id: inputPortId(0), name: 'BUS', direction: 'input' },
       { id: outputPortId(0), name: 'Y1', direction: 'output' },
       { id: outputPortId(1), name: 'Y2', direction: 'output' },
+      { id: outputPortId(2), name: 'Y3', direction: 'output' },
+      { id: outputPortId(3), name: 'Y4', direction: 'output' },
     ]
   }
 

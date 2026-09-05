@@ -87,18 +87,18 @@ describe('model primitives', () => {
   })
 
   it('builds fan-in/fan-out with the bus terminal and single-wire terminals', () => {
-    expect(inP('fan-in')).toHaveLength(2)
+    expect(inP('fan-in')).toHaveLength(4)
     expect(outP('fan-in')).toHaveLength(1)
     expect(outP('fan-in')[0].name).toBe('BUS')
 
     expect(inP('fan-out')).toHaveLength(1)
     expect(inP('fan-out')[0].name).toBe('BUS')
-    expect(outP('fan-out')).toHaveLength(2)
+    expect(outP('fan-out')).toHaveLength(4)
   })
 
   it('derives the bus width from the opposite arity', () => {
-    expect(portWidth(def('fan-in'), outP('fan-in')[0])).toBe(2)
-    expect(portWidth(def('fan-out'), inP('fan-out')[0])).toBe(2)
+    expect(portWidth(def('fan-in'), outP('fan-in')[0])).toBe(4)
+    expect(portWidth(def('fan-out'), inP('fan-out')[0])).toBe(4)
   })
 
   it('defaults a regular port width to 1', () => {

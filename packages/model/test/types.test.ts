@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompositeDef } from '../src/types'
-import { templateCategory, UNCATEGORIZED } from '../src/types'
+import { templateCategory, UNCATEGORIZED } from '../src/composite'
 
 const def = (category?: string): CompositeDef => ({
   id: 'x',

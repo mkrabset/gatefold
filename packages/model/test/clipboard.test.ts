@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Instance } from '../src/types'
 import { forkOf } from '../src/primitives'
-import { allCompositeIds } from '../src/util'
+import { allCompositeIds } from '../src/composite'
 import { captureClipboard, instantiateClipboard } from '../src/clipboard'
 
 const inst = (id: string, def: ChildDef, x = 0, y = 0): Instance => ({ id, name: id, def, pos: { x, y } })

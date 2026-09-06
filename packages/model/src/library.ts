@@ -1,8 +1,9 @@
 import type { CompositeDef, Design } from './types'
-import { templateNames } from './types'
+import { templateNames } from './composite'
 import { cloneComposite, cloneDesign } from './group'
 import { buildProject, isComposite, isRecord, parseJson, stringifyJson } from './serialize'
-import { allCompositeIds, newUuid, uniqueId, walkComposites } from './util'
+import { allCompositeIds, walkComposites } from './composite'
+import { newUuid, uniqueId } from './util'
 
 /**
  * Export/import of the custom component library. A library file is the library part of

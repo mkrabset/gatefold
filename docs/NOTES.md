@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-05 (nested-object model — flat `defs` id-lookup removed).
+Last updated: 2026-09-06 (model module colocation — functions live beside their data).
 
 ## Where we are
 
@@ -12,6 +12,17 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Model module colocation** — reorganized `packages/model/src` so the model's free
+  functions live beside the data they operate on, for readability/navigability. No behavior
+  or serialized-format change; the `@gatefold/model` public API is unchanged (the barrel still
+  re-exports everything). `types.ts` is now pure types; `util.ts` holds only the generic
+  `newUuid`/`uniqueId`/`UnionFind`. New modules: `ports.ts` (`inputPortId`/`outputPortId`,
+  `inputPorts`/`outputPorts`, `nextPortId`), `connections.ts` (`pinRefEquals`, `pinKey`,
+  `findConnectionTo`, `nextConnectionId`), and `composite.ts` (`walkComposites`,
+  `collectCompositeSubtree`, `allCompositeIds`, `findComposite`, `isTemplateDef`,
+  `templateNames`, `templateCategory`, `UNCATEGORIZED`). Internal imports + model tests
+  updated; `apps/`, `packages/sim`, and `packages/verilog` untouched (they consume the barrel).
 
 - **Join-point representation unified** — the NODE join-point now has a single canonical
   form, the shared `builtin` reference. `addInstance` (palette placement) previously created a

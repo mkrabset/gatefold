@@ -1,5 +1,5 @@
 import type { Port, Signal } from '../types'
-import { inputPortId, outputPortId } from '../types'
+import { inputPortId, outputPortId } from '../ports'
 import { Gate } from './gate'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'

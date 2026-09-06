@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CompositeDef } from '../src/types'
-import { allCompositeIds, collectCompositeSubtree, findComposite, uniqueId, walkComposites } from '../src/util'
+import { allCompositeIds, collectCompositeSubtree, findComposite, walkComposites } from '../src/composite'
+import { uniqueId } from '../src/util'
 
 const composite = (id: string, instances: CompositeDef[] = []): CompositeDef => ({
   id,

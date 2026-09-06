@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/types'
+import { inputPortId, inputPorts, outputPortId, outputPorts } from '../src/ports'
 import type { Signal } from '../src/types'
 import {
   allowInversion,

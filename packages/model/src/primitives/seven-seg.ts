@@ -1,5 +1,5 @@
 import type { Port, PropertyValue, Signal } from '../types'
-import { inputPortId } from '../types'
+import { inputPortId } from '../ports'
 import type { ValueFormat } from '../value'
 import { toValueFormat } from '../value'
 import { Gate, gateBounds } from './gate'

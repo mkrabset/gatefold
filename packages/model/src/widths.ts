@@ -1,5 +1,5 @@
 import type { CompositeDef, PinRef } from './types'
-import { pinKey } from './types'
+import { pinKey } from './connections'
 import { childPorts, childPrimitive, primitiveOf } from './primitives'
 
 /**

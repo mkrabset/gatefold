@@ -1,5 +1,5 @@
 import type { Port } from '../types'
-import { inputPortId, outputPortId } from '../types'
+import { inputPortId, outputPortId } from '../ports'
 import { Buffer } from './buffer'
 
 /** A NOT gate: a buffer whose output terminal is inverted. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Connection, PinRef } from '../src/types'
-import { findConnectionTo, nextConnectionId, pinRefEquals } from '../src/types'
+import { findConnectionTo, nextConnectionId, pinRefEquals } from '../src/connections'
 
 const iRef = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef): Connection => ({ id, from, to })

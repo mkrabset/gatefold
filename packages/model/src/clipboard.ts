@@ -1,5 +1,5 @@
 import type { CompositeDef, Connection, Instance } from './types'
-import { nextConnectionId } from './types'
+import { nextConnectionId } from './connections'
 import { cloneChildDef } from './group'
 import { isPortGroupDef } from './primitives'
 import { uniqueId } from './util'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef } from '../src/types'
-import { inputPorts, outputPorts } from '../src/types'
+import { inputPorts, outputPorts } from '../src/ports'
 import { forkOf } from '../src/primitives'
 import { applyGroup, inferGroup } from '../src/group'
 

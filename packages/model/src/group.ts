@@ -1,6 +1,8 @@
 import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port } from './types'
-import { findConnectionTo, inputPortId, inputPorts, outputPortId, outputPorts, pinKey, pinRefEquals, templateNames } from './types'
-import { allCompositeIds, findComposite, uniqueId, newUuid } from './util'
+import { findConnectionTo, pinKey, pinRefEquals } from './connections'
+import { inputPortId, inputPorts, outputPortId, outputPorts } from './ports'
+import { allCompositeIds, findComposite, templateNames } from './composite'
+import { newUuid, uniqueId } from './util'
 import { childPorts, isPortGroupDef, portGroupDirection } from './primitives'
 
 /**

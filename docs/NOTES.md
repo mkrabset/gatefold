@@ -13,6 +13,29 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **App module colocation + coupling fix** — the `apps/gatefold` editor layer was
+  reorganized for the same readability goal, and the `editor/ ↔ state/` folder-level
+  cycle was removed:
+  - **`editor/types.ts`** (new) holds the shared editor types — `Viewport`, `Rect`,
+    `PendingWire`, `CutLine`, and `SimView` — so the pure editor modules no longer reach
+    into `state/editorStore` for types. `viewport.ts`, `renderer.ts`, and `Canvas.tsx`
+    import them from `./types`; `editorStore.ts` imports them too. `Canvas.tsx` remains
+    the only editor file that depends on the stores (it is the canvas controller).
+  - **`editor/draw/`** (new) splits the 957-line `renderer.ts` by what it draws:
+    `shapes.ts` (grid, boxes, wires, tooltips), `instances.ts` (pins, port groups,
+    instances, join-points), and `probes.ts` (7-seg + switch/led arrays). `renderer.ts`
+    is now just the `drawScene` orchestration (290 lines). `switchValueBadge` moved to
+    `geometry.ts` (its single-source-of-truth home), removing a `draw/ → renderer` cycle.
+  - **`editor/portEdit.ts`** (new) extracts the pure port/terminal-editing helpers
+    (`pruneInstancePorts`, `applyArrayTerminalType`, `applyArrayPortCount`,
+    `portPlacement`, `mutablePorts`, `addPortToDef`) from `editorStore.ts` (971 → 839
+    lines). The store keeps the state-aware helpers (`pruneOwnerPorts`, `removePortFromDef`)
+    and the actions.
+- **Explicit model barrel** — `packages/model/src/index.ts` now lists its exports as a
+  grouped, sectioned explicit list (instead of ten `export *` lines), so the public API
+  doubles as a map of the model. `ARCHITECTURE.md` gained a **§10 module map** indexing
+  every source file by responsibility.
+
 - **Model module colocation** — reorganized `packages/model/src` so the model's free
   functions live beside the data they operate on, for readability/navigability. No behavior
   or serialized-format change; the `@gatefold/model` public API is unchanged (the barrel still

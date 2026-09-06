@@ -3,15 +3,15 @@ import { currentDef, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount } from './geometry'
-import { drawScene, switchValueBadge } from './renderer'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge } from './geometry'
+import { drawScene } from './renderer'
 import { findJoinpointWire, findWireAtLine } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
 import type { CompositeDef, Instance, PinRef } from '@gatefold/model'
 import { findConnectionTo, isNavigableDef, pinRefEquals, valueFormatOf, valueOrderOf } from '@gatefold/model'
-import type { Viewport } from '../state/editorStore'
+import type { Viewport } from './types'
 
 /**
  * The schematic canvas. Owns the `<canvas>` element, its sizing (HiDPI-aware), and

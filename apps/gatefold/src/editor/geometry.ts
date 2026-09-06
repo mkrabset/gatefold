@@ -1,5 +1,7 @@
 import type { ChildDef, CompositeDef, Instance, PinRef, Port } from '@gatefold/model'
 import { childPorts, childPrimitive, inputPorts, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
+import { w2s } from './viewport'
+import type { Viewport } from './types'
 
 export { isNeutralPin, pinWidth, resolvedPinWidth, undeterminedHint } from '@gatefold/model'
 
@@ -310,6 +312,32 @@ export function hitArrayIndicator(
     if (dx * dx + dy * dy <= lanes[i].r * lanes[i].r) return i
   }
   return null
+}
+
+/** Screen size (px) of a switch-array's "#" value-entry badge. */
+const SWITCH_VALUE_BADGE = 16
+
+/**
+ * Screen-space rect of a switch-array's "#" badge (top-left corner of its body), or
+ * null when `def` is not a switch-array. This is the single source of truth for the
+ * badge geometry, shared by the renderer and the canvas hit-testing.
+ */
+export function switchValueBadge(
+  parentDef: CompositeDef,
+  instance: Instance,
+  def: ChildDef,
+  cw: number,
+  ch: number,
+  vp: Viewport,
+): { x: number; y: number; s: number } | null {
+  if (childPrimitive(def) !== 'switch-array') return null
+  const c = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
+  const size = instanceBodySize(parentDef, instance, def)
+  return {
+    x: c.x - (size.w * vp.zoom) / 2 + 4,
+    y: c.y - (size.h * vp.zoom) / 2 + 4,
+    s: SWITCH_VALUE_BADGE,
+  }
 }
 
 /** World-space bounding box of everything inside a composite def, or null when empty. */

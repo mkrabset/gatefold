@@ -1,4 +1,4 @@
-import type { Viewport } from '../state/editorStore'
+import type { Viewport } from './types'
 
 /**
  * World ↔ screen coordinate transforms. The canvas shows the world point `viewport.x/y`

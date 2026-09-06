@@ -671,3 +671,65 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
   multi-step), copy/paste, and the single-driver + re-target rejection rules.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.
+
+---
+
+## 10. Module map
+
+A file-by-file index for navigation. Each module owns a single concern; functions live
+beside the data they operate on.
+
+### `packages/model/src` (`@gatefold/model`)
+
+| Module | Responsibility | Key exports |
+|--------|----------------|--------------|
+| `types.ts` | Plain domain types (no behavior) | `Signal`, `Port`, `PrimitiveKind`, `CompositeDef`, `ChildDef`, `Instance`, `PinRef`, `Connection`, `Design` |
+| `ports.ts` | Port ids and direction filtering | `inputPortId`/`outputPortId`, `inputPorts`/`outputPorts`, `nextPortId` |
+| `connections.ts` | Pin/connection helpers | `pinRefEquals`, `pinKey`, `findConnectionTo`, `nextConnectionId` |
+| `composite.ts` | Composite tree walks + template queries | `walkComposites`, `allCompositeIds`, `findComposite`, `isTemplateDef`, `templateNames`, `templateCategory` |
+| `util.ts` | Generic helpers | `newUuid`, `uniqueId`, `UnionFind` |
+| `value.ts` | Value entry/formatting (radix, order) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder` |
+| `widths.ts` | Bus-width fixpoint solver | `pinWidth`, `isNeutralPin`, `connectionError` |
+| `group.ts` | Grouping into composites + deep-clone | `inferGroup`, `applyGroup`, `cloneComposite`, `cloneDesign`, `cloneChildDef` |
+| `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
+| `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
+| `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
+| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, … |
+
+### `packages/sim/src` (`@gatefold/sim`)
+
+| Module | Responsibility |
+|--------|----------------|
+| `netlist.ts` | Flatten hierarchy into leaf primitives + nets (union-find) |
+| `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, power-on) |
+| `signals.ts` | 3-state helpers (`invert`, `equalVectors`, `clockValue`) |
+| `config.ts` | `SimConfig` + delay lookup |
+
+### `packages/verilog/src` (`@gatefold/verilog`)
+
+| Module | Responsibility |
+|--------|----------------|
+| `verilog.ts` | `exportVerilog(json)` — JSON → synthesizable `.v` |
+| `cli.ts` | `tsx` CLI wrapper |
+
+### `apps/gatefold/src`
+
+| Path | Responsibility |
+|------|----------------|
+| `editor/types.ts` | Shared editor types (`Viewport`, `Rect`, `PendingWire`, `CutLine`, `SimView`) |
+| `editor/geometry.ts` | Component sizes, port placement, hit-testing |
+| `editor/renderer.ts` | `drawScene` orchestration + `switchValueBadge` |
+| `editor/draw/shapes.ts` | Canvas shape primitives (grid, boxes, wires, tooltips) |
+| `editor/draw/instances.ts` | Instance/port/port-group/join-point drawing |
+| `editor/draw/probes.ts` | 7-seg + switch/led array bodies |
+| `editor/portEdit.ts` | Port/terminal editing (add/remove/array terminals) |
+| `editor/apply.ts` | Propagate template changes to matching copies |
+| `editor/routing.ts` / `wireSearch.ts` | Bezier routing / wire-crossing search |
+| `editor/viewport.ts` | `w2s` / `s2w` transforms |
+| `editor/Canvas.tsx` | Canvas controller (pointer/wheel/drop interaction) |
+| `state/editorStore.ts` | Document + editing store (immer + zundo) |
+| `state/simStore.ts` | Simulation runtime store |
+| `state/uiStore.ts` | Persisted UI preferences |
+| `state/defaultState.ts` | `localStorage` default design |
+| `ui/*` | React panels/dialogs (toolbar, sidebar, library, dialogs) |
+| `util/*` | Downloads, share links, formatting |

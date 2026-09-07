@@ -43,4 +43,4 @@ publish.sh
 convert-userguide.sh
 resume.sh
 AGENTS.md
-
+demo/

@@ -640,6 +640,31 @@ body {
   margin-bottom: 4px;
 }
 
+.dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.dialog-check input {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.dialog-check.disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.dialog-check.disabled input {
+  cursor: default;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

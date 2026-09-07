@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-07 (Verilog probes: `exported` switches, ignored LEDs/7-SEG).
+Last updated: 2026-09-07 (clear-everything dialog with scoped checkboxes; Verilog probes: `exported` switches, ignored LEDs/7-SEG).
 
 ## Where we are
 
@@ -12,6 +12,19 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Clear-everything button + scoped confirmation** — a **Clear everything** button on the
+  toolbar's right side (between *Clear default* and *Toggle theme*) opens a **Delete
+  everything?** dialog (`ui/ClearAllDialog.tsx`) with checkboxes: **Component tree** (the root
+  sheet) plus the **"My components" library** as a whole (**All components**, a master toggle
+  that greys out the rest) or per category (**Uncategorized** + each user-defined category via a
+  new model helper `templateCategories(design)`). Everything is checked by default. The store's
+  `confirmClearAll` now takes a `ClearAllSelection` (`{ tree, templateIds }`): it empties the
+  root when `tree` is set, folds `deleteTemplate` over the chosen ids, then resets
+  navigation/selection and clears the undo history. The button is disabled while simulating.
+  `LibraryPanel` reuses `templateCategories` instead of its inline category scan. Tests: model
+  `templateCategories`, app store clear-all (full + tree-only + template-only); `USER_GUIDE.md`
+  updated.
 
 - **Verilog probe handling reworked** — the top module's I/O is now only its own port
   terminals plus a top-level CLOCK and main-scope SWITCHES that opt in, rather than every

@@ -79,3 +79,12 @@ export const UNCATEGORIZED = 'Uncategorized'
 export function templateCategory(def: CompositeDef): string {
   return def.category?.trim() || UNCATEGORIZED
 }
+
+/** The distinct, sorted library categories across the origin templates. */
+export function templateCategories(design: Design): string[] {
+  const cats = new Set<string>()
+  for (const def of Object.values(design.library)) {
+    if (isTemplateDef(design, def)) cats.add(templateCategory(def))
+  }
+  return [...cats].sort()
+}

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { libraryPrimitives, isTemplateDef, templateCategory, UNCATEGORIZED } from '@gatefold/model'
+import { libraryPrimitives, isTemplateDef, templateCategory, templateCategories, UNCATEGORIZED } from '@gatefold/model'
 import type { CompositeDef } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
@@ -46,7 +46,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const activeTemplate = activeDef && isTemplateDef(design, activeDef) ? active : null
 
   // Distinct categories across the templates, sorted; "All" shows every component.
-  const categories = [...new Set(composites.map((d) => templateCategory(d)))].sort()
+  const categories = templateCategories(design)
   const effectiveFilter = filter !== 'All' && !categories.includes(filter) ? 'All' : filter
   const visible = effectiveFilter === 'All' ? composites : composites.filter((d) => templateCategory(d) === effectiveFilter)
 

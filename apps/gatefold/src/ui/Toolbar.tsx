@@ -91,6 +91,13 @@ const LinkIcon = () => (
   </svg>
 )
 
+const ClearAllIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="3" y="2" width="10" height="12" rx="1.5" />
+    <path d="M6 6l4 4M10 6l-4 4" />
+  </svg>
+)
+
 export function Toolbar() {
   const navigateUp = useEditorStore((s) => s.navigateUp)
   const navStack = useEditorStore((s) => s.navStack)
@@ -105,6 +112,7 @@ export function Toolbar() {
   const saveDefault = useEditorStore((s) => s.saveDefault)
   const clearDefault = useEditorStore((s) => s.clearDefault)
   const copyLink = useEditorStore((s) => s.copyLink)
+  const requestClearAll = useEditorStore((s) => s.requestClearAll)
   const fileRef = useRef<HTMLInputElement>(null)
   const mode = useSimStore((s) => s.mode)
   const running = useSimStore((s) => s.running)
@@ -257,6 +265,10 @@ export function Toolbar() {
           <TrashIcon />
         </IconButton>
       </div>
+
+      <IconButton title="Clear everything" disabled={mode === 'simulate'} onClick={requestClearAll}>
+        <ClearAllIcon />
+      </IconButton>
 
       <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onOpenFile} />
 

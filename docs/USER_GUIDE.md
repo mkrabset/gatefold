@@ -35,6 +35,11 @@ Left to right:
   `.v` file (see §8).
 - **Save as default / Clear default** — store the current design in the browser's `localStorage`
   as the automatic launch state, or remove it so the app starts empty again.
+- **Clear everything** — wipe parts of the design after a confirmation dialog with checkboxes:
+  the **component tree** (the root sheet) and the **"My components" library**, where the library
+  can be deleted as a whole (**All components**) or per category (**Uncategorized** plus each
+  user-defined category). Everything is checked by default; uncheck what you want to keep
+  (disabled while simulating).
 - **Copy link** — copy a shareable URL to the clipboard: the design is gzipped and base64-encoded
   into a `?d=` query parameter, and opening that URL restores the design on launch (see §9).
 - **Theme toggle** — switch between dark and light.

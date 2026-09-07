@@ -35,6 +35,7 @@ export {
   templateNames,
   UNCATEGORIZED,
   templateCategory,
+  templateCategories,
 } from './composite'
 
 // Generic helpers.

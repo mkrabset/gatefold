@@ -76,6 +76,14 @@ export interface PendingGroup {
   promoteInstanceId: string | null
 }
 
+/** The deletion scope chosen in the "clear everything" dialog. */
+export interface ClearAllSelection {
+  /** Clear the root sheet's instances/connections/ports. */
+  tree: boolean
+  /** Library template ids to delete (resolved by the dialog from the chosen categories). */
+  templateIds: string[]
+}
+
 /** Resolve the def currently being viewed/edited by walking the navigation path. */
 export function resolveNav(design: Design, navStack: NavStep[]): ChildDef | undefined {
   let current: ChildDef = design.root
@@ -118,6 +126,8 @@ interface EditorState {
   fitToken: number
   pendingGroup: PendingGroup | null
   pendingDelete: string | null
+  /** True while the "delete everything" confirmation dialog is open. */
+  pendingClearAll: boolean
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
   toggleSelected: (id: string) => void
@@ -140,6 +150,9 @@ interface EditorState {
   requestDeleteTemplate: (defId: string) => void
   confirmDeleteTemplate: () => void
   cancelDeleteTemplate: () => void
+  requestClearAll: () => void
+  confirmClearAll: (selection: ClearAllSelection) => void
+  cancelClearAll: () => void
   renamePort: (portId: string, name: string, instanceId?: string) => void
   setPortInverted: (portId: string, inverted: boolean, instanceId?: string) => void
   togglePinInversion: (ref: PinRef) => void
@@ -232,6 +245,7 @@ export const useEditorStore = create<EditorState>()(
       fitToken: initialDesign ? 1 : 0,
       pendingGroup: null,
       pendingDelete: null,
+      pendingClearAll: false,
       setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
       setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
       toggleSelected: (id) =>
@@ -428,6 +442,29 @@ export const useEditorStore = create<EditorState>()(
           if (!s.design.library[id]) return
           s.design = deleteTemplate(s.design, id)
         }),
+      requestClearAll: () => set((s) => void (s.pendingClearAll = true)),
+      cancelClearAll: () => set((s) => void (s.pendingClearAll = false)),
+      confirmClearAll: (selection) => {
+        set((s) => {
+          s.pendingClearAll = false
+          let design = s.design
+          if (selection.tree) {
+            design = { ...design, root: { ...design.root, instances: [], connections: [], ports: [] } }
+          }
+          for (const id of selection.templateIds) design = deleteTemplate(design, id)
+          s.design = design
+          s.navStack = [{ kind: 'root' }]
+          s.viewportStack = [s.viewport]
+          s.selectedIds = []
+          s.marquee = null
+          s.pendingWire = null
+          s.hoverPort = null
+          s.pendingGroup = null
+          s.pendingDelete = null
+          s.fitToken += 1
+        })
+        useEditorStore.temporal.getState().clear()
+      },
       renamePort: (portId, name, instanceId) =>
         set((s) => {
           const scope = currentDef(s)

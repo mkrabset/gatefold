@@ -21,6 +21,8 @@ function reset() {
     notice: null,
     navStack: [{ kind: 'root' }],
     pendingGroup: null,
+    pendingDelete: null,
+    pendingClearAll: false,
     viewport: { x: 400, y: 250, zoom: 1 },
     viewportStack: [{ x: 400, y: 250, zoom: 1 }],
   })
@@ -189,6 +191,53 @@ describe('editorStore undo/redo + clipboard', () => {
     const live = useEditorStore.getState().design.root.instances.find((i) => i.id === 'x')!.def as CompositeDef
     expect(live.id).toBe('ander2~live')
     expect(live.uuid).toBeUndefined()
+  })
+
+  it('clears everything after confirmation, and cancelling leaves the design intact', () => {
+    reset()
+    expect(mainInstances().length).toBeGreaterThan(0)
+    expect(Object.keys(useEditorStore.getState().design.library).length).toBeGreaterThan(0)
+
+    useEditorStore.getState().requestClearAll()
+    expect(useEditorStore.getState().pendingClearAll).toBe(true)
+    useEditorStore.getState().cancelClearAll()
+    expect(useEditorStore.getState().pendingClearAll).toBe(false)
+    expect(mainInstances().length).toBeGreaterThan(0)
+
+    useEditorStore.getState().requestClearAll()
+    useEditorStore.getState().confirmClearAll({ tree: true, templateIds: Object.keys(useEditorStore.getState().design.library) })
+
+    const s = useEditorStore.getState()
+    expect(s.pendingClearAll).toBe(false)
+    expect(s.design.root.instances).toHaveLength(0)
+    expect(s.design.root.connections).toHaveLength(0)
+    expect(s.design.root.ports).toHaveLength(0)
+    expect(Object.keys(s.design.library)).toHaveLength(0)
+    expect(s.navStack).toEqual([{ kind: 'root' }])
+    expect(s.selectedIds).toEqual([])
+  })
+
+  it('clears only the selected scope (tree vs. library templates)', () => {
+    reset()
+    // Delete only one template: the tree and the other template survive.
+    useEditorStore.getState().requestClearAll()
+    useEditorStore.getState().confirmClearAll({ tree: false, templateIds: ['half-adder'] })
+
+    let s = useEditorStore.getState()
+    expect(mainInstances().length).toBeGreaterThan(0)
+    expect(s.design.library['half-adder']).toBeUndefined()
+    expect(s.design.library['or-gate']).toBeDefined()
+
+    // Clear the tree, keeping the library.
+    reset()
+    useEditorStore.getState().requestClearAll()
+    useEditorStore.getState().confirmClearAll({ tree: true, templateIds: [] })
+
+    s = useEditorStore.getState()
+    expect(s.design.root.instances).toHaveLength(0)
+    expect(s.design.root.connections).toHaveLength(0)
+    expect(s.design.root.ports).toHaveLength(0)
+    expect(Object.keys(s.design.library)).toHaveLength(2)
   })
 
   it('sets, renames, and clears a template category', () => {

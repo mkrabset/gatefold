@@ -83,20 +83,56 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Y = A;')
   })
 
-  it('bridges a source wired straight to a sink with an assign', () => {
+  it('exports an exported root switch as a module input', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',
       ports: [],
       instances: [
-        { id: 'sw', name: 'SWITCHES', def: forkOf('switch-array'), pos: { x: 0, y: 0 } },
-        { id: 'led', name: 'LEDS', def: forkOf('led-array'), pos: { x: 0, y: 0 } },
+        { id: 'sw', name: 'SWITCHES', def: forkOf('switch-array'), pos: { x: 0, y: 0 }, props: { exported: true } },
       ],
-      connections: [{ id: 'c1', from: iref('sw', 'out:0'), to: iref('led', 'in:0') }],
+      connections: [],
     }
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain('input SWITCHES_BUS')
-    expect(source).toContain('output LEDS_BUS')
-    expect(source).toContain('assign LEDS_BUS = SWITCHES_BUS;')
+    expect(source).not.toContain('assign')
+  })
+
+  it('exports a non-exported root switch as a constant and ignores unconnected switches', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Y')],
+      instances: [
+        pgOut(),
+        { id: 'sw', name: 'sw', def: forkOf('switch-array'), pos: { x: 0, y: 0 }, props: { initialValue: true } },
+        { id: 'loose', name: 'loose', def: forkOf('switch-array'), pos: { x: 100, y: 0 } },
+        prim('b', 'buffer'),
+      ],
+      connections: [
+        { id: 'c1', from: iref('sw', 'out:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain("assign sw_BUS = {1{1'b1}};")
+    expect(source).not.toContain('input')
+    expect(source).not.toContain('loose')
+  })
+
+  it('ignores LEDs and 7-seg displays', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'led', name: 'LEDS', def: forkOf('led-array'), pos: { x: 0, y: 0 } },
+        { id: 'seg', name: 'SEG', def: forkOf('seven-seg'), pos: { x: 100, y: 0 } },
+      ],
+      connections: [],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(source).not.toContain('output')
+    expect(source).not.toContain('LEDS')
+    expect(source).not.toContain('SEG')
+    expect(issues.filter((i) => i.level === 'error')).toEqual([])
   })
 
   it('emits a DFF with a clock source (no reset)', () => {
@@ -320,7 +356,7 @@ describe('exportVerilog', () => {
       connections: [{ id: 'c', from: iref('s', 'out:0'), to: iref('po', 'out:0') }],
     }
     const { source, issues } = exportVerilog(jsonOf(main))
-    expect(issues.some((i) => i.level === 'info' && i.message.includes('fixed initial value'))).toBe(true)
+    expect(issues.filter((i) => i.level === 'info')).toEqual([])
     expect(source).toContain("assign sw_BUS = {1{1'b1}};")
   })
 

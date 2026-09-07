@@ -12,10 +12,9 @@ import {
 import { w2s } from '../viewport'
 import { canvasVectorContext } from '../canvasVector'
 import { formatFrequency } from '../../util/format'
-import { HALO_MARGIN, drawRoundedBox, strokeDashedRect } from './shapes'
+import { HALO_MARGIN, drawExportBadge, drawRoundedBox, strokeDashedRect } from './shapes'
 import { drawArrayBody, drawSevenSegBody } from './probes'
 import type { SimView, Viewport } from '../types'
-
 /**
  * Instance and terminal drawing: the pins (with inversion bubbles), the port-group
  * rectangles, and the per-instance body rendering (primitive glyph, composite box,
@@ -214,6 +213,7 @@ function drawInstance(
   p: Palette,
   bg: string,
   hoverPort: PinRef | null,
+  atRoot: boolean,
   sim?: SimView,
 ) {
   const { w, h } = instanceBodySize(parentDef, instance, def)
@@ -263,6 +263,12 @@ function drawInstance(
       pinRadiusWorld(pinWidth(parentDef, { instanceId: instance.id, portId })) * vp.zoom
     if (kind === 'switch-array' || kind === 'led-array') {
       drawArrayBody(ctx, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
+      // A main-scope switch with `exported` set becomes a module input; mark it with a
+      // small badge in the body's top-right corner (mirroring the "#" badge at top-left).
+      if (kind === 'switch-array' && atRoot && instance.props?.exported === true) {
+        const badgeSize = 16
+        drawExportBadge(ctx, s.x + (w * vp.zoom) / 2 - 4 - badgeSize, s.y - (h * vp.zoom) / 2 + 4, badgeSize, p)
+      }
     } else if (kind === 'seven-seg') {
       drawSevenSegBody(ctx, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
     } else {

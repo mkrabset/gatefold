@@ -287,9 +287,10 @@ simulator).
 (JSON in, Verilog out), a `tsx` CLI (`pnpm --filter @gatefold/verilog cli <in.json> [out.v]`), and a
 toolbar **Export Verilog** button. Covers: combinational gates (assign-based, so inversion is a
 `~`), the DFF (`always @(posedge clk …)` with async reset + `INIT`), buses (concat/slice),
-composite hierarchy, identifier sanitization, and top-level CLOCK/SWITCHES → `input` + LEDS/7-SEG →
-`output`. Issues are reported with severity: **error** for floating nets, nested clocks, and dangling
-refs; **info** for nested switches (exported as a fixed initial value) and nested sinks (not exported).
+composite hierarchy, identifier sanitization. The top module's I/O is its port terminals plus a
+top-level CLOCK and any main-scope SWITCHES whose `exported` property is set; other switches become
+constants at their `initialValue` (unconnected ones are ignored) and LEDS/7-SEG are ignored. Issues
+are reported with severity: **error** for floating nets, nested clocks, and dangling refs.
 Tests in `packages/verilog/test/`.
 
 ### Feasibility

@@ -17,7 +17,20 @@ export class SwitchArray extends ArrayPrimitive {
   properties(): PropertySpec[] {
     return [
       ...super.properties(),
-      { name: 'initialValue', label: 'Initial value', type: 'boolean', default: false },
+      {
+        name: 'initialValue',
+        label: 'Initial value',
+        type: 'boolean',
+        default: false,
+        tooltip: 'The starting state of every lane when simulation begins. In the Verilog export this is the constant a non-exported switch drives.',
+      },
+      {
+        name: 'exported',
+        label: 'Exported',
+        type: 'boolean',
+        default: false,
+        tooltip: 'Expose this switch as a module input in the Verilog export. Only applies to a switch at the main scope.',
+      },
       { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC'] },
       { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
     ]

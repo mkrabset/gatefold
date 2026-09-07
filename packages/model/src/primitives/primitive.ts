@@ -48,10 +48,10 @@ export interface DrawOptions {
  * The `type` discriminates which fields are present (e.g. `select` requires `options`).
  */
 export type PropertySpec =
-  | { name: string; label: string; type: 'number'; default: number; unit?: string; min?: number; max?: number; step?: number }
-  | { name: string; label: string; type: 'string'; default: string }
-  | { name: string; label: string; type: 'boolean'; default: boolean }
-  | { name: string; label: string; type: 'select'; default: string; options: string[] }
+  | { name: string; label: string; type: 'number'; default: number; unit?: string; min?: number; max?: number; step?: number; tooltip?: string }
+  | { name: string; label: string; type: 'string'; default: string; tooltip?: string }
+  | { name: string; label: string; type: 'boolean'; default: boolean; tooltip?: string }
+  | { name: string; label: string; type: 'select'; default: string; options: string[]; tooltip?: string }
 
 /**
  * The behaviour of a built-in component. One class per primitive kind; the kind is the

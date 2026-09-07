@@ -29,6 +29,7 @@ export function drawScene(
   vp: Viewport,
   selectedIds: string[],
   editingTemplate: boolean,
+  atRoot: boolean,
   marquee: Rect | null,
   pendingWire: PendingWire | null,
   cutLine: CutLine | null,
@@ -240,7 +241,7 @@ export function drawScene(
     if (isPortGroupDef(instDef)) {
       drawPortGroup(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
     } else {
-      drawInstance(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
+      drawInstance(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, atRoot, sim)
     }
   }
 

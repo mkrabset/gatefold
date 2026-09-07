@@ -89,6 +89,16 @@ export function drawSwitchValueBadge(ctx: CanvasRenderingContext2D, x: number, y
   ctx.fillText('#', x + s / 2, y + s / 2 + 0.5)
 }
 
+/** Draw a switch-array's "exported" badge (a module-input marker) at (x, y), `s` px square. */
+export function drawExportBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, p: Palette) {
+  drawRoundedBox(ctx, x, y, s, s, 3, p.gateFill, p.pin, 1.5)
+  ctx.fillStyle = p.pin
+  ctx.font = `${Math.round(s * 0.7)}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('▸', x + s / 2, y + s / 2 + 0.5)
+}
+
 /** Stroke a dashed rectangle (selection / marquee outline). */
 export function strokeDashedRect(
   ctx: CanvasRenderingContext2D,

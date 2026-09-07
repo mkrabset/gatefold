@@ -87,10 +87,6 @@ class Generator {
     this.issues = issues
   }
 
-  private info(message: string): void {
-    this.issues.push({ level: 'info', message })
-  }
-
   private error(message: string): void {
     this.issues.push({ level: 'error', message })
   }
@@ -152,27 +148,31 @@ class Generator {
 
     const portNameMap = this.computePortNames(def)
 
-    // Sources/sinks are only exported at the top level (they become I/O pins). A nested
-    // switch is emitted as a fixed constant (see the statement loop).
+    // Probes at the top level: a clock becomes a module input (a real FPGA clock pin), and
+    // an exported switch becomes an input. LEDs / 7-seg are ignored entirely; a switch that
+    // is not exported (or is nested) drives a fixed constant from its `initialValue` (see
+    // the statement loop). The `exported` property only applies at the main scope.
     const sources: Instance[] = []
-    const sinks: Instance[] = []
     for (const inst of instances) {
       const kind = childPrimitive(inst.def)
       if (kind === 'clock') {
         if (isRoot) sources.push(inst)
         else this.error(`clock source "${inst.name}" nested in composite "${def.name}" is not exported`)
       } else if (kind === 'switch-array') {
-        if (isRoot) sources.push(inst)
-        else this.info(`switch "${inst.name}" nested in composite "${def.name}" is exported as a fixed initial value`)
-      } else if (kind === 'led-array' || kind === 'seven-seg') {
-        if (isRoot) sinks.push(inst)
-        else this.info(`sink "${inst.name}" nested in composite "${def.name}" is not exported`)
+        if (isRoot && inst.props?.exported === true) sources.push(inst)
       }
     }
 
-    // Module ports (composite terminals first, then source/sink I/O). Composite port names
-    // come from `portNameMap` (already deduped among themselves); the extra source/sink ports
-    // and internal nets are deduped against them.
+    // Instances the generator ignores completely (LEDs and 7-seg displays).
+    const ignoredIds = new Set<string>()
+    for (const inst of instances) {
+      const kind = childPrimitive(inst.def)
+      if (kind === 'led-array' || kind === 'seven-seg') ignoredIds.add(inst.id)
+    }
+
+    // Module ports (composite terminals first, then source I/O). Composite port names come
+    // from `portNameMap` (already deduped among themselves); the extra source ports and
+    // internal nets are deduped against them.
     const used = new Set<string>(portNameMap.values())
     const ports: ModPort[] = []
     const addExtraPort = (dir: ModPort['dir'], base: string, width: number): string => {
@@ -207,14 +207,6 @@ class Generator {
         sourcePorts.set(pinKey({ instanceId: inst.id, portId: p.id }), { name: addExtraPort('input', `${inst.name}_${p.name}`, w), width: w })
       }
     }
-    const sinkPorts = new Map<string, { name: string; width: number }>()
-    for (const inst of sinks) {
-      const prim = asPrimitive(inst.def)!
-      for (const p of inputPorts(prim.ports)) {
-        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
-        sinkPorts.set(pinKey({ instanceId: inst.id, portId: p.id }), { name: addExtraPort('output', `${inst.name}_${p.name}`, w), width: w })
-      }
-    }
 
     // Resolve nets with a union-find over connection endpoints.
     const uf = new UnionFind()
@@ -225,6 +217,7 @@ class Generator {
     if (outputGroup) for (const p of outputPorts(def.ports)) allPins.push({ instanceId: outputGroup.id, portId: p.id })
     for (const inst of instances) {
       if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
+      if (ignoredIds.has(inst.id)) continue
       const ports = childPorts(inst.def)
       for (const p of ports) allPins.push({ instanceId: inst.id, portId: p.id })
     }
@@ -237,13 +230,28 @@ class Generator {
       rootMembers.set(r, arr)
     }
 
+    // A switch whose output net reaches nothing else (ignored sinks already excluded from
+    // `allPins`) is unconnected and ignored: no constant, no net, no wire.
+    const isolatedSwitchKeys = new Set<string>()
+    for (const inst of instances) {
+      if (childPrimitive(inst.def) !== 'switch-array') continue
+      if (isRoot && inst.props?.exported === true) continue
+      for (const p of outputPorts(childPorts(inst.def))) {
+        const key = pinKey({ instanceId: inst.id, portId: p.id })
+        const members = rootMembers.get(uf.find(key)) ?? []
+        if (members.length <= 1) isolatedSwitchKeys.add(key)
+      }
+    }
+
     const netNameOfPin = new Map<string, string>()
     const netWidthByName = new Map<string, number>()
     // Module output(s) sharing a net that is also a module input (or otherwise named
-    // differently) need a bridging `assign <output> = <net>;` — e.g. a switch wired
-    // straight to an LED, or a gate output fanning out to two sinks.
+    // differently) need a bridging `assign <output> = <net>;` — e.g. a gate output
+    // fanning out to two output ports.
     const bridges: string[] = []
     for (const members of rootMembers.values()) {
+      // Skip an unconnected switch net entirely (no constant, no wire).
+      if (members.length === 1 && isolatedSwitchKeys.has(pinKey(members[0]))) continue
       // Input-side port (drives the net): a composite input port or a source pin.
       let name: string | null = null
       let width = 1
@@ -252,14 +260,13 @@ class Generator {
       }
       if (name === null) for (const m of members) { const s = sourcePorts.get(pinKey(m)); if (s) { name = s.name; width = s.width; break } }
 
-      // Output-side port(s) (read the net): a composite output port or a sink pin.
+      // Output-side port(s) (read the net): a composite output port.
       const outputs: { name: string; width: number }[] = []
       for (const m of members) {
         if (outputGroup && m.instanceId === outputGroup.id) {
           outputs.push({ name: outputPortNames.get(m.portId)!, width: outputPortWidths.get(m.portId)! })
         }
       }
-      for (const m of members) { const s = sinkPorts.get(pinKey(m)); if (s) outputs.push({ name: s.name, width: s.width }) }
 
       if (name === null && outputs.length > 0) { name = outputs[0].name; width = outputs[0].width }
 
@@ -284,9 +291,10 @@ class Generator {
       }
     }
 
-    // Floating-input warnings.
+    // Floating-input warnings (ignored probes are skipped).
     for (const inst of instances) {
       if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
+      if (ignoredIds.has(inst.id)) continue
       for (const p of inputPorts(childPorts(inst.def))) {
         if (!findConnectionTo(connections, { instanceId: inst.id, portId: p.id })) {
           this.error(`floating input "${inst.name}.${p.name}" in composite "${def.name}"`)
@@ -450,7 +458,7 @@ class Generator {
         return
       }
 
-      // Sources/sinks (clock/switch/led/7-seg) are handled in the statement loop.
+      // Probes (clock/switch/led/7-seg) are handled in the statement loop.
     }
 
     const emitCompositeInstance = (inst: Instance, childDef: CompositeDef): void => {
@@ -485,18 +493,20 @@ class Generator {
         continue
       }
       if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg') {
-        // Root instances are module ports; nested ones are skipped (warning already emitted).
+        // Clock: root is a module input, nested errored. LEDs/7-seg: ignored entirely.
         continue
       }
       if (idef.primitive === 'switch-array') {
-        // Root switches are module inputs; nested switches become a fixed constant.
-        if (!isRoot) {
-          const init = inst.props?.initialValue === true ? 1 : 0
-          const ports = childPorts(idef)
-          for (const p of outputPorts(ports)) {
-            const w = netWidthByName.get(netOf({ instanceId: inst.id, portId: p.id })) ?? 1
-            stmts.push(`assign ${netOf({ instanceId: inst.id, portId: p.id })} = {${w}{1'b${init}}};`)
-          }
+        // An exported root switch is a module input; every other switch drives a fixed
+        // constant from its initial value, per connected output pin.
+        if (isRoot && inst.props?.exported === true) continue
+        const init = inst.props?.initialValue === true ? 1 : 0
+        const ports = childPorts(idef)
+        for (const p of outputPorts(ports)) {
+          const pin = { instanceId: inst.id, portId: p.id }
+          if (isolatedSwitchKeys.has(pinKey(pin))) continue
+          const w = netWidthByName.get(netOf(pin)) ?? 1
+          stmts.push(`assign ${netOf(pin)} = {${w}{1'b${init}}};`)
         }
         continue
       }

@@ -626,11 +626,14 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
   `assign !Q = ~Q;` for its inverted output; buses emit concatenation/slicing; child composites
   emit instantiations.
-- **Probes** — CLOCK/SWITCHES become top-level `input`s, LEDS/7-SEG top-level `output`s. A nested
-  switch is emitted as a constant at its `initialValue`; a nested clock or sink is not exported.
+- **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
+  **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
+  (an external input). Every other switch is a constant fixed at its `initialValue`; a switch that
+  is wired to nothing is ignored entirely; **LEDS** and **7-SEG** are ignored. A nested clock is an
+  error.
 - **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested
-  clocks, and dangling refs; info for nested switches/sinks. The app logs infos to the console and
-  surfaces errors as a toast; the CLI (`tsx src/cli.ts`) prints them to stderr.
+  clocks, and dangling refs. The app logs infos to the console and surfaces errors as a toast; the
+  CLI (`tsx src/cli.ts`) prints them to stderr.
 - Identifier sanitization + Verilog-keyword avoidance + collision dedup apply to module, port, and
   net names.
 

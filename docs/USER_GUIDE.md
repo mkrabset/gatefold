@@ -383,15 +383,16 @@ What the generator produces:
 - **Buses** as `[n-1:0]` vectors — FAN-IN/BUS-MERGE concatenate, FAN-OUT/BUS-SPLIT slice.
 - **Hierarchy** as nested module instantiations; composite ports become module ports.
 
-Probes map to top-level I/O: **CLOCK** and **SWITCHES** become `input` pins, **LEDS** and **7-SEG**
-become `output` pins. A **SWITCHES** placed inside a composite is exported as a constant fixed at
-its *Initial value*.
+The top module's inputs and outputs are only the port terminals of the main scope, plus a top-level
+**CLOCK** (an `input` pin, for the FPGA clock). A **SWITCHES** at the main scope becomes an `input`
+pin only when its **Exported** property is checked; otherwise — and always when placed inside a
+composite — it is emitted as a constant fixed at its *Initial value*. A **SWITCHES** that isn't
+wired to anything is ignored, and **LEDS** and **7-SEG** are always ignored.
 
 The export reports issues by severity:
 
 - **Errors** (shown as a toast and logged to the console): *floating nets* (an input/output with no
   driver) and a *nested CLOCK* (a clock inside a composite can't be exported).
-- **Info** (console only): nested SWITCHES (fixed initial value) and nested LEDS/7-SEG (not exported).
 
 The same generator is available as a CLI: `pnpm --filter @gatefold/verilog cli <design.json> [out.v]`.
 

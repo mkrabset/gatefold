@@ -62,11 +62,12 @@ export function Canvas() {
       const ch = wrap.clientHeight
       // Editing a template when any nav step is a library template.
       const editingTemplate = state.navStack.some((step) => step.kind === 'template')
+      const atRoot = currentDef(state) === state.design.root
       const simState = useSimStore.getState()
       const sim = simState.mode === 'simulate' && simState.engine
         ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf, speedLabel: formatSpeed(simState.timeScale) }
         : undefined
-      drawScene(ctx, cw, ch, currentDef(state), state.viewport, state.selectedIds, editingTemplate, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
+      drawScene(ctx, cw, ch, currentDef(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
     }
 
     const resize = () => {

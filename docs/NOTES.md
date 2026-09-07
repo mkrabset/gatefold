@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-06 (model module colocation — functions live beside their data).
+Last updated: 2026-09-07 (Verilog probes: `exported` switches, ignored LEDs/7-SEG).
 
 ## Where we are
 
@@ -12,6 +12,33 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Verilog probe handling reworked** — the top module's I/O is now only its own port
+  terminals plus a top-level CLOCK and main-scope SWITCHES that opt in, rather than every
+  probe becoming a pin:
+
+  - **Model** (`packages/model/src/primitives/switch-array.ts`) — new `exported` boolean
+    property (label *Exported*, default `false`), seeded by `defaultPropsOf` and rendered
+    generically by the sidebar's boolean editor. No `Design.version` bump (missing key →
+    `false`).
+  - **Verilog** (`packages/verilog/src/verilog.ts`) — `sinks`/`sinkPorts` are gone: **LEDS**
+    and **7-SEG** are ignored entirely (no output, no info, skipped in the floating-input
+    check). A switch is a module `input` only when it is main-scoped and `exported === true`;
+    every other switch (nested, or non-exported root) emits a constant
+    `assign <net> = {w}{1'b<init>};` from its `initialValue`. A switch wired to nothing (after
+    excluding ignored sinks) is skipped wholesale — no net, no wire, no assign. The unused
+    `info` issue path was removed.
+  - **Renderer** — `drawScene`/`drawInstance` gain an `atRoot` flag (`currentDef ===
+    design.root` in `Canvas.tsx`); a main-scope switch with `exported` draws a small `▸` badge
+    in its body's top-right corner (mirroring the `#` badge), via a new `drawExportBadge`
+    helper.
+  - **Tests** — `array.test.ts` property lists include `exported`; `verilog.test.ts` covers
+    exported-root → input, non-exported-root → constant, unconnected → ignored, LED/7-SEG →
+    ignored, and drops the old nested-switch `info` assertion.
+  - **Docs** — `ARCHITECTURE.md` §8b, `USER_GUIDE.md` (Verilog section), `GLOSSARY.md`
+    (switches + Verilog export), and `PLAN.md` §12 status note updated.
+
+## Earlier (this session)
 
 - **App module colocation + coupling fix** — the `apps/gatefold` editor layer was
   reorganized for the same readability goal, and the `editor/ ↔ state/` folder-level

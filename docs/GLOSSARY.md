@@ -55,7 +55,9 @@ authoritative — update this when a term's meaning changes.
   `initialValue` (boolean) sets every lane's starting state when simulation begins. A switch's
   `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`, default HEX) is the initial radix of its **set-value
   dialog**, and its `order` (`asc`/`desc`) picks which end of the bus is the least-significant
-  bit when a typed value is mapped onto the lanes.
+  bit when a typed value is mapped onto the lanes. Its `exported` (boolean, default false) marks
+  a main-scope switch as an external module input in Verilog export (nested switches are always
+  constants).
 - **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`) used to enter/display a multi-bit
   value. Shared by the 7-seg display's `mode` and the switch-array's `valueFormat`; the single
   `ValueFormat` type lives in the model's `value.ts`.
@@ -155,9 +157,10 @@ authoritative — update this when a term's meaning changes.
 - **Verilog export** — generating synthesizable Verilog from the serialized design (`@gatefold/verilog`,
   `exportVerilog(json)`): the JSON save format is the input, a `.v` module hierarchy is the output.
   One `module` per composite (root = top), gates as `assign`, the DFF as `always @(posedge clk)`
-  with reset, buses as `[n-1:0]`, and probes as top-level I/O. Reports issues by severity: *errors*
-  (floating nets, nested clocks) vs *info* (nested switches/sinks). Also exposed as a CLI and a
-  toolbar button.
+  with reset, and buses as `[n-1:0]`. The top module's I/O is its port terminals plus a top-level
+  CLOCK and any main-scope SWITCHES with `exported` set; other switches become constants and
+  LEDS/7-SEG are ignored. Reports issues by severity: *errors* (floating nets, nested clocks).
+  Also exposed as a CLI and a toolbar button.
 - **Copy-link sharing (`?d=`)** — encoding the whole design into a URL: serialized to JSON,
   gzip-compressed, then base64url-encoded into a `?d=` query parameter. Opening the URL restores
   the design on launch (taking precedence over any saved default).

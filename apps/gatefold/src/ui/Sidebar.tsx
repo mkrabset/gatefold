@@ -206,7 +206,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
         primitiveOf(childPrimitive(def)!)
           .properties()
           .map((spec) => (
-            <label className="field" key={spec.name}>
+            <label className="field" key={spec.name} title={spec.tooltip}>
               <span>{spec.type === 'number' && spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
               <PropertyField
                 key={`${inst.id}:${spec.name}`}

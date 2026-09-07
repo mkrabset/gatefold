@@ -1,0 +1,16 @@
+# UPduino 3.1
+# iCE40UP5K-SG48
+
+# 12 MHz onboard oscillator
+set_io CLOCK_CLK 20
+set_frequency CLOCK_CLK 12
+
+# Reuse the adder output pins
+set_io out1 18
+set_io out2 19
+set_io out3 21
+set_io out4 23
+
+# Q replaces Cout
+set_io Q 25
+

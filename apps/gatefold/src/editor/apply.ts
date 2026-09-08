@@ -49,11 +49,16 @@ export function applyTemplate(design: Design, templateId: string, scope: Set<str
   }
 
   const matches: CompositeDef[] = []
-  walkComposites(result.root, (live) => {
+  const visit = (live: CompositeDef): void => {
     if (live.uuid !== template.uuid) return
     if (!scope.has(live.id)) return
     matches.push(live)
-  })
+  }
+  // Search both the content tree and the library: when a template is being edited the
+  // matching copies are embedded inside a library entry, not under `root`. The `scope`
+  // filter (globally unique ids) keeps the search restricted to the current scope.
+  walkComposites(result.root, visit)
+  for (const def of Object.values(result.library)) walkComposites(def, visit)
 
   for (const live of matches) {
     if (!portsMatch(template, live)) continue

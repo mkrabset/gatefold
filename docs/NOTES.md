@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-08 (global Settings dialog with a configurable bus lane distance).
+Last updated: 2026-09-08 ("Apply to instances" reaches embedded copies inside an edited template).
 
 ## Where we are
 
@@ -12,6 +12,16 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **"Apply to instances" reaches embedded copies in an edited template** — the apply
+  search only walked the content tree (`walkComposites(result.root)`), so opening template
+  T1 for editing and selecting T2 before clicking *Apply to instances* reported "No
+  matching instances": the matching embedded copy of T2 lives inside T1 (a library entry),
+  never under `root`. `applyTemplate` now walks the whole design (content tree + library),
+  still filtered by the `scope` id set (ids are globally unique), so it reaches embedded
+  copies inside the currently-edited template while leaving other templates untouched.
+  This aligns the code with `ARCHITECTURE.md` §6b, which already promised "including
+  components inside a template being edited". Regression test in `apply.test.ts`.
 
 - **Global Settings dialog + bus lane distance** — a new **Settings** gear on the toolbar
   (left of *Toggle theme*) opens `ui/SettingsDialog.tsx`, which currently hosts a single

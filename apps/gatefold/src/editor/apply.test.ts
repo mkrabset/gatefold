@@ -155,4 +155,37 @@ describe('applyTemplate', () => {
     const { updated } = applyTemplate(design, 'tpl', scope)
     expect(updated).toBe(0)
   })
+
+  it('applies into embedded copies inside a template being edited', () => {
+    const design = makeApplyDesign()
+    // A library template `t1` being edited, containing an embedded copy of `tpl`
+    // (same lineage uuid `U`) whose internals are an OR gate instead of the AND.
+    const embedded: CompositeDef = {
+      id: 'emb', name: 'emb', kind: 'composite', uuid: 'U',
+      ports: tplPorts('e-in', 'e-out'),
+      instances: [pg('e-in', 'input-port', 0, 0), gate('e-g', 'or', 'g', 60, 0), pg('e-out', 'output-port', 120, 0)],
+      connections: [
+        { id: 'c1', from: iref('e-in', 'in:0'), to: iref('e-g', 'in:0') },
+        { id: 'c2', from: iref('e-in', 'in:1'), to: iref('e-g', 'in:1') },
+        { id: 'c3', from: iref('e-g', 'out:0'), to: iref('e-out', 'out:0') },
+      ],
+    }
+    design.library['t1'] = {
+      id: 't1', name: 't1', kind: 'composite', uuid: 'T1',
+      ports: [],
+      instances: [{ id: 'e', name: 'e', def: embedded, pos: { x: 0, y: 0 } }],
+      connections: [],
+    }
+
+    const scope = scopeDefIds(design.library['t1'])
+    const { design: result, updated } = applyTemplate(design, 'tpl', scope)
+
+    expect(updated).toBe(1)
+    const embResult = result.library['t1'].instances.find((i) => i.id === 'e')!.def as CompositeDef
+    const g = embResult.instances.find((i) => i.name === 'g')!
+    expect(g.def.kind === 'fork' && g.def.primitive).toBe('and')
+    // The origin template is untouched.
+    const tplGate = result.library['tpl'].instances.find((i) => i.id === 't-g')!
+    expect(tplGate.def.kind === 'fork' && tplGate.def.primitive).toBe('and')
+  })
 })

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { builtinOf, connectionError, forkOf } from '@gatefold/model'
-import { defBodySize, instanceBodySize, isNeutralPin, pinRadiusWorld, pinWidth, portPosition, sideHeight, sidePinOffset } from './geometry'
+import { DEFAULT_LANE_DISTANCE, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
@@ -229,3 +229,80 @@ describe('dynamic body sizing', () => {
     expect(instanceBodySize(main, fi, fi.def)).toEqual(defBodySize(fi.def))
   })
 })
+
+describe('lane distance', () => {
+  afterEach(() => setLaneDistance(DEFAULT_LANE_DISTANCE))
+
+  it('scales the pin marker radius linearly with the setting', () => {
+    expect(pinRadiusWorld(4)).toBe(14)
+    setLaneDistance(3)
+    expect(currentLaneDistance()).toBe(3)
+    expect(pinRadiusWorld(4)).toBe(6)
+  })
+
+  it('clamps the setting to 0..DEFAULT_LANE_DISTANCE', () => {
+    setLaneDistance(100)
+    expect(currentLaneDistance()).toBe(DEFAULT_LANE_DISTANCE)
+    setLaneDistance(-5)
+    expect(currentLaneDistance()).toBe(0)
+  })
+
+  it('shrinks bus lane spacing when the distance is reduced', () => {
+    const atDefault = busWireOffsets(4)
+    expect(atDefault).toHaveLength(4)
+    setLaneDistance(2)
+    const atTwo = busWireOffsets(4)
+    expect(atTwo).toHaveLength(4)
+    expect(Math.abs(atTwo[1] - atTwo[0])).toBeLessThan(Math.abs(atDefault[1] - atDefault[0]))
+  })
+
+  it('accepts an explicit distance that bypasses the global setting', () => {
+    const baseline = busWireOffsets(4)
+    setLaneDistance(1)
+    expect(busWireOffsets(4)).not.toEqual(baseline)
+    expect(busWireOffsets(4, DEFAULT_LANE_DISTANCE)).toEqual(baseline)
+  })
+
+  it('passes the distance through the side-sizing helpers', () => {
+    expect(sideHeight([2], DEFAULT_LANE_DISTANCE)).toBeGreaterThan(sideHeight([2], 2))
+    expect(sidePinOffset([2, 2], 1, DEFAULT_LANE_DISTANCE)).toBeGreaterThan(sidePinOffset([2, 2], 1, 2))
+  })
+
+  it('keeps array terminals at the default distance', () => {
+    const sw = forkOf('switch-array')
+    const led = forkOf('led-array')
+    const and = forkOf('and')
+    expect(laneDistanceFor(sw)).toBe(DEFAULT_LANE_DISTANCE)
+    expect(laneDistanceFor(led)).toBe(DEFAULT_LANE_DISTANCE)
+    setLaneDistance(2)
+    expect(laneDistanceFor(sw)).toBe(DEFAULT_LANE_DISTANCE)
+    expect(laneDistanceFor(led)).toBe(DEFAULT_LANE_DISTANCE)
+    expect(laneDistanceFor(and)).toBe(2)
+  })
+
+  it('exempts an led-array bus terminal from the lane-distance setting', () => {
+    const design = makeArrayDesign(8)
+    const main = design.root
+    const led = main.instances.find((i) => i.id === 'led')!
+    expect(pinWidth(main, iref('led', 'in:0'))).toBe(8)
+    const atDefault = instanceBodySize(main, led, led.def)
+    expect(atDefault.h).toBeGreaterThan(defBodySize(led.def).h)
+    setLaneDistance(2)
+    expect(instanceBodySize(main, led, led.def).h).toBe(atDefault.h)
+  })
+})
+
+function makeArrayDesign(n: number): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      { id: 'fi', name: 'fi', def: makeFanIn(n), pos: { x: 0, y: 0 } },
+      { id: 'led', name: 'led', def: forkOf('led-array'), pos: { x: 120, y: 0 } },
+    ],
+    connections: [{ id: 'w', from: iref('fi', 'out:0'), to: iref('led', 'in:0') }],
+  }
+  return { version: 2, root: main, library: {} }
+}

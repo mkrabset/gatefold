@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-07 (clear-everything dialog with scoped checkboxes; Verilog probes: `exported` switches, ignored LEDs/7-SEG).
+Last updated: 2026-09-08 (global Settings dialog with a configurable bus lane distance).
 
 ## Where we are
 
@@ -12,6 +12,20 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Global Settings dialog + bus lane distance** — a new **Settings** gear on the toolbar
+  (left of *Toggle theme*) opens `ui/SettingsDialog.tsx`, which currently hosts a single
+  numeric **Lane distance** (world units, 0–7, default 7, persisted in `uiStore`). It controls
+  the spacing between a bus terminal's wires and its marker height, so large buses can take
+  less vertical space. The knob is `pinRadiusWorld(width) = (laneDistance/2)·width` — the single
+  source of truth in `editor/geometry.ts` — now backed by a module-level `laneDistance`
+  (`setLaneDistance`/`currentLaneDistance`) that `Canvas.draw()` syncs from `uiStore`. The
+  low-level helpers (`busWireOffsets`, `sideHeight`, `sidePinOffset`, `sizeForPorts`) take an
+  optional `d`, and `laneDistanceFor(def)` returns the **default** distance for switch/led
+  arrays (exempt — their indicator rows keep fixed spacing) and the active value otherwise;
+  `instanceBodySize`/`portPosition`/`hitTestPort`/`drawPorts` honor it. Tests: geometry
+  `lane distance` (scaling, clamping, explicit `d`, array exemption). Docs updated
+  (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **Clear-everything button + scoped confirmation** — a **Clear everything** button on the
   toolbar's right side (between *Clear default* and *Toggle theme*) opens a **Delete

@@ -1,5 +1,5 @@
 import type { ChildDef, CompositeDef, Instance, PinRef, Port } from '@gatefold/model'
-import { childPorts, childPrimitive, inputPorts, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
+import { childPorts, childPrimitive, inputPorts, isArrayDef, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
 import { w2s } from './viewport'
 import type { Viewport } from './types'
 
@@ -32,17 +32,51 @@ export const SEVEN_SEG_DIGIT_H = 56
 export const SEVEN_SEG_GAP = 8
 export const SEVEN_SEG_PAD = 8
 
-/** Pin marker half-height in world units (pre-zoom) for a terminal of the given width.
- *  Scales linearly so each bus lane keeps a constant pitch. */
+/** The default (and maximum) bus-lane spacing in world units — the current `2 × 3.5`
+ *  pitch. The lane-distance setting scales down from here; arrays always use it. */
+export const DEFAULT_LANE_DISTANCE = 7
+
+/**
+ * The active bus-lane spacing in world units. A module-level knob (defaulting to the
+ * current spacing) so the many geometry helpers stay pure-looking while still sharing
+ * one configurable value; `setLaneDistance` is called from the canvas when the persisted
+ * UI setting changes.
+ */
+let laneDistance = DEFAULT_LANE_DISTANCE
+
+/** Update the active lane spacing (clamped to `0..DEFAULT_LANE_DISTANCE`). */
+export function setLaneDistance(distance: number): void {
+  laneDistance = Math.min(DEFAULT_LANE_DISTANCE, Math.max(0, distance))
+}
+
+/** The active lane spacing (world units). */
+export function currentLaneDistance(): number {
+  return laneDistance
+}
+
+/** The lane spacing that should apply to a def's terminals: arrays keep the default
+ *  (their indicator rows are unreadable when compressed), everything else uses the
+ *  active setting. */
+export function laneDistanceFor(def: ChildDef): number {
+  return isArrayDef(def) ? DEFAULT_LANE_DISTANCE : laneDistance
+}
+
+/** Pin marker half-height in world units (pre-zoom) for a terminal of the given width,
+ *  for the given lane distance. Scales linearly so each bus lane keeps a constant pitch. */
+export function pinRadiusWorldAt(width: number, d: number): number {
+  return (d / 2) * width
+}
+
+/** Pin marker half-height using the active lane-distance setting. */
 export function pinRadiusWorld(width: number): number {
-  return 3.5 * width
+  return pinRadiusWorldAt(width, laneDistance)
 }
 
 /** World-space vertical offsets for each lane of a bus, inset one lane from each end
  *  of the marker (spread as if the bus were `width + 2` lanes wide). */
-export function busWireOffsets(width: number): number[] {
+export function busWireOffsets(width: number, d: number = laneDistance): number[] {
   if (width <= 1) return [0]
-  const r = pinRadiusWorld(width)
+  const r = pinRadiusWorldAt(width, d)
   const pitch = (2 * r) / (width + 1)
   return Array.from({ length: width }, (_, i) => -r + pitch * (i + 1))
 }
@@ -54,19 +88,19 @@ function widthsOf(parentDef: CompositeDef, instanceId: string, ports: Port[]): n
 
 /** Total height of a terminal side: its markers stacked with a constant gap, plus
  *  fixed padding at the top and bottom. */
-export function sideHeight(widths: number[]): number {
+export function sideHeight(widths: number[], d: number = laneDistance): number {
   if (widths.length === 0) return 0
-  const markers = widths.reduce((sum, w) => sum + 2 * pinRadiusWorld(w), 0)
+  const markers = widths.reduce((sum, w) => sum + 2 * pinRadiusWorldAt(w, d), 0)
   return 2 * SIDE_PADDING + markers + (widths.length - 1) * TERMINAL_GAP
 }
 
 /** World y of the `index`-th terminal, relative to the side's center (which coincides
  *  with the instance's center). */
-export function sidePinOffset(widths: number[], index: number): number {
-  const h = sideHeight(widths)
+export function sidePinOffset(widths: number[], index: number, d: number = laneDistance): number {
+  const h = sideHeight(widths, d)
   let y = -h / 2 + SIDE_PADDING
-  for (let i = 0; i < index; i++) y += 2 * pinRadiusWorld(widths[i]) + TERMINAL_GAP
-  return y + pinRadiusWorld(widths[index])
+  for (let i = 0; i < index; i++) y += 2 * pinRadiusWorldAt(widths[i], d) + TERMINAL_GAP
+  return y + pinRadiusWorldAt(widths[index], d)
 }
 
 /** The base body size of a def (before accounting for pin radii). */
@@ -77,8 +111,8 @@ export function defBodySize(def: ChildDef): { w: number; h: number } {
 }
 
 /** Effective size of a port-group rectangle, accounting for its terminal markers. */
-export function sizeForPorts(widths: number[]): { w: number; h: number } {
-  return { w: PORT_GROUP_W, h: Math.max(28, sideHeight(widths)) }
+export function sizeForPorts(widths: number[], d: number = laneDistance): { w: number; h: number } {
+  return { w: PORT_GROUP_W, h: Math.max(28, sideHeight(widths, d)) }
 }
 
 /** Resolved bus width of a seven-seg input, or null when undetermined. */
@@ -98,10 +132,11 @@ export function instanceBodySize(
   instance: Instance,
   def: ChildDef,
 ): { w: number; h: number } {
+  const d = laneDistanceFor(def)
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
-    return sizeForPorts(widthsOf(parentDef, instance.id, ports))
+    return sizeForPorts(widthsOf(parentDef, instance.id, ports), d)
   }
   const k = childPrimitive(def)
   if (k === 'seven-seg') {
@@ -109,7 +144,7 @@ export function instanceBodySize(
     const mode = sevenSegModeOf(instance.props)
     const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const w = 2 * SEVEN_SEG_PAD + positions * SEVEN_SEG_DIGIT_W + (positions - 1) * SEVEN_SEG_GAP
-    const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))))
+    const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))), d)
     return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }
   if (k && primitiveOf(k).coincidentTerminals?.()) {
@@ -117,8 +152,8 @@ export function instanceBodySize(
     return defBodySize(def)
   }
   const base = defBodySize(def)
-  const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))))
-  const outH = sideHeight(widthsOf(parentDef, instance.id, outputPorts(childPorts(def))))
+  const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))), d)
+  const outH = sideHeight(widthsOf(parentDef, instance.id, outputPorts(childPorts(def))), d)
   return { w: base.w, h: Math.max(base.h, inH, outH) }
 }
 
@@ -134,13 +169,14 @@ export function portPosition(
   def: ChildDef,
   portId: string,
 ): { x: number; y: number } {
+  const d = laneDistanceFor(def)
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
     const idx = ports.findIndex((p) => p.id === portId)
     const widths = widthsOf(parentDef, instance.id, ports)
-    const { w } = sizeForPorts(widths)
-    const y = instance.pos.y + sidePinOffset(widths, idx)
+    const { w } = sizeForPorts(widths, d)
+    const y = instance.pos.y + sidePinOffset(widths, idx, d)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
   }
 
@@ -155,11 +191,11 @@ export function portPosition(
   const inIdx = inputPorts(ports).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
     const widths = widthsOf(parentDef, instance.id, inputPorts(ports))
-    return { x: instance.pos.x - w / 2, y: instance.pos.y + sidePinOffset(widths, inIdx) }
+    return { x: instance.pos.x - w / 2, y: instance.pos.y + sidePinOffset(widths, inIdx, d) }
   }
   const outIdx = outputPorts(ports).findIndex((p) => p.id === portId)
   const widths = widthsOf(parentDef, instance.id, outputPorts(ports))
-  return { x: instance.pos.x + w / 2, y: instance.pos.y + sidePinOffset(widths, outIdx) }
+  return { x: instance.pos.x + w / 2, y: instance.pos.y + sidePinOffset(widths, outIdx, d) }
 }
 
 export interface Bounds {
@@ -216,39 +252,40 @@ export function hitTestPort(
 ): PortHit | null {
   let best: PortHit | null = null
   let bestDist = Infinity
-  const consider = (ref: PinRef, pos: { x: number; y: number }, role: 'source' | 'sink') => {
+  const consider = (ref: PinRef, pos: { x: number; y: number }, role: 'source' | 'sink', d: number) => {
     if (prefer && prefer !== role) return
     // Distance to the terminal marker (a vertical segment of half-height r): anywhere
     // along the marker counts, not just its centre.
-    const r = pinRadiusWorld(pinWidth(parentDef, ref))
-    let d: number
-    if (wy < pos.y - r) d = Math.hypot(wx - pos.x, wy - (pos.y - r))
-    else if (wy > pos.y + r) d = Math.hypot(wx - pos.x, wy - (pos.y + r))
-    else d = Math.abs(wx - pos.x)
-    if (d <= PORT_HIT_RADIUS && d < bestDist) {
-      bestDist = d
+    const r = pinRadiusWorldAt(pinWidth(parentDef, ref), d)
+    let dist: number
+    if (wy < pos.y - r) dist = Math.hypot(wx - pos.x, wy - (pos.y - r))
+    else if (wy > pos.y + r) dist = Math.hypot(wx - pos.x, wy - (pos.y + r))
+    else dist = Math.abs(wx - pos.x)
+    if (dist <= PORT_HIT_RADIUS && dist < bestDist) {
+      bestDist = dist
       best = { ref, role }
     }
   }
 
   for (const inst of instances) {
     const def = inst.def
+    const d = laneDistanceFor(def)
     const dir = portGroupDirection(def)
     if (dir === 'input') {
       for (const p of inputPorts(parentDef.ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source', d)
       }
     } else if (dir === 'output') {
       for (const p of outputPorts(parentDef.ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink', d)
       }
     } else {
       const ports = childPorts(def)
       for (const p of outputPorts(ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source')
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source', d)
       }
       for (const p of inputPorts(ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink')
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink', d)
       }
     }
   }
@@ -290,7 +327,7 @@ export function arrayIndicatorLanes(
     const port = ports[0]
     const y = portPosition(parentDef, instance, def, port.id).y
     const width = pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
-    for (const dy of busWireOffsets(width)) lanes.push({ y: y + dy, r })
+    for (const dy of busWireOffsets(width, DEFAULT_LANE_DISTANCE)) lanes.push({ y: y + dy, r })
   }
   return lanes
 }

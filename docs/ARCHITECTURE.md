@@ -307,6 +307,8 @@ undoable state).
 UI preferences persisted to `localStorage` (`gatefold-ui`):
 - `theme: 'light' | 'dark'`
 - `sidebarWidth`, `libraryWidth` (resizable panel widths)
+- `laneDistance` — the bus-lane spacing in world units (0..7, default 7), plus `setLaneDistance`.
+- `settingsOpen` — the global settings dialog's open state (`openSettings`/`closeSettings`).
 
 ### `simStore` — zustand (simulation runtime, separate from `editorStore`)
 - `mode: 'design' | 'simulate'` — the global toggle; entering simulate mode resets `navStack`
@@ -328,8 +330,13 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — base body dimensions (before pin radii).
-- `pinRadiusWorld(width)` — a terminal marker's half-height (`3.5·width`, linear so each bus
-  lane keeps a constant pitch).
+- `pinRadiusWorld(width)` — a terminal marker's half-height (`(laneDistance/2)·width`, linear so
+  each bus lane keeps a constant pitch). The `laneDistance` knob (a module-level value synced
+  from `uiStore.laneDistance`, default `7`) scales the marker and lane spacing down for compact
+  buses; `laneDistanceFor(def)` returns the **default** distance for switch/led arrays (their
+  indicator rows keep their fixed spacing) and the active value otherwise. `pinRadiusWorldAt`
+  and the `d` parameter on `busWireOffsets`/`sideHeight`/`sidePinOffset`/`sizeForPorts` thread an
+  explicit distance where a def's array-exemption must apply.
 - `sideHeight(widths)` / `sidePinOffset(widths, index)` — a terminal side is a **stack** of its
   markers with a constant `TERMINAL_GAP` between edges and `SIDE_PADDING` at the top/bottom;
   `sideHeight` is the side's total height, `sidePinOffset` the y of one pin relative to the
@@ -433,8 +440,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 > significantly — treat the specifics below as placeholders, not a stable contract.
 
 - **Toolbar** — brand, group action, **simulate/exit toggle** + Run/Step/Stop/Reset +
-  settings (gear), breadcrumb navigation, save/open JSON, theme toggle. Icon buttons carry
-  `title` tooltips.
+  settings (gear), breadcrumb navigation, save/open JSON, a **global Settings** gear, and the
+  theme toggle. Icon buttons carry `title` tooltips.
 - **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
   a **ports editor** for the current scope (shown first, with a divider), and a **properties
   panel** for the selected component: its name (commits on Enter/blur), its type, a generic
@@ -449,6 +456,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 - **GroupDialog** — names the inferred ports before creating a composite.
 - **SimSettingsDialog** — modal for simulation settings: default gate delay (ps) and the
   step mode (`quiescent` / `clock-edge`).
+- **SettingsDialog** — modal for global settings (currently the **lane distance** numeric
+  input, 0..7, committing on blur/Enter).
 - **Toast** — transient messages (e.g. "Input already has a driver").
 - **ResizeHandle** — draggable dividers; widths persist via `uiStore`.
 - **Theming** — CSS variables; `:root` dark, `:root[data-theme='light']` overrides, applied

@@ -8,6 +8,7 @@ import { GroupDialog } from './ui/GroupDialog'
 import { DeleteDialog } from './ui/DeleteDialog'
 import { ClearAllDialog } from './ui/ClearAllDialog'
 import { SimSettingsDialog } from './ui/SimSettingsDialog'
+import { SettingsDialog } from './ui/SettingsDialog'
 import { SwitchValueDialog } from './ui/SwitchValueDialog'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
@@ -95,6 +96,7 @@ export default function App() {
       <DeleteDialog />
       {pendingClearAll && <ClearAllDialog />}
       <SimSettingsDialog />
+      <SettingsDialog />
       <SwitchValueDialog />
       <Toast />
     </div>

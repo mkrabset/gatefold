@@ -2,9 +2,12 @@ import type { ChildDef, CompositeDef, Instance, Palette, PinRef, Port } from '@g
 import { childPorts, childPrimitive, inputPorts, outputPorts, periodOf, pinWidth, portGroupDirection, primitiveOf } from '@gatefold/model'
 import {
   busWireOffsets,
+  currentLaneDistance,
   instanceBodySize,
   instanceBounds,
+  laneDistanceFor,
   pinRadiusWorld,
+  pinRadiusWorldAt,
   portPosition,
   sidePinOffset,
   sizeForPorts,
@@ -23,8 +26,8 @@ import type { SimView, Viewport } from '../types'
  */
 
 /** Pin radius, scaled up for bus terminals (proportional to width) and the zoom. */
-function pinRadius(width: number, zoom: number): number {
-  return pinRadiusWorld(width) * zoom
+function pinRadius(width: number, zoom: number, d: number): number {
+  return pinRadiusWorldAt(width, d) * zoom
 }
 
 /** Draw the hollow inversion bubble (a ring 50% larger than the pin). */
@@ -71,9 +74,10 @@ function drawPin(
   p: Palette,
   bg: string,
   hovered: boolean,
+  d: number,
   signalColor?: string,
 ) {
-  const radius = pinRadius(width, vp.zoom)
+  const radius = pinRadius(width, vp.zoom, d)
   ctx.strokeStyle = signalColor ?? (hovered ? p.pinHighlight : color)
   ctx.lineWidth = 4 * vp.zoom
   ctx.beginPath()
@@ -82,9 +86,9 @@ function drawPin(
   ctx.stroke()
   if (inverted) {
     // One bubble per wire lane, so a wide bus doesn't get a single huge bubble.
-    const laneRadius = pinRadiusWorld(1) * vp.zoom * 1.2
+    const laneRadius = pinRadiusWorldAt(1, d) * vp.zoom * 1.2
     const dir = bubbleOnLeft ? -1 : 1
-    for (const dy of busWireOffsets(width)) {
+    for (const dy of busWireOffsets(width, d)) {
       drawInversionRing(ctx, s.x + dir * laneRadius, s.y + dy * vp.zoom, laneRadius, vp.zoom, p, bg)
     }
   }
@@ -104,13 +108,14 @@ function drawPorts(
   sim?: SimView,
 ) {
   const ports = childPorts(def)
+  const d = laneDistanceFor(def)
   const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, cw, ch, vp)
     const width = pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
     const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
     const signalColor = sim?.colorOf(instance.id, port.id)
-    drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, signalColor)
+    drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, d, signalColor)
   }
 
   for (const port of inputPorts(ports)) drawPort(port, p.pin, true)
@@ -377,13 +382,14 @@ export function drawPortGroupBox(
 
   ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
   ctx.textBaseline = 'middle'
+  const d = currentLaneDistance()
   ports.forEach((port, idx) => {
-    const y = pos.y + sidePinOffset(widths, idx)
+    const y = pos.y + sidePinOffset(widths, idx, d)
     const x = pos.x + (isInput ? w / 2 : -w / 2)
     const s = w2s(x, y, cw, ch, vp)
     const hovered = !!hoverPort && hoverPort.instanceId === instanceId && hoverPort.portId === port.id
     const signalColor = sim?.colorOf(instanceId, port.id)
-    drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, allowInversion ? port.inverted ?? false : false, !isInput, vp, p, bg, hovered, signalColor)
+    drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, allowInversion ? port.inverted ?? false : false, !isInput, vp, p, bg, hovered, d, signalColor)
     const offset = PIN_LABEL_GAP * vp.zoom
     ctx.fillStyle = p.text
     if (isInput) {

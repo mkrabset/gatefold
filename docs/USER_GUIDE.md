@@ -27,7 +27,7 @@ Left to right:
 - **Simulate / Exit** — switch between *design* and *simulate* mode.
 - **Run / Step / Stop / Reset** — simulation controls (see §7). **Run** also enters simulate
   mode from design mode and starts running; **Space** toggles run/pause while simulating.
-- **Settings (gear)** — open the simulation settings dialog.
+- **Simulation settings (gear)** — open the simulation settings dialog.
 - **Breadcrumb** — the path of components you've navigated into (`main / adder / …`); the
   **↑** button (or **Escape**) goes up one level. A `template` badge marks a library template.
 - **Open / Save JSON** — load or save the whole design as a `.json` file.
@@ -42,6 +42,8 @@ Left to right:
   (disabled while simulating).
 - **Copy link** — copy a shareable URL to the clipboard: the design is gzipped and base64-encoded
   into a `?d=` query parameter, and opening that URL restores the design on launch (see §9).
+- **Settings** — open the global settings dialog (currently a single **lane distance** setting;
+  see below).
 - **Theme toggle** — switch between dark and light.
 
 ### Sidebar (left)
@@ -71,6 +73,10 @@ Left to right:
 
 - **Group dialog** — name the new component and its inferred inputs/outputs (press **Enter** to create).
 - **Simulation settings** — default gate delay (ps), the step mode, and the simulation speed.
+- **Settings** — the global settings dialog. Its **lane distance** (0–7, world units) controls how
+  far apart the individual wires of a bus terminal are drawn, so large buses can take less vertical
+  space. It affects every bus terminal *except* those on the LED and switch arrays (whose indicator
+  rows keep their fixed spacing). The value persists across reloads.
 - **Delete dialog** — confirm deleting a library template.
 - **Toast** — transient messages (e.g. "Input already has a driver").
 

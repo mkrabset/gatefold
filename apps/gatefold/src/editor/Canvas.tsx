@@ -3,7 +3,7 @@ import { currentDef, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge } from './geometry'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, setLaneDistance } from './geometry'
 import { drawScene } from './renderer'
 import { findJoinpointWire, findWireAtLine } from './wireSearch'
 import { s2w } from './viewport'
@@ -56,8 +56,9 @@ export function Canvas() {
 
     const draw = () => {
       const state = useEditorStore.getState()
-      const theme = useUiStore.getState().theme
-      const palette = theme === 'dark' ? darkPalette : lightPalette
+      const ui = useUiStore.getState()
+      setLaneDistance(ui.laneDistance)
+      const palette = ui.theme === 'dark' ? darkPalette : lightPalette
       const cw = wrap.clientWidth
       const ch = wrap.clientHeight
       // Editing a template when any nav step is a library template.

@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { resolveNav, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
-import type { ChildDef, Instance, PropertyValue } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
-import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, primitiveOf } from '@gatefold/model'
+import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, parseSwitchValue, primitiveOf, valueFormatOf } from '@gatefold/model'
 import { PRIMITIVE_ICONS } from '../icons'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
+import { arrayLaneCount } from '../editor/geometry'
 
 /**
  * Left sidebar: a component tree for the current definition (double-click a
@@ -187,7 +188,8 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
   if (selectedIds.length > 1) {
     return <div className="props-empty">{selectedIds.length} components selected</div>
   }
-  const inst = current.kind === 'composite' ? current.instances.find((i) => i.id === selectedIds[0]) : undefined
+  if (current.kind !== 'composite') return <div className="props-empty">Nothing selected</div>
+  const inst = current.instances.find((i) => i.id === selectedIds[0])
   if (!inst) {
     return <div className="props-empty">Nothing selected</div>
   }
@@ -211,6 +213,8 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
               <PropertyField
                 key={`${inst.id}:${spec.name}`}
                 instanceId={inst.id}
+                parentDef={current}
+                instance={inst}
                 spec={spec}
                 value={inst.props?.[spec.name] ?? spec.default}
               />
@@ -247,8 +251,24 @@ function DefNameField({ defId, initial }: { defId: string; initial: string }) {
 }
 
 /** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */
-function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: PropertySpec; value: PropertyValue }) {
+function PropertyField({
+  instanceId,
+  parentDef,
+  instance,
+  spec,
+  value,
+}: {
+  instanceId: string
+  parentDef: CompositeDef
+  instance: Instance
+  spec: PropertySpec
+  value: PropertyValue
+}) {
   const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
+
+  if (spec.name === 'initialValue' && childPrimitive(instance.def) === 'switch-array') {
+    return <SwitchInitialValueField instanceId={instanceId} parentDef={parentDef} instance={instance} value={value} />
+  }
 
   if (spec.type === 'boolean') {
     return (
@@ -290,6 +310,58 @@ function PropertyField({ instanceId, spec, value }: { instanceId: string; spec: 
     )
   }
   return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setInstanceProp(instanceId, spec.name, raw)} />
+}
+
+/**
+ * The switch-array `initialValue` field. Unlike a plain string input it validates the
+ * typed text against the switch's resolved width (in its `valueFormat`), rejecting
+ * invalid/out-of-range values with a notice and reverting to the last valid text. When
+ * the width is undetermined (an unwired bus) the text is accepted verbatim.
+ */
+function SwitchInitialValueField({
+  instanceId,
+  parentDef,
+  instance,
+  value,
+}: {
+  instanceId: string
+  parentDef: CompositeDef
+  instance: Instance
+  value: PropertyValue
+}) {
+  const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
+  const setNotice = useEditorStore((s) => s.setNotice)
+  const [text, setText] = useState(() => (typeof value === 'string' ? value : ''))
+  const lastValid = useRef(typeof value === 'string' ? value : '')
+
+  const commit = (raw: string) => {
+    const t = raw.trim()
+    const width = arrayLaneCount(parentDef, instance, instance.def)
+    if (width !== null && !parseSwitchValue(t, valueFormatOf(instance.props), width)) {
+      setNotice(`Not a valid ${width}-bit value`)
+      setText(lastValid.current)
+      return
+    }
+    lastValid.current = t
+    setInstanceProp(instanceId, 'initialValue', t)
+  }
+
+  return (
+    <input
+      type="text"
+      value={text}
+      spellCheck={false}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit(e.currentTarget.value)
+          e.currentTarget.blur()
+        }
+      }}
+      onBlur={(e) => commit(e.currentTarget.value)}
+    />
+  )
 }
 
 function PortsGroups({ instanceId }: { instanceId?: string }) {

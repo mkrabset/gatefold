@@ -52,7 +52,9 @@ authoritative — update this when a term's meaning changes.
   `wire` (one single-wire terminal per lane, added/removed via the ports editor) or `bus`
   (one terminal whose width is adopted from the connection, rendering a `?` while
   undetermined); `bus` is the default. Each lane toggles/reads independently; the switch-array's
-  `initialValue` (boolean) sets every lane's starting state when simulation begins. A switch's
+  `initialValue` (a text value entered in the instance's `valueFormat`) sets every lane's starting
+  state when simulation begins and becomes the constant a non-exported switch drives in Verilog
+  export. A switch's
   `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`, default HEX) is the initial radix of its **set-value
   dialog**, and its `order` (`asc`/`desc`) picks which end of the bus is the least-significant
   bit when a typed value is mapped onto the lanes. Its `exported` (boolean, default false) marks

@@ -97,3 +97,23 @@ export function formatSwitchValue(bits: Signal[], format: ValueFormat): string {
 export function applyValueOrder<T>(bits: T[], order: ValueOrder): T[] {
   return order === 'desc' ? [...bits].reverse() : [...bits]
 }
+
+/**
+ * Resolve a switch-array's initial lane values (`lane[0]` first) from its instance
+ * props. `props.initialValue` is normally the text the user typed (parsed in
+ * `valueFormat`, mapped onto lanes via `order`), but a boolean survives from legacy
+ * files: `true` set every lane, `false` cleared every lane. Unparseable text resolves
+ * to all-zero lanes.
+ */
+export function switchInitialLanes(
+  props: Record<string, PropertyValue> | undefined,
+  width: number,
+): Signal[] {
+  const raw = props?.initialValue
+  if (typeof raw === 'boolean') {
+    return Array.from({ length: width }, () => (raw ? 1 : 0) as Signal)
+  }
+  const bits = parseSwitchValue(String(raw ?? ''), valueFormatOf(props), width)
+  if (!bits) return Array.from({ length: width }, () => 0 as Signal)
+  return applyValueOrder(bits, valueOrderOf(props))
+}

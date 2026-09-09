@@ -274,13 +274,14 @@ its properties, and what it does.
   **Order** selects which end of the bus is the least-significant bit.
 
 ### SWITCHES
-- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (boolean, default off), **Value format** (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), and **Order** (`asc` / `desc`, default `asc`)
+- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (text, default `0`), **Value format** (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), and **Order** (`asc` / `desc`, default `asc`)
 - A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
   mode a single bus output carries one lane per wire. Every lane starts at the **Initial value**
   when simulation starts (and shows that state, colored, in design mode). In simulate mode,
   click an indicator circle to toggle its lane.
-- **Value format** is the radix used by the set-value dialog (see §7); **Order** selects which
-  end of the bus is the least-significant bit (`asc` = lane 0 is the LSB).
+- **Initial value** is a number entered in the current **Value format** (signed or unsigned
+  decimal, or hex); **Order** decides how the typed value maps onto the lanes. In Verilog export
+  a non-exported switch becomes a constant fixed at this value.
 
 ### LEDS
 - **Inputs:** 1+ · **Outputs:** none · Property **Terminal type** (`wire` / `bus`, default `bus`)

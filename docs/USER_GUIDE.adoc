@@ -35,7 +35,7 @@ Left to right:
 * *Run / Step / Stop / Reset* — simulation controls (see §7). *Run* also
 enters simulate mode from design mode and starts running; *Space*
 toggles run/pause while simulating.
-* *Settings (gear)* — open the simulation settings dialog.
+* *Simulation settings (gear)* — open the simulation settings dialog.
 * *Breadcrumb* — the path of components you’ve navigated into
 (`main / adder / …`); the *↑* button (or *Escape*) goes up one level. A
 `template` badge marks a library template.
@@ -54,6 +54,8 @@ you want to keep (disabled while simulating).
 * *Copy link* — copy a shareable URL to the clipboard: the design is
 gzipped and base64-encoded into a `?d=` query parameter, and opening
 that URL restores the design on launch (see §9).
+* *Settings* — open the global settings dialog (currently a single *lane
+distance* setting; see below).
 * *Theme toggle* — switch between dark and light.
 
 ==== Sidebar (left)
@@ -90,6 +92,12 @@ name and press *Enter*).
 inputs/outputs (press *Enter* to create).
 * *Simulation settings* — default gate delay (ps), the step mode, and
 the simulation speed.
+* *Settings* — the global settings dialog. Its *lane distance* (0–7,
+world units) controls how far apart the individual wires of a bus
+terminal are drawn, so large buses can take less vertical space. It
+affects every bus terminal _except_ those on the LED and switch arrays
+(whose indicator rows keep their fixed spacing). The value persists
+across reloads.
 * *Delete dialog* — confirm deleting a library template.
 * *Toast* — transient messages (e.g. "`Input already has a driver`").
 
@@ -351,7 +359,7 @@ end of the bus is the least-significant bit.
 ==== SWITCHES
 
 * *Inputs:* none · *Outputs:* 1{plus} · Properties *Terminal type*
-(`wire` / `bus`, default `bus`), *Initial value* (boolean, default off),
+(`wire` / `bus`, default `bus`), *Initial value* (text, default `0`),
 *Value format* (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), and
 *Order* (`asc` / `desc`, default `asc`)
 * A multi-lane interactive source. In `wire` mode each output terminal
@@ -359,9 +367,10 @@ is one switch; in `bus` mode a single bus output carries one lane per
 wire. Every lane starts at the *Initial value* when simulation starts
 (and shows that state, colored, in design mode). In simulate mode, click
 an indicator circle to toggle its lane.
-* *Value format* is the radix used by the set-value dialog (see §7);
-*Order* selects which end of the bus is the least-significant bit (`asc`
-= lane 0 is the LSB).
+* *Initial value* is a number entered in the current *Value format*
+(signed or unsigned decimal, or hex); *Order* decides how the typed
+value maps onto the lanes. In Verilog export a non-exported switch
+becomes a constant fixed at this value.
 
 ==== LEDS
 

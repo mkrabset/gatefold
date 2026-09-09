@@ -10,6 +10,7 @@ import {
   pinWidth,
   primitiveOf,
   sanitizeDesign,
+  switchInitialLanes,
   UnionFind,
 } from '@gatefold/model'
 
@@ -500,13 +501,22 @@ class Generator {
         // An exported root switch is a module input; every other switch drives a fixed
         // constant from its initial value, per connected output pin.
         if (isRoot && inst.props?.exported === true) continue
-        const init = inst.props?.initialValue === true ? 1 : 0
         const ports = childPorts(idef)
-        for (const p of outputPorts(ports)) {
-          const pin = { instanceId: inst.id, portId: p.id }
+        const outs = outputPorts(ports)
+        const busMode = outs.length === 1
+        const width = busMode
+          ? (netWidthByName.get(netOf({ instanceId: inst.id, portId: outs[0].id })) ?? 1)
+          : outs.length
+        const lanes = switchInitialLanes(inst.props, width)
+        for (let i = 0; i < outs.length; i++) {
+          const pin = { instanceId: inst.id, portId: outs[i].id }
           if (isolatedSwitchKeys.has(pinKey(pin))) continue
-          const w = netWidthByName.get(netOf(pin)) ?? 1
-          stmts.push(`assign ${netOf(pin)} = {${w}{1'b${init}}};`)
+          if (busMode) {
+            const msbFirst = [...lanes].reverse().map((b) => (b === 1 ? '1' : '0')).join('')
+            stmts.push(`assign ${netOf(pin)} = ${width}'b${msbFirst};`)
+          } else {
+            stmts.push(`assign ${netOf(pin)} = 1'b${lanes[i] === 1 ? '1' : '0'};`)
+          }
         }
         continue
       }

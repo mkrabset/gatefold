@@ -3,6 +3,7 @@ import {
   applyValueOrder,
   formatSwitchValue,
   parseSwitchValue,
+  switchInitialLanes,
   toValueFormat,
   valueFormatOf,
   valueOrderOf,
@@ -95,6 +96,32 @@ describe('formatSwitchValue', () => {
     expect(formatSwitchValue([1, 1, 1, 0], 'SIGNED DEC')).toBe('7')
     expect(formatSwitchValue([1, 1, 1, 1], 'SIGNED DEC')).toBe('-1')
     expect(formatSwitchValue([1, 0, 0, 0, 0, 0, 0, 0], 'SIGNED DEC')).toBe('1')
+  })
+})
+
+describe('switchInitialLanes', () => {
+  it('supports legacy boolean values (true = all ones, false = all zeros)', () => {
+    expect(switchInitialLanes({ initialValue: true }, 4)).toEqual([1, 1, 1, 1])
+    expect(switchInitialLanes({ initialValue: false }, 4)).toEqual([0, 0, 0, 0])
+  })
+
+  it('parses a string in the instance valueFormat (default HEX), ascending order', () => {
+    expect(switchInitialLanes({ initialValue: 'F' }, 4)).toEqual([1, 1, 1, 1])
+    expect(switchInitialLanes({ initialValue: 'A', valueFormat: 'HEX' }, 4)).toEqual([0, 1, 0, 1])
+    expect(switchInitialLanes({ initialValue: '12', valueFormat: 'DEC' }, 4)).toEqual([0, 0, 1, 1])
+    expect(switchInitialLanes({ initialValue: '-1', valueFormat: 'SIGNED DEC' }, 4)).toEqual([1, 1, 1, 1])
+  })
+
+  it('applies the order property to map bits onto lanes', () => {
+    expect(switchInitialLanes({ initialValue: '8', valueFormat: 'HEX', order: 'asc' }, 4)).toEqual([0, 0, 0, 1])
+    expect(switchInitialLanes({ initialValue: '8', valueFormat: 'HEX', order: 'desc' }, 4)).toEqual([1, 0, 0, 0])
+  })
+
+  it('falls back to all zeros on missing/invalid/out-of-range text', () => {
+    expect(switchInitialLanes({}, 4)).toEqual([0, 0, 0, 0])
+    expect(switchInitialLanes({ initialValue: '' }, 4)).toEqual([0, 0, 0, 0])
+    expect(switchInitialLanes({ initialValue: 'G' }, 4)).toEqual([0, 0, 0, 0])
+    expect(switchInitialLanes({ initialValue: '100', valueFormat: 'HEX' }, 8)).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
   })
 })
 

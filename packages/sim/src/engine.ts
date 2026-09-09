@@ -1,5 +1,5 @@
 import type { Design, Signal } from '@gatefold/model'
-import { primitiveOf, periodOf } from '@gatefold/model'
+import { primitiveOf, periodOf, switchInitialLanes } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
 import { clockValue, equalVectors, invert, invertVector } from './signals'
@@ -202,8 +202,7 @@ export class Simulation {
 
   /** The switch source's default lane values, from its `initialValue` property. */
   private defaultLanes(inst: FlatInstance): Signal[] {
-    const on = typeof inst.props?.initialValue === 'boolean' && inst.props.initialValue
-    return Array.from({ length: this.laneCount(inst) }, () => (on ? 1 : 0) as Signal)
+    return switchInitialLanes(inst.props, this.laneCount(inst))
   }
 
   /** Seed an event-driven clock source: set its power-on value and schedule its first edge. */

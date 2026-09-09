@@ -256,7 +256,10 @@ design.root.instances = [
   `parseSwitchValue`/`formatSwitchValue` (LSB-first bits) and `applyValueOrder` (desc reverses)
   back the switch-array's **set-value dialog**; the switch's `valueFormat` is the dialog's initial
   radix and its `order` maps typed values onto lanes (asc = lane 0 is the LSB). `SevenSegMode` is
-  gone — `sevenSegModeOf` now returns `ValueFormat`.
+  gone — `sevenSegModeOf` now returns `ValueFormat`. `switchInitialLanes(props, width)` is the
+  single place a switch's stored `initialValue` text (parsed in `valueFormat`, mapped via `order`;
+  a legacy boolean `true`/`false` still means all-ones/all-zeros) becomes its per-lane starting
+  state — shared by the simulator, the Verilog constant emission, and the design-mode preview.
 - **Clipboard** (`clipboard.ts`): pure `captureClipboard` / `instantiateClipboard` for in-app
   copy/paste with deep, id-rewritten copies of the selected inline subtrees.
 - **Grouping** (`group.ts`): pure `inferGroup` / `applyGroup` (see §6).
@@ -638,7 +641,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   emit instantiations.
 - **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
-  (an external input). Every other switch is a constant fixed at its `initialValue`; a switch that
+  (an external input). Every other switch is a constant fixed at its `initialValue` (emitted as a
+  binary literal from `switchInitialLanes`, e.g. `assign net = 4'b1010;`); a switch that
   is wired to nothing is ignored entirely; **LEDS** and **7-SEG** are ignored. A nested clock is an
   error.
 - **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested

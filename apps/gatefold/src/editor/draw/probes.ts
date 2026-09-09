@@ -1,5 +1,5 @@
 import type { ChildDef, CompositeDef, Instance, Palette, Signal } from '@gatefold/model'
-import { childPorts, childPrimitive, inputPorts, invertSignal, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
+import { childPorts, childPrimitive, inputPorts, invertSignal, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, switchInitialLanes } from '@gatefold/model'
 import {
   arrayIndicatorLanes,
   SEVEN_SEG_DIGIT_H,
@@ -92,7 +92,6 @@ export function drawArrayBody(
 ) {
   const kind = childPrimitive(def)
   const isSwitch = kind === 'switch-array'
-  const initialOn = isSwitch && instance.props?.initialValue === true
 
   drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
 
@@ -102,6 +101,7 @@ export function drawArrayBody(
     return
   }
 
+  const initialLanes = isSwitch ? switchInitialLanes(instance.props, lanes.length) : null
   const ports = childPorts(def)
   for (let i = 0; i < lanes.length; i++) {
     const y = w2s(instance.pos.x, lanes[i].y, cw, ch, vp).y
@@ -116,8 +116,8 @@ export function drawArrayBody(
         sig = port ? sim.signalOf(instance.id, port.id)?.[i] : undefined
       }
       if (sig !== undefined && port?.inverted) sig = invertSignal(sig)
-    } else if (initialOn) {
-      sig = 1
+    } else if (initialLanes) {
+      sig = initialLanes[i]
     }
     drawArrayCell(ctx, cx, y, r, isSwitch, sig, p)
   }

@@ -113,7 +113,7 @@ describe('exportVerilog', () => {
       ],
     }
     const { source } = exportVerilog(jsonOf(main))
-    expect(source).toContain("assign sw_BUS = {1{1'b1}};")
+    expect(source).toContain("assign sw_BUS = 1'b1;")
     expect(source).not.toContain('input')
     expect(source).not.toContain('loose')
   })
@@ -357,7 +357,7 @@ describe('exportVerilog', () => {
     }
     const { source, issues } = exportVerilog(jsonOf(main))
     expect(issues.filter((i) => i.level === 'info')).toEqual([])
-    expect(source).toContain("assign sw_BUS = {1{1'b1}};")
+    expect(source).toContain("assign sw_BUS = 1'b1;")
   })
 
   it('emits an XOR gate as a ^ assignment', () => {
@@ -419,5 +419,23 @@ describe('exportVerilog', () => {
     }
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain("always @(negedge clk_CLK or negedge RST) if (!RST) Q <= 1'b1; else Q <= D;")
+  })
+
+  it('exports a non-exported switch constant as a multi-bit binary literal', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Y')],
+      instances: [
+        pgOut(),
+        { id: 'sw', name: 'sw', def: forkOf('switch-array'), pos: { x: 0, y: 0 }, props: { initialValue: 'A', valueFormat: 'HEX' } },
+        prim('b', 'bus', { lanes: 4 }),
+      ],
+      connections: [
+        { id: 'c1', from: iref('sw', 'out:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain("assign sw_BUS = 4'b1010;")
   })
 })

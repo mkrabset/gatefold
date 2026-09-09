@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-08 ("Apply to instances" reaches embedded copies inside an edited template).
+Last updated: 2026-09-09 (Switch-array `initialValue` is now a text value).
 
 ## Where we are
 
@@ -12,6 +12,21 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Switch-array `initialValue` is a text value** — the switch-array's `initialValue`
+  property changed from a boolean (checkbox, all-lanes on/off) to a `string` (text field,
+  default `'0'`) entered in the instance's `valueFormat` (HEX/DEC/SIGNED DEC) and mapped
+  onto lanes via `order`. A new model helper `switchInitialLanes(props, width)` (in
+  `value.ts`) is the single place that resolves the stored value into per-lane starting
+  bits: it parses the text with `parseSwitchValue` + `applyValueOrder`, falls back to
+  all-zero on invalid/out-of-range text, and still honors legacy boolean values
+  (`true` = all-ones, `false` = all-zeros) so old saved files load unchanged. The
+  simulator (`engine.defaultLanes`), the Verilog constant emission (now a proper
+  `N'b<MSB-first>` literal instead of `{w}{1'b…}` replication), and the design-mode
+  array preview all use it. The properties panel gained a switch-specific field that
+  validates the typed value against the resolved width and reverts with a notice on
+  invalid input (accepting it verbatim while the bus width is still undetermined).
+  Tests in `value.test.ts` / `engine.test.ts` / `verilog.test.ts`.
 
 - **"Apply to instances" reaches embedded copies in an edited template** — the apply
   search only walked the content tree (`walkComposites(result.root)`), so opening template

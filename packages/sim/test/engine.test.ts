@@ -566,6 +566,15 @@ describe('Simulation engine', () => {
     expect(sim.signal('sa', 'out:2')).toBe(1)
   })
 
+  it('powers on switch-array lanes from a text initial value', () => {
+    const sim = new Simulation(
+      mkDesign([inst('sa', switchArray3, { initialValue: '2', valueFormat: 'HEX' })], []),
+    )
+    expect(sim.signal('sa', 'out:0')).toBe(0)
+    expect(sim.signal('sa', 'out:1')).toBe(1)
+    expect(sim.signal('sa', 'out:2')).toBe(0)
+  })
+
   it('adopts the connected bus width and toggles lanes of a switch-array in BUS mode', () => {
     const sim = new Simulation(
       mkDesign([inst('sa', switchBus), inst('fo', fanOut4)], [conn('c1', iref('sa', 'out:0'), iref('fo', 'in:0'))]),

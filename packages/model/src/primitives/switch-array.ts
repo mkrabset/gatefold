@@ -20,9 +20,9 @@ export class SwitchArray extends ArrayPrimitive {
       {
         name: 'initialValue',
         label: 'Initial value',
-        type: 'boolean',
-        default: false,
-        tooltip: 'The starting state of every lane when simulation begins. In the Verilog export this is the constant a non-exported switch drives.',
+        type: 'string',
+        default: '0',
+        tooltip: 'The starting value of the lanes when simulation begins (entered in the value format below). In the Verilog export this is the constant a non-exported switch drives.',
       },
       {
         name: 'exported',

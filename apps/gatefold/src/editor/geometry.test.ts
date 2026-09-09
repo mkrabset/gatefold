@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { builtinOf, connectionError, forkOf } from '@gatefold/model'
-import { DEFAULT_LANE_DISTANCE, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
+import { DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
@@ -245,6 +245,21 @@ describe('lane distance', () => {
     expect(currentLaneDistance()).toBe(DEFAULT_LANE_DISTANCE)
     setLaneDistance(-5)
     expect(currentLaneDistance()).toBe(0)
+  })
+
+  it('never thins a terminal below MIN_PIN_RADIUS', () => {
+    for (const width of [1, 2, 8, 32]) {
+      expect(pinRadiusWorldAt(width, 0)).toBe(MIN_PIN_RADIUS)
+      expect(pinRadiusWorldAt(width, DEFAULT_LANE_DISTANCE)).toBe((DEFAULT_LANE_DISTANCE / 2) * width)
+    }
+  })
+
+  it('keeps adjacent terminal labels apart at low lane distance', () => {
+    // Two adjacent markers: their center spacing must stay >= the label height.
+    const gap = (d: number) => sidePinOffset([1, 1], 1, d) - sidePinOffset([1, 1], 0, d)
+    const atDefault = gap(DEFAULT_LANE_DISTANCE)
+    expect(gap(0)).toBe(atDefault)
+    expect(gap(1)).toBeGreaterThanOrEqual(2 * MIN_PIN_RADIUS + 4)
   })
 
   it('shrinks bus lane spacing when the distance is reduced', () => {

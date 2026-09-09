@@ -37,6 +37,15 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
   `lane distance` (scaling, clamping, explicit `d`, array exemption). Docs updated
   (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
 
+- **Minimum terminal thickness** — at a low lane distance the terminal markers got razor-thin
+  and the port-name labels overlapped, so `pinRadiusWorldAt(width, d)` is now floored at
+  `MIN_PIN_RADIUS = 3.5` (`max((d/2)·width, 3.5)`). At the default `d = 7` this is a no-op
+  (unchanged appearance); below it every terminal keeps at least the default single-wire
+  thickness, so adjacent labels keep `2·3.5 + TERMINAL_GAP = 11` units of spacing. Applied
+  uniformly to all terminals (per decision), flowing through markers, side stacking, hit-testing,
+  and inversion bubbles with no new call sites. Tests: `never thins a terminal below
+  MIN_PIN_RADIUS` + `keeps adjacent terminal labels apart`.
+
 - **Clear-everything button + scoped confirmation** — a **Clear everything** button on the
   toolbar's right side (between *Clear default* and *Toggle theme*) opens a **Delete
   everything?** dialog (`ui/ClearAllDialog.tsx`) with checkboxes: **Component tree** (the root

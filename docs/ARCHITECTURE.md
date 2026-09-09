@@ -331,8 +331,9 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 ### Geometry (`geometry.ts`)
 - `defBodySize(def)` — base body dimensions (before pin radii).
 - `pinRadiusWorld(width)` — a terminal marker's half-height (`(laneDistance/2)·width`, linear so
-  each bus lane keeps a constant pitch). The `laneDistance` knob (a module-level value synced
-  from `uiStore.laneDistance`, default `7`) scales the marker and lane spacing down for compact
+  each bus lane keeps a constant pitch, floored at `MIN_PIN_RADIUS = 3.5` so thin terminals still
+  clear their labels). The `laneDistance` knob (a module-level value synced from
+  `uiStore.laneDistance`, default `7`) scales the marker and lane spacing down for compact
   buses; `laneDistanceFor(def)` returns the **default** distance for switch/led arrays (their
   indicator rows keep their fixed spacing) and the active value otherwise. `pinRadiusWorldAt`
   and the `d` parameter on `busWireOffsets`/`sideHeight`/`sidePinOffset`/`sizeForPorts` thread an

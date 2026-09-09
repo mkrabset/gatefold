@@ -107,13 +107,16 @@ authoritative — update this when a term's meaning changes.
 - **Terminal / pin** — a connectable endpoint on an *instance*. (We use "port" for the
   declaration and "pin/terminal" for the concrete endpoint; often interchangeable.)
 - **Terminal marker** — the vertical stroke drawn along a component's edge for a pin; its
-  half-height is `pinRadiusWorld(width) = (laneDistance/2)·width` (linear). Markers on a side
-  are stacked with a constant gap, so a bus does not dictate the spacing of its single-wire
-  neighbours.
+  half-height is `pinRadiusWorld(width) = max((laneDistance/2)·width, MIN_PIN_RADIUS)`
+  (linear, floored at `MIN_PIN_RADIUS = 3.5` so markers never get razor-thin and labels don't
+  overlap). Markers on a side are stacked with a constant gap, so a bus does not dictate the
+  spacing of its single-wire neighbours.
 - **Lane distance** — the spacing, in world units, between the individual wires of a bus
   terminal (and the height of its marker). A global setting (0–7, default 7) in the *Settings*
   dialog; reducing it lets large buses take less vertical space. It scales every bus terminal
   **except** the LED and switch arrays, whose indicator rows keep the fixed default spacing.
+  Every terminal keeps a minimum thickness (`MIN_PIN_RADIUS`) regardless of the setting, so
+  port-name labels stay readable.
 - **PinRef** — `{ instanceId, portId }`: a reference to one specific pin.
 - **Connection / wire** — a directed edge from a source pin to a sink pin.
 - **Source / driver** — the `from` end of a connection (an output pin, or a composite

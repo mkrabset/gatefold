@@ -36,6 +36,11 @@ export const SEVEN_SEG_PAD = 8
  *  pitch. The lane-distance setting scales down from here; arrays always use it. */
 export const DEFAULT_LANE_DISTANCE = 7
 
+/** Minimum terminal-marker half-height (world units). Marks never get razor-thin and
+ *  adjacent labels keep their spacing (`2·MIN_PIN_RADIUS + TERMINAL_GAP ≥` label height)
+ *  even when the lane distance is set very low. */
+export const MIN_PIN_RADIUS = 3.5
+
 /**
  * The active bus-lane spacing in world units. A module-level knob (defaulting to the
  * current spacing) so the many geometry helpers stay pure-looking while still sharing
@@ -62,9 +67,10 @@ export function laneDistanceFor(def: ChildDef): number {
 }
 
 /** Pin marker half-height in world units (pre-zoom) for a terminal of the given width,
- *  for the given lane distance. Scales linearly so each bus lane keeps a constant pitch. */
+ *  for the given lane distance. Scales linearly so each bus lane keeps a constant pitch,
+ *  floored at `MIN_PIN_RADIUS` so thin terminals still clear their labels. */
 export function pinRadiusWorldAt(width: number, d: number): number {
-  return (d / 2) * width
+  return Math.max((d / 2) * width, MIN_PIN_RADIUS)
 }
 
 /** Pin marker half-height using the active lane-distance setting. */

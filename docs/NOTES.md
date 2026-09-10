@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-09 (Switch-array `initialValue` is now a text value).
+Last updated: 2026-09-09 (always-visible "Move to category" dropdown in the library panel).
 
 ## Where we are
 
@@ -12,6 +12,13 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Always-visible "Move to category" dropdown** — the library panel's *Move to category*
+  dropdown (`ui/LibraryPanel.tsx`) is no longer gated on a selected template. It now always
+  renders and is `disabled` when no component is selected **or** while a template is being
+  edited (`navStack.some((s) => s.kind === 'template')`). With nothing selected it shows a
+  *Select a component* placeholder instead of "Uncategorized". Added
+  `.lib-category-select:disabled` styling; docs updated (`GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **Switch-array `initialValue` is a text value** — the switch-array's `initialValue`
   property changed from a boolean (checkbox, all-lanes on/off) to a `string` (text field,

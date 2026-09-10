@@ -68,6 +68,7 @@ export function LibraryPanel({ width }: { width: number }) {
   }
 
   const activeCategory = activeTemplate ? templateCategory(activeDef as CompositeDef) : UNCATEGORIZED
+  const editingTemplate = navStack.some((s) => s.kind === 'template')
 
   return (
     <aside className="library" style={{ width }}>
@@ -128,50 +129,55 @@ export function LibraryPanel({ width }: { width: number }) {
         )}
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportFile} />
       </div>
-      {activeTemplate && (
-        <div className="lib-category-row">
-          {creating ? (
-            <input
-              className="lib-category-input"
-              value={draft}
-              placeholder="New category name"
-              autoFocus
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  createCategory()
-                } else if (e.key === 'Escape') {
-                  setCreating(false)
-                  setDraft('')
-                }
-              }}
-              onBlur={createCategory}
-            />
-          ) : (
-            <select
-              className="lib-category-select"
-              value={activeCategory}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '__new__') setCreating(true)
-                else setDefCategory(activeTemplate, v)
-              }}
-              title="Move this component to a category"
-            >
-              <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
-              {categories
-                .filter((c) => c !== UNCATEGORIZED)
-                .map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              <option value="__new__">＋ New category…</option>
-            </select>
-          )}
-        </div>
-      )}
+      <div className="lib-category-row">
+        {creating ? (
+          <input
+            className="lib-category-input"
+            value={draft}
+            placeholder="New category name"
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                createCategory()
+              } else if (e.key === 'Escape') {
+                setCreating(false)
+                setDraft('')
+              }
+            }}
+            onBlur={createCategory}
+          />
+        ) : (
+          <select
+            className="lib-category-select"
+            value={activeTemplate ? activeCategory : ''}
+            disabled={!activeTemplate || editingTemplate}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!activeTemplate) return
+              if (v === '__new__') setCreating(true)
+              else setDefCategory(activeTemplate, v)
+            }}
+            title="Move this component to a category"
+          >
+            {!activeTemplate && (
+              <option value="" disabled>
+                Select a component
+              </option>
+            )}
+            <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
+            {categories
+              .filter((c) => c !== UNCATEGORIZED)
+              .map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            <option value="__new__">＋ New category…</option>
+          </select>
+        )}
+      </div>
       {composites.length > 0 && (
         <div className="lib-components">
           <div className="lib-grid">

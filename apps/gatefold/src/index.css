@@ -781,8 +781,13 @@ body {
   cursor: pointer;
 }
 
-.lib-category-select:hover {
+.lib-category-select:hover:not(:disabled) {
   border-color: var(--border-strong);
+}
+
+.lib-category-select:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .lib-category-input:focus {

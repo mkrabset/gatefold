@@ -42,7 +42,7 @@ import {
 } from '@gatefold/model'
 import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
-import { applyTemplate, scopeDefIds } from '../editor/apply'
+import { applyTemplate, applyTemplateToAll, scopeDefIds } from '../editor/apply'
 import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
 import type { CutLine, PendingWire, Rect, Viewport } from '../editor/types'
 import { downloadText } from '../util/download'
@@ -172,6 +172,7 @@ interface EditorState {
   copySelection: () => void
   paste: () => void
   applyTemplateToInstances: (templateId: string) => void
+  applyTemplateToAll: (templateId: string) => void
   saveProject: () => void
   loadProject: (json: string) => void
   saveDefault: () => void
@@ -747,6 +748,12 @@ export const useEditorStore = create<EditorState>()(
           if (!def || def.kind !== 'composite') return
           const scope = scopeDefIds(def)
           const { design, updated } = applyTemplate(s.design, templateId, scope)
+          s.design = design
+          s.notice = updated > 0 ? `Applied to ${updated} instance(s)` : 'No matching instances'
+        }),
+      applyTemplateToAll: (templateId) =>
+        set((s) => {
+          const { design, updated } = applyTemplateToAll(s.design, templateId)
           s.design = design
           s.notice = updated > 0 ? `Applied to ${updated} instance(s)` : 'No matching instances'
         }),

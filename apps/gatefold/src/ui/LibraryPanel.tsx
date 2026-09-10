@@ -38,6 +38,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const exportLibrary = useEditorStore((s) => s.exportLibrary)
   const importLibrary = useEditorStore((s) => s.importLibrary)
   const applyTemplateToInstances = useEditorStore((s) => s.applyTemplateToInstances)
+  const applyTemplateToAll = useEditorStore((s) => s.applyTemplateToAll)
   const setDefCategory = useEditorStore((s) => s.setDefCategory)
   const simulating = useSimStore((s) => s.mode) === 'simulate'
   const fileRef = useRef<HTMLInputElement>(null)
@@ -124,7 +125,12 @@ export function LibraryPanel({ width }: { width: number }) {
         </button>
         {activeTemplate && (
           <button className="lib-action" onClick={() => applyTemplateToInstances(activeTemplate)} title="Apply this template's changes to matching instances in the current scope">
-            Apply to instances
+            Apply to scope
+          </button>
+        )}
+        {activeTemplate && (
+          <button className="lib-action" onClick={() => applyTemplateToAll(activeTemplate)} title="Apply this template's changes to every matching instance in the design">
+            Apply to all
           </button>
         )}
         <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportFile} />

@@ -50,6 +50,8 @@ export function applyTemplate(design: Design, templateId: string, scope: Set<str
 
   const matches: CompositeDef[] = []
   const visit = (live: CompositeDef): void => {
+    // Never apply a template to itself (the origin shares its own lineage uuid).
+    if (live.id === templateId) return
     if (live.uuid !== template.uuid) return
     if (!scope.has(live.id)) return
     matches.push(live)
@@ -75,4 +77,11 @@ export function applyTemplate(design: Design, templateId: string, scope: Set<str
   }
 
   return { design: result, updated }
+}
+
+/** Apply `template` to every matching copy across the whole design (the content tree
+ *  plus copies embedded in other library components). The origin template itself is
+ *  excluded by `applyTemplate`. */
+export function applyTemplateToAll(design: Design, templateId: string): { design: Design; updated: number } {
+  return applyTemplate(design, templateId, allCompositeIds(design))
 }

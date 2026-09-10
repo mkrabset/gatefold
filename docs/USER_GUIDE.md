@@ -63,8 +63,9 @@ Left to right:
 - **Primitives** — the built-in components (§6). Drag one onto the canvas to place it.
 - **My components** — your composite components. Drag to place; double-click to edit its
   template; **×** deletes it. **Export** / **Import** exchange your component library as JSON,
-  and **Apply to instances** (shown when a template is selected) propagates that template's
-  edits (including its port names) to every matching placed instance. The list scrolls if it
+  and **Apply to scope** / **Apply to all** (shown when a template is selected) propagate that
+  template's edits (including its port names) to matching placed instances — in the current
+  scope, or across the whole design. The list scrolls if it
   grows tall. A **category dropdown** above the list shows one category at a time; the
   **Move to category** dropdown below the buttons moves the selected component to an existing
   category or **＋ New category…** (type a name and press **Enter**). It is always visible but
@@ -152,8 +153,10 @@ composite's terminal, select the composite instance on the parent sheet and inve
 
 When you place or group a component, Gatefold deep-copies its definition (a **copy**), so
 every instance is independent. **My components** lists your templates; editing a template (via
-its library card) and pressing **Apply to instances** updates every matching instance — one
-whose terminals are the same (by id and order) as the template's. Port **names** don't affect
+its library card) and pressing **Apply to scope** updates every matching instance in the current
+scope, while **Apply to all** updates every matching instance in the whole design (including
+copies embedded inside other components). An instance matches when its terminals are the same
+(by id and order) as the template's. Port **names** don't affect
 matching and are overwritten with the template's names, so renaming a template's ports
 bulk-updates its instances.
 

@@ -501,15 +501,18 @@ Pure (no input mutation) and fully unit-tested.
 
 ## 6b. Applying template changes to instances
 
-New `apps/gatefold/src/editor/apply.ts`, exposed via `applyTemplateToInstances(templateId)`:
+New `apps/gatefold/src/editor/apply.ts`, exposed via two store actions: **apply to scope**
+(`applyTemplateToInstances(templateId)`) and **apply to all** (`applyTemplateToAll(templateId)`):
 
 - **Scope** — `scopeDefIds(root)` collects the nested composite subtree downward, so the
   apply reaches matching instances in the currently-viewed def and everything nested in it
-  (including components inside a template being edited).
+  (including components inside a template being edited). `applyTemplateToAll` uses
+  `allCompositeIds(design)` (the whole content tree + library) as the scope instead.
 - **Matching** — a def is a candidate when it is a live copy with the template's `uuid`; it
   matches when its ports are unaltered (same ordered ids) and each port's arity is equal or
   either side neutral. Port names are ignored during matching; `inverted` is deliberately
-  excluded (external).
+  excluded (external). The origin template itself (`live.id === templateId`) is never a
+  target, even though it shares its own `uuid`.
 - **Apply** — for each match, the template is deep-cloned and its internals spliced into the
   matching copy (its inline children come along by ownership); the copy keeps its id, port
   ids, `inverted` flags, and external wiring, and adopts the template's name, port names, and

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-09 (always-visible "Move to category" dropdown in the library panel).
+Last updated: 2026-09-09 (library panel "Apply to scope" + "Apply to all" buttons).
 
 ## Where we are
 
@@ -12,6 +12,16 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **"Apply to scope" / "Apply to all"** — the library panel's *Apply to instances* button is
+  renamed to **Apply to scope** (no behaviour change), and a new **Apply to all** button applies
+  the selected template to every matching copy across the whole design (content tree + copies
+  embedded in other library templates). Both share the pure `applyTemplate(design, templateId,
+  scope)` path in `apps/gatefold/src/editor/apply.ts`; `applyTemplateToAll` simply uses
+  `allCompositeIds(design)` as the scope. `applyTemplate`'s visit now skips the origin template
+  (`live.id === templateId`) — it shares its own lineage `uuid`, so a global apply would
+  otherwise re-clone the template into itself. Store adds `applyTemplateToAll` (undoable, same
+  notice); test in `apply.test.ts` covers content-tree + embedded copies + origin exclusion.
 
 - **Always-visible "Move to category" dropdown** — the library panel's *Move to category*
   dropdown (`ui/LibraryPanel.tsx`) is no longer gated on a selected template. It now always

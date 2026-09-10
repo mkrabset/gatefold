@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CompositeDef, Design } from '@gatefold/model'
 import { builtinOf, forkOf } from '@gatefold/model'
-import { applyTemplate, scopeDefIds } from './apply'
+import { applyTemplate, applyTemplateToAll, scopeDefIds } from './apply'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const pg = (id: string, kind: 'input-port' | 'output-port', x: number, y: number) => ({ id, name: '', def: builtinOf(kind), pos: { x, y } })
@@ -187,5 +187,47 @@ describe('applyTemplate', () => {
     // The origin template is untouched.
     const tplGate = result.library['tpl'].instances.find((i) => i.id === 't-g')!
     expect(tplGate.def.kind === 'fork' && tplGate.def.primitive).toBe('and')
+  })
+})
+
+describe('applyTemplateToAll', () => {
+  it('applies across the content tree and embedded copies, excluding the origin template', () => {
+    const design = makeApplyDesign()
+    // A matching embedded copy inside another library template.
+    const embedded: CompositeDef = {
+      id: 'emb', name: 'emb', kind: 'composite', uuid: 'U',
+      ports: tplPorts('e-in', 'e-out'),
+      instances: [pg('e-in', 'input-port', 0, 0), gate('e-g', 'or', 'g', 60, 0), pg('e-out', 'output-port', 120, 0)],
+      connections: [
+        { id: 'c1', from: iref('e-in', 'in:0'), to: iref('e-g', 'in:0') },
+        { id: 'c2', from: iref('e-in', 'in:1'), to: iref('e-g', 'in:1') },
+        { id: 'c3', from: iref('e-g', 'out:0'), to: iref('e-out', 'out:0') },
+      ],
+    }
+    design.library['t1'] = {
+      id: 't1', name: 't1', kind: 'composite', uuid: 'T1',
+      ports: [],
+      instances: [{ id: 'e', name: 'e', def: embedded, pos: { x: 0, y: 0 } }],
+      connections: [],
+    }
+
+    const { design: result, updated } = applyTemplateToAll(design, 'tpl')
+
+    // Matches: root `v` (i), `renamed` (r), and embedded `emb` → 3. `altered` (a) and
+    // `v2` (empty ports) don't match; `tpl` itself is the origin and is excluded.
+    expect(updated).toBe(3)
+
+    const v = liveOf(result, 'i')
+    const vg = v.instances.find((i) => i.name === 'g')!
+    expect(vg.def.kind === 'fork' && vg.def.primitive).toBe('and')
+
+    const embResult = result.library['t1'].instances.find((i) => i.id === 'e')!.def as CompositeDef
+    const eg = embResult.instances.find((i) => i.name === 'g')!
+    expect(eg.def.kind === 'fork' && eg.def.primitive).toBe('and')
+
+    // The altered copy is untouched.
+    expect(liveOf(result, 'a').instances.some((i) => i.id === 'a-in')).toBe(true)
+    // The origin template still owns its own instances (not re-cloned into itself).
+    expect(result.library['tpl'].instances.map((i) => i.id)).toEqual(['t-in', 't-g', 't-out'])
   })
 })

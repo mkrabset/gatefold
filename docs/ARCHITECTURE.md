@@ -404,6 +404,11 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme. A
   switch-array also draws a small **`#` badge** in its body's top-left corner while simulating
   (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog.
+  A **compact** switch-array (`props.compact`) renders as a single box showing its value
+  (`formatSwitchValue` in the instance's `valueFormat`/`order`) instead of indicator circles:
+  `instanceBodySize` follows the active lane distance for its terminal (so the box is at least
+  as tall as the terminal side, like other boxes) and widens to fit the longest value in the
+  instance's radix (`maxSwitchValueText`), and the canvas skips per-lane toggle clicks for it.
 - **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
   (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
   small bubble per lane (aligned with each individual wire). Inversion is instance-level
@@ -708,7 +713,7 @@ beside the data they operate on.
 | `connections.ts` | Pin/connection helpers | `pinRefEquals`, `pinKey`, `findConnectionTo`, `nextConnectionId` |
 | `composite.ts` | Composite tree walks + template queries | `walkComposites`, `allCompositeIds`, `findComposite`, `isTemplateDef`, `templateNames`, `templateCategory` |
 | `util.ts` | Generic helpers | `newUuid`, `uniqueId`, `UnionFind` |
-| `value.ts` | Value entry/formatting (radix, order) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder` |
+| `value.ts` | Value entry/formatting (radix, order) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `maxSwitchValueText` |
 | `widths.ts` | Bus-width fixpoint solver | `pinWidth`, `isNeutralPin`, `connectionError` |
 | `group.ts` | Grouping into composites + deep-clone | `inferGroup`, `applyGroup`, `cloneComposite`, `cloneDesign`, `cloneChildDef` |
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |

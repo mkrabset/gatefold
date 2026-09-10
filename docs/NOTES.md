@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-09 (library panel "Apply to scope" + "Apply to all" buttons).
+Last updated: 2026-09-09 (compact switch terminal follows lane distance; box fits the value).
 
 ## Where we are
 
@@ -12,6 +12,26 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Compact switch geometry refined** — the compact switch-array's terminal marker now follows
+  the active **lane-distance** setting (`laneDistanceFor(def, instance)` returns the active value
+  for a compact switch instead of the array default), so it renders at the same height as any
+  other bus terminal of that width. The box is no longer pinned to the base size: `instanceBodySize`
+  sizes it like a normal box (`max(base, input, output side)` — at least as tall as the terminal
+  marker) and widens it to fit the longest value in the instance's radix via a new
+  `maxSwitchValueText(width, format)` helper (`COMPACT_VALUE_PAD`/`FONT`/`CHAR_W` metrics).
+  `drawCompactSwitchValue` draws at `COMPACT_VALUE_FONT·zoom` (with a measureText shrink fallback).
+  Tests: model `maxSwitchValueText`, geometry compact sizing (lane distance, terminal height, width).
+
+- **Switch-array `compact` value box** — a new `compact` boolean property (default false) on the
+  switch-array renders it as a single small box showing its current value instead of one switch
+  circle per lane. `instanceBodySize` short-circuits a compact switch to its base `defBodySize`
+  (ignoring bus-width inflation) while the full-height bus terminal marker stays, so wiring is
+  unchanged; `drawArrayBody` draws `formatSwitchValue(applyValueOrder(lanes, order),
+  valueFormat)` centered (font shrunk to fit), reading lanes from the sim (bus/wire) or
+  `switchInitialLanes` in design mode. The canvas skips per-lane `hitArrayIndicator` toggling for
+  compact switches (the `#` badge still opens the set-value dialog). Tests: `array.test.ts`
+  property list + `geometry.test.ts` compact/non-compact body sizing; docs updated.
 
 - **"Apply to scope" / "Apply to all"** — the library panel's *Apply to instances* button is
   renamed to **Apply to scope** (no behaviour change), and a new **Apply to all** button applies

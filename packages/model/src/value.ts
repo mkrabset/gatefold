@@ -98,6 +98,16 @@ export function applyValueOrder<T>(bits: T[], order: ValueOrder): T[] {
   return order === 'desc' ? [...bits].reverse() : [...bits]
 }
 
+/** The longest string a `width`-bit value can render as in `format` (used to size the
+ *  compact switch box). For `SIGNED DEC` the most-negative value is the longest. */
+export function maxSwitchValueText(width: number, format: ValueFormat): string {
+  if (!Number.isInteger(width) || width < 1) return '?'
+  const W = BigInt(width)
+  if (format === 'HEX') return 'F'.repeat(Math.max(1, Math.ceil(width / 4)))
+  if (format === 'DEC') return ((1n << W) - 1n).toString(10)
+  return '-' + (1n << (W - 1n)).toString(10)
+}
+
 /**
  * Resolve a switch-array's initial lane values (`lane[0]` first) from its instance
  * props. `props.initialValue` is normally the text the user typed (parsed in

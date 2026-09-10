@@ -1,5 +1,5 @@
 import type { ChildDef, CompositeDef, Instance, PinRef, Port } from '@gatefold/model'
-import { childPorts, childPrimitive, inputPorts, isArrayDef, isPortGroupDef, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount } from '@gatefold/model'
+import { childPorts, childPrimitive, inputPorts, isArrayDef, isPortGroupDef, maxSwitchValueText, outputPorts, pinWidth, portGroupDirection, primitiveOf, resolvedPinWidth, sevenSegModeOf, sevenSegPositionCount, valueFormatOf } from '@gatefold/model'
 import { w2s } from './viewport'
 import type { Viewport } from './types'
 
@@ -32,6 +32,13 @@ export const SEVEN_SEG_DIGIT_H = 56
 export const SEVEN_SEG_GAP = 8
 export const SEVEN_SEG_PAD = 8
 
+/** Compact switch value box metrics (world units): horizontal padding, the nominal font
+ *  size the value is drawn at, and a conservative per-character width so the box is wide
+ *  enough for the longest value in any radix. */
+export const COMPACT_VALUE_PAD = 8
+export const COMPACT_VALUE_FONT = 12
+export const COMPACT_VALUE_CHAR_W = 7.5
+
 /** The default (and maximum) bus-lane spacing in world units — the current `2 × 3.5`
  *  pitch. The lane-distance setting scales down from here; arrays always use it. */
 export const DEFAULT_LANE_DISTANCE = 7
@@ -59,11 +66,13 @@ export function currentLaneDistance(): number {
   return laneDistance
 }
 
-/** The lane spacing that should apply to a def's terminals: arrays keep the default
- *  (their indicator rows are unreadable when compressed), everything else uses the
+/** The lane spacing that should apply to a def's terminals. Arrays keep the default
+ *  (their indicator rows are unreadable when compressed), except a compact switch-array,
+ *  which follows the active setting like any other bus terminal; everything else uses the
  *  active setting. */
-export function laneDistanceFor(def: ChildDef): number {
-  return isArrayDef(def) ? DEFAULT_LANE_DISTANCE : laneDistance
+export function laneDistanceFor(def: ChildDef, instance?: Instance): number {
+  const compactSwitch = childPrimitive(def) === 'switch-array' && instance?.props?.compact === true
+  return isArrayDef(def) && !compactSwitch ? DEFAULT_LANE_DISTANCE : laneDistance
 }
 
 /** Pin marker half-height in world units (pre-zoom) for a terminal of the given width,
@@ -138,7 +147,7 @@ export function instanceBodySize(
   instance: Instance,
   def: ChildDef,
 ): { w: number; h: number } {
-  const d = laneDistanceFor(def)
+  const d = laneDistanceFor(def, instance)
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
@@ -160,7 +169,17 @@ export function instanceBodySize(
   const base = defBodySize(def)
   const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))), d)
   const outH = sideHeight(widthsOf(parentDef, instance.id, outputPorts(childPorts(def))), d)
-  return { w: base.w, h: Math.max(base.h, inH, outH) }
+  let w = base.w
+  if (k === 'switch-array' && instance.props?.compact === true) {
+    // A compact switch renders a value: make the box wide enough for the longest value
+    // in the instance's radix (the height below is at least the terminal side height).
+    const n = arrayLaneCount(parentDef, instance, def)
+    if (n !== null) {
+      const len = maxSwitchValueText(n, valueFormatOf(instance.props)).length
+      w = Math.max(base.w, 2 * COMPACT_VALUE_PAD + len * COMPACT_VALUE_CHAR_W)
+    }
+  }
+  return { w, h: Math.max(base.h, inH, outH) }
 }
 
 /**
@@ -175,7 +194,7 @@ export function portPosition(
   def: ChildDef,
   portId: string,
 ): { x: number; y: number } {
-  const d = laneDistanceFor(def)
+  const d = laneDistanceFor(def, instance)
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
@@ -275,7 +294,7 @@ export function hitTestPort(
 
   for (const inst of instances) {
     const def = inst.def
-    const d = laneDistanceFor(def)
+    const d = laneDistanceFor(def, inst)
     const dir = portGroupDirection(def)
     if (dir === 'input') {
       for (const p of inputPorts(parentDef.ports)) {

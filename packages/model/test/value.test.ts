@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyValueOrder,
   formatSwitchValue,
+  maxSwitchValueText,
   parseSwitchValue,
   switchInitialLanes,
   toValueFormat,
@@ -133,5 +134,30 @@ describe('applyValueOrder', () => {
     expect(applyValueOrder(bits, 'desc')).toEqual([0, 1, 0, 1])
     expect(bits).toEqual([1, 0, 1, 0]) // unchanged
     expect(asc).not.toBe(bits) // a fresh array
+  })
+})
+
+describe('maxSwitchValueText', () => {
+  it('pads HEX to full nibbles', () => {
+    expect(maxSwitchValueText(4, 'HEX')).toBe('F')
+    expect(maxSwitchValueText(5, 'HEX')).toBe('FF')
+    expect(maxSwitchValueText(32, 'HEX')).toBe('FFFFFFFF')
+  })
+
+  it('uses the full unsigned range for DEC', () => {
+    expect(maxSwitchValueText(1, 'DEC')).toBe('1')
+    expect(maxSwitchValueText(8, 'DEC')).toBe('255')
+    expect(maxSwitchValueText(32, 'DEC')).toBe('4294967295')
+  })
+
+  it('uses the most-negative value for SIGNED DEC (longest)', () => {
+    expect(maxSwitchValueText(1, 'SIGNED DEC')).toBe('-1')
+    expect(maxSwitchValueText(8, 'SIGNED DEC')).toBe('-128')
+    expect(maxSwitchValueText(32, 'SIGNED DEC')).toBe('-2147483648')
+  })
+
+  it('returns a placeholder for invalid widths', () => {
+    expect(maxSwitchValueText(0, 'HEX')).toBe('?')
+    expect(maxSwitchValueText(2.5, 'HEX')).toBe('?')
   })
 })

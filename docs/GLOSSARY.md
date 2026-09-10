@@ -59,7 +59,10 @@ authoritative — update this when a term's meaning changes.
   dialog**, and its `order` (`asc`/`desc`) picks which end of the bus is the least-significant
   bit when a typed value is mapped onto the lanes. Its `exported` (boolean, default false) marks
   a main-scope switch as an external module input in Verilog export (nested switches are always
-  constants).
+  constants). Its `compact` (boolean, default false) renders the switch as a box showing its
+  current value (in `valueFormat`) instead of one circle per lane — the box follows the
+  lane-distance setting for its terminal (so it is at least as tall as that terminal, like other
+  boxes) and widens to fit the longest value in the instance's radix.
 - **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`) used to enter/display a multi-bit
   value. Shared by the 7-seg display's `mode` and the switch-array's `valueFormat`; the single
   `ValueFormat` type lives in the model's `value.ts`.

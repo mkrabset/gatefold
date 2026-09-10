@@ -1,7 +1,10 @@
 import type { ChildDef, CompositeDef, Instance, Palette, Signal } from '@gatefold/model'
-import { childPorts, childPrimitive, inputPorts, invertSignal, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, switchInitialLanes } from '@gatefold/model'
+import { applyValueOrder, childPorts, childPrimitive, formatSwitchValue, inputPorts, invertSignal, sevenSegDigits, sevenSegGeometry, sevenSegModeOf, sevenSegPositionCount, switchInitialLanes, valueFormatOf, valueOrderOf } from '@gatefold/model'
 import {
   arrayIndicatorLanes,
+  arrayLaneCount,
+  COMPACT_VALUE_FONT,
+  COMPACT_VALUE_PAD,
   SEVEN_SEG_DIGIT_H,
   SEVEN_SEG_DIGIT_W,
   SEVEN_SEG_GAP,
@@ -92,8 +95,23 @@ export function drawArrayBody(
 ) {
   const kind = childPrimitive(def)
   const isSwitch = kind === 'switch-array'
+  const compact = isSwitch && instance.props?.compact === true
 
   drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
+
+  if (compact) {
+    const n = arrayLaneCount(parentDef, instance, def)
+    if (n === null) {
+      drawUndetermined(ctx, cx, cy, h, p)
+      return
+    }
+    drawCompactSwitchValue(ctx, instance, def, cx, cy, w, n, vp, p, sim)
+    if (sim) {
+      const badge = switchValueBadge(parentDef, instance, def, cw, ch, vp)
+      if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
+    }
+    return
+  }
 
   const lanes = arrayIndicatorLanes(parentDef, instance, def, vp.zoom)
   if (!lanes) {
@@ -127,6 +145,50 @@ export function drawArrayBody(
     const badge = switchValueBadge(parentDef, instance, def, cw, ch, vp)
     if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
   }
+}
+
+/** Draw the value of a compact switch-array, centered and fitted to the box width. */
+function drawCompactSwitchValue(
+  ctx: CanvasRenderingContext2D,
+  instance: Instance,
+  def: ChildDef,
+  cx: number,
+  cy: number,
+  w: number,
+  n: number,
+  vp: Viewport,
+  p: Palette,
+  sim?: SimView,
+) {
+  const ports = childPorts(def)
+  let vec: Signal[]
+  if (sim) {
+    if (ports.length > 1) {
+      vec = ports.map((port) => {
+        let s = sim.valueOf(instance.id, port.id)
+        if (s !== undefined && port.inverted) s = invertSignal(s)
+        return s ?? 0
+      })
+    } else {
+      const port = ports[0]
+      vec = sim.signalOf(instance.id, port.id) ?? []
+      if (port?.inverted) vec = vec.map(invertSignal)
+    }
+  } else {
+    vec = switchInitialLanes(instance.props, n)
+  }
+  const text = formatSwitchValue(applyValueOrder(vec, valueOrderOf(instance.props)), valueFormatOf(instance.props))
+
+  const pad = COMPACT_VALUE_PAD * vp.zoom
+  let fs = COMPACT_VALUE_FONT * vp.zoom
+  ctx.font = `${fs}px system-ui, sans-serif`
+  const width = ctx.measureText(text).width
+  if (width > w - pad) fs = Math.max(6, (fs * (w - pad)) / width)
+  ctx.font = `${fs}px system-ui, sans-serif`
+  ctx.fillStyle = p.text
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, cx, cy)
 }
 
 /** Draw one array cell (a toggle switch or LED), lit when its signal is HI. */

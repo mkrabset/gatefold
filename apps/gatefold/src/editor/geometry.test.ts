@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { builtinOf, connectionError, forkOf } from '@gatefold/model'
-import { DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
+import { COMPACT_VALUE_CHAR_W, COMPACT_VALUE_PAD, DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
@@ -321,3 +321,56 @@ function makeArrayDesign(n: number): Design {
   }
   return { version: 2, root: main, library: {} }
 }
+
+function makeSwitchDesign(n: number, compact: boolean): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      { id: 'sw', name: 'sw', def: forkOf('switch-array'), pos: { x: 0, y: 0 }, props: { compact } },
+      { id: 'fo', name: 'fo', def: makeFanOut(n), pos: { x: 120, y: 0 } },
+    ],
+    connections: [{ id: 'w', from: iref('sw', 'out:0'), to: iref('fo', 'in:0') }],
+  }
+  return { version: 2, root: main, library: {} }
+}
+
+describe('compact switch array body', () => {
+  afterEach(() => setLaneDistance(DEFAULT_LANE_DISTANCE))
+
+  it('follows the active lane distance instead of the array default', () => {
+    const compact = makeSwitchDesign(8, true)
+    const plain = makeSwitchDesign(8, false)
+    setLaneDistance(2)
+    // Compact switch follows d=2: side height 12 + 2·8 = 28 → body capped at base 40.
+    expect(instanceBodySize(compact.root, compact.root.instances.find((i) => i.id === 'sw')!, compact.root.instances.find((i) => i.id === 'sw')!.def).h).toBe(40)
+    // Non-compact array keeps the default distance (12 + 2·28 = 68).
+    expect(instanceBodySize(plain.root, plain.root.instances.find((i) => i.id === 'sw')!, plain.root.instances.find((i) => i.id === 'sw')!.def).h).toBe(68)
+  })
+
+  it('is at least as tall as its terminal marker side', () => {
+    const design = makeSwitchDesign(8, true)
+    const main = design.root
+    const sw = main.instances.find((i) => i.id === 'sw')!
+    expect(pinWidth(main, iref('sw', 'out:0'))).toBe(8)
+    // At the default distance the body matches the terminal side height (68).
+    expect(instanceBodySize(main, sw, sw.def).h).toBe(68)
+  })
+
+  it('widens to fit the maximum value in the instance radix', () => {
+    const design = makeSwitchDesign(32, true)
+    const main = design.root
+    const sw = main.instances.find((i) => i.id === 'sw')!
+    // 32-bit HEX = 8 chars → wider than the base 56 box.
+    expect(instanceBodySize(main, sw, sw.def).w).toBe(2 * COMPACT_VALUE_PAD + 8 * COMPACT_VALUE_CHAR_W)
+  })
+
+  it('inflates the body with the bus width when not compact', () => {
+    const design = makeSwitchDesign(8, false)
+    const main = design.root
+    const sw = main.instances.find((i) => i.id === 'sw')!
+    expect(instanceBodySize(main, sw, sw.def).h).toBeGreaterThan(defBodySize(sw.def).h)
+  })
+})

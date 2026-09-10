@@ -161,8 +161,9 @@ export function Canvas() {
           }
         }
         // Toggle a switch-array lane by clicking its indicator circle (not its marker).
+        // A compact switch has no individual switches, so its lanes are not clickable.
         for (const inst of [...instances].reverse()) {
-          if (def && childPrimitiveKind(inst) === 'switch-array') {
+          if (def && childPrimitiveKind(inst) === 'switch-array' && inst.props?.compact !== true) {
             const lane = hitArrayIndicator(w.x, w.y, def, inst, inst.def, state.viewport.zoom)
             if (lane !== null) {
               useSimStore.getState().toggleSwitch(inst.id, lane)
@@ -433,7 +434,7 @@ export function Canvas() {
       // again (handled on pointerdown); do not enter the array component scope.
       if (useSimStore.getState().mode === 'simulate') {
         for (const inst of [...instances].reverse()) {
-          if (def && childPrimitiveKind(inst) === 'switch-array') {
+          if (def && childPrimitiveKind(inst) === 'switch-array' && inst.props?.compact !== true) {
             if (hitArrayIndicator(w.x, w.y, def, inst, inst.def, state.viewport.zoom) !== null) {
               return
             }

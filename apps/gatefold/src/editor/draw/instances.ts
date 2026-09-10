@@ -108,7 +108,7 @@ function drawPorts(
   sim?: SimView,
 ) {
   const ports = childPorts(def)
-  const d = laneDistanceFor(def)
+  const d = laneDistanceFor(def, instance)
   const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
     const pos = portPosition(parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, cw, ch, vp)

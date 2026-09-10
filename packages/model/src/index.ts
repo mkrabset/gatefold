@@ -42,7 +42,7 @@ export {
 export { newUuid, uniqueId, UnionFind } from './util'
 
 // Value entry / formatting (switch-array and 7-seg).
-export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, switchInitialLanes } from './value'
+export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, switchInitialLanes, maxSwitchValueText } from './value'
 export type { ValueFormat, ValueOrder } from './value'
 
 // Bus-width resolution.

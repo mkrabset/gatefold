@@ -33,6 +33,13 @@ export class SwitchArray extends ArrayPrimitive {
       },
       { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC'] },
       { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
+      {
+        name: 'compact',
+        label: 'Compact',
+        type: 'boolean',
+        default: false,
+        tooltip: 'Render as a single box showing the value instead of individual switches.',
+      },
     ]
   }
 }

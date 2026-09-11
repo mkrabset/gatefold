@@ -10,6 +10,7 @@ import fanOut from './fan-out.png'
 import busSplit from './bus-split.png'
 import busMerge from './bus-merge.png'
 import bus from './bus.png'
+import compare from './compare.png'
 import sevenSeg from './7-seg.png'
 import switches from './switches.png'
 import leds from './leds.png'
@@ -29,6 +30,7 @@ export const PRIMITIVE_ICONS: Record<PrimitiveKind, string | undefined> = {
   'bus-split': busSplit,
   'bus-merge': busMerge,
   bus,
+  compare,
   'seven-seg': sevenSeg,
   'switch-array': switches,
   'led-array': leds,

@@ -174,6 +174,8 @@ wire (or a `?` box on a display).
 - **BUS-SPLIT** splits one bus into two halves; **BUS-MERGE** joins two buses into one (twice
   the width).
 - **BUS** (the primitive) *fixes* a bus to a specific width (`Lanes`), and is a passthrough.
+- **COMPARE** takes two buses of the same (derived) width and outputs `1` when they match,
+  `0` when they differ.
 - Connecting mismatched widths is rejected at wiring time ("Bus width mismatch"), and a bus
   splitter requires an even width ("Bus width must be even").
 
@@ -253,6 +255,12 @@ its properties, and what it does.
 - **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)
 - A passthrough that **fixes** the bus width. Property **Lanes** (default 8, 1–32) sets the
   width of both terminals; use it to pin a bus to a specific width regardless of its source.
+
+### COMPARE
+- **Inputs:** 2 (`A`, `B`, equal derived width) · **Outputs:** 1 (`EQ`)
+- Compares its two bus inputs bit-for-bit: `EQ` is `1` when they match, `0` when they differ,
+  and `x` when either input has an unknown bit. Both inputs adopt the same width (neither is
+  fixed), so the comparator follows whatever width its buses carry.
 
 ### NODE
 - **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)

@@ -88,6 +88,7 @@ The palette of primitives, initially:
 - **FAN-OUT** (1 bus input, n outputs — splits a bus into n single wires)
 - **BUS-SPLIT** (1 bus input of width n, 2 bus outputs of width n/2)
 - **BUS-MERGE** (2 bus inputs of width m, 1 bus output of width 2m)
+- **COMPARE** (2 bus inputs of equal derived width, 1 single-wire output: 1 when they match)
 
 Notes:
 

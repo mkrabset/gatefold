@@ -43,6 +43,7 @@ export type PrimitiveKind =
   | 'bus-split'
   | 'bus-merge'
   | 'bus'
+  | 'compare'
   | 'input-port'
   | 'output-port'
   | 'seven-seg'

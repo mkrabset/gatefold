@@ -61,6 +61,15 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(primitiveOf('bus-merge').transfer([[1, 0], [0, 1]])).toEqual([[1, 0, 0, 1]])
   })
 
+  it('COMPARE reports equality (1), difference (0), or unknown (x)', () => {
+    const cmp = primitiveOf('compare').transfer
+    expect(cmp([[1, 0], [1, 0]])).toEqual([[1]])
+    expect(cmp([[1, 0], [0, 1]])).toEqual([[0]])
+    expect(cmp([[1, 0], [1, 'x']])).toEqual([['x']])
+    expect(cmp([[0], [0]])).toEqual([[1]])
+    expect(cmp([[1], [0]])).toEqual([[0]])
+  })
+
   it('sources and sinks have no combinational transfer', () => {
     expect(primitiveOf('clock').transfer([])).toEqual([])
     expect(primitiveOf('switch-array').transfer([])).toEqual([])

@@ -143,6 +143,10 @@ authoritative — update this when a term's meaning changes.
 - **Bus-merge** — primitive with `2` bus inputs (width `m`) → `1` bus output (width `2m`).
 - **Bus (primitive)** — a passthrough (single bus in → single bus out) whose `lanes` property
   fixes the width of both terminals, used to pin a bus to a specific width.
+- **Compare** — a primitive with two bus inputs of **equal derived width** and one single-wire
+  output (`EQ`) that is `1` when the two input vectors match, `0` when they differ, and `x`
+  when either carries an unknown bit. The two inputs adopt the same width (neither is fixed),
+  via a `deriveWidth` relation mirroring the split/merge relations; the output is width `1`.
 - **Neutral port** — a terminal whose width is undetermined (no constant reaches it); it
   *adopts* the width of whatever bus it is connected to. Rendered as a thin dashed wire.
 - **Width solver** — the fixpoint that derives every terminal's width from fan-in/fan-out

@@ -27,8 +27,8 @@ const inP = (kind: Parameters<typeof forkOf>[0]) => inputPorts(def(kind).ports)
 const outP = (kind: Parameters<typeof forkOf>[0]) => outputPorts(def(kind).ports)
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, 7-SEG, SWITCHES, LEDS, DFF, NODE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, NODE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point'])
   })
 
   it('recognizes the array primitives and their terminal direction', () => {
@@ -277,5 +277,26 @@ describe('model primitives', () => {
     const mergeIn = inP('bus-merge')[0]
     expect(primitiveOf('bus-merge').undeterminedHint!(mergeOut)).toBe('2x?')
     expect(primitiveOf('bus-merge').undeterminedHint!(mergeIn)).toBe('?')
+  })
+
+  it('declares COMPARE with two equal derived-width inputs and one single-wire output', () => {
+    expect(inP('compare').map((p) => p.id)).toEqual(['in:0', 'in:1'])
+    expect(inP('compare').map((p) => p.name)).toEqual(['A', 'B'])
+    expect(outP('compare').map((p) => p.id)).toEqual(['out:0'])
+    expect(outP('compare')[0].name).toBe('EQ')
+    expect(isArityFixed(def('compare'), 'input')).toBe(true)
+    expect(isArityFixed(def('compare'), 'output')).toBe(true)
+    expect(defaultPropsOf('compare')).toEqual({})
+
+    const derive = primitiveOf('compare').deriveWidth!
+    const in0 = inP('compare')[0]
+    const in1 = inP('compare')[1]
+    const out0 = outP('compare')[0]
+    expect(derive(in0, new Map([['in:1', 5]]))).toBe(5)
+    expect(derive(in1, new Map([['in:0', 3]]))).toBe(3)
+    expect(derive(in0, new Map())).toBeNull()
+    expect(derive(out0, new Map())).toBe(1)
+    expect(primitiveOf('compare').undeterminedHint!(in0)).toBe('?')
+    expect(primitiveOf('compare').undeterminedHint!(out0)).toBeNull()
   })
 })

@@ -11,7 +11,7 @@ Demo [here](https://mkrabset.github.io/pages/?focus=gatefold).
 ## Features
 
 - **Primitive components** — AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT,
-  BUS-SPLIT, BUS-MERGE, BUS, plus the probe primitives SWITCHES, LEDS, and
+  BUS-SPLIT, BUS-MERGE, BUS, COMPARE, plus the probe primitives SWITCHES, LEDS, and
   7-SEG (multi-digit). Gates with variable arity (AND/OR/XOR, fan-in/fan-out) accept
   a configurable number of terminals.
 - **Schematic canvas** — pan (Shift + drag), zoom (mouse wheel), and drag components.

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-09 (compact switch terminal follows lane distance; box fits the value).
+Last updated: 2026-09-11 (added the COMPARE primitive).
 
 ## Where we are
 
@@ -12,6 +12,18 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **COMPARE primitive** — a new library primitive (`PrimitiveKind 'compare'`,
+  `primitives/compare.ts`) with two bus inputs of **equal derived width** and one single-wire
+  output `EQ`: `1` when the two input vectors match, `0` when they differ, `x` when either has
+  an unknown bit. The two inputs are relation-based (`deriveWidth`: each input equals the other,
+  the output is width `1`), mirroring the bus-split/bus-merge relations, so an undetermined
+  input adopts the connected width and the output stays a single wire. Verilog emits
+  `assign EQ = (A == B);`; the sim evaluates it through the existing `transfer` path. Added a
+  generated `compare.png` library icon (rounded box + `=`). Tests: model
+  (`primitives` ports/deriveWidth, `transfer` equality, `array` width adoption), sim
+  (`engine` compares two fan-in buses), and verilog (`==` emission). Docs updated
+  (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`, `README.md`, `PLAN.md`).
 
 - **Compact switch geometry refined** — the compact switch-array's terminal marker now follows
   the active **lane-distance** setting (`laneDistanceFor(def, instance)` returns the active value

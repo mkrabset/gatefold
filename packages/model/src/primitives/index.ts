@@ -11,6 +11,7 @@ import { FanOut } from './fan-out'
 import { BusSplit } from './bus-split'
 import { BusMerge } from './bus-merge'
 import { Bus } from './bus'
+import { Compare } from './compare'
 import { InputPort } from './input-port'
 import { OutputPort } from './output-port'
 import { SevenSeg } from './seven-seg'
@@ -38,6 +39,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'bus-split': new BusSplit(),
   'bus-merge': new BusMerge(),
   bus: new Bus(),
+  compare: new Compare(),
   'input-port': new InputPort(),
   'output-port': new OutputPort(),
   'seven-seg': new SevenSeg(),
@@ -48,7 +50,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

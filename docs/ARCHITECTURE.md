@@ -48,7 +48,7 @@ interface Port {
 
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
-  | 'bus-split' | 'bus-merge' | 'bus' | 'input-port' | 'output-port'
+  | 'bus-split' | 'bus-merge' | 'bus' | 'compare' | 'input-port' | 'output-port'
   | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'join-point'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
@@ -193,7 +193,7 @@ design.root.instances = [
 - **Primitive library** (`primitives/`): built-in components are polymorphic — one
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
-  `bus.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
+  `bus.ts`, `compare.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
   `seven-seg.ts`/`switch-array.ts`/`led-array.ts`, and the sequential `dff.ts`). Each supplies its
   label/glyph, default ports, arity
   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
@@ -382,7 +382,7 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 - **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
   bubble), CLOCK (rounded rect + zoom-scaled square-wave glyph), FAN-IN/FAN-OUT and
   BUS-SPLIT/BUS-MERGE (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/
-  `drawBusTrapezoid*` helpers).
+  `drawBusTrapezoid*` helpers), COMPARE (a rounded box with an `=` glyph).
 - **Terminals**: each pin is a vertical **stroke** along the component edge (blue sink / green
   source), its length `2·pinRadiusWorld(width)`. Hovering a terminal turns its marker **red**
   (`pinHighlight`) instead of drawing a separate ring. A composite port wired to an internal
@@ -645,8 +645,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   from the model's width solver); port-group instances are dissolved so a composite's `ports`
   become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
   `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
-  `assign !Q = ~Q;` for its inverted output; buses emit concatenation/slicing; child composites
-  emit instantiations.
+  `assign !Q = ~Q;` for its inverted output; buses emit concatenation/slicing; COMPARE emits a
+  `==` equality; child composites emit instantiations.
 - **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
   (an external input). Every other switch is a constant fixed at its `initialValue` (emitted as a

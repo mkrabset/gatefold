@@ -83,6 +83,15 @@ const fanIn4: ChildDef = {
     { id: 'out:0', name: 'BUS', direction: 'output' },
   ],
 }
+const fanIn2: ChildDef = {
+  kind: 'fork',
+  primitive: 'fan-in',
+  ports: [
+    { id: 'in:0', name: 'A', direction: 'input' },
+    { id: 'in:1', name: 'B', direction: 'input' },
+    { id: 'out:0', name: 'BUS', direction: 'output' },
+  ],
+}
 const switchArray4: ChildDef = {
   kind: 'fork',
   primitive: 'switch-array',
@@ -373,6 +382,36 @@ describe('Simulation engine', () => {
     sim.step()
     expect(sim.signalOf('bs', 'out:0')).toEqual([1, 0])
     expect(sim.signalOf('bs', 'out:1')).toEqual([1, 0])
+  })
+
+  it('compares two equal-width buses', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('a0', 'switch-array'), inst('a1', 'switch-array'),
+          inst('b0', 'switch-array'), inst('b1', 'switch-array'),
+          inst('fa', fanIn2), inst('fb', fanIn2), inst('cmp', 'compare'),
+        ],
+        [
+          conn('c0', iref('a0', 'out:0'), iref('fa', 'in:0')),
+          conn('c1', iref('a1', 'out:0'), iref('fa', 'in:1')),
+          conn('c2', iref('b0', 'out:0'), iref('fb', 'in:0')),
+          conn('c3', iref('b1', 'out:0'), iref('fb', 'in:1')),
+          conn('c4', iref('fa', 'out:0'), iref('cmp', 'in:0')),
+          conn('c5', iref('fb', 'out:0'), iref('cmp', 'in:1')),
+        ],
+      ),
+    )
+    sim.setSwitch('a0', 1)
+    sim.setSwitch('a1', 0)
+    sim.setSwitch('b0', 1)
+    sim.setSwitch('b1', 0)
+    sim.step()
+    expect(sim.signal('cmp', 'out:0')).toBe(1)
+
+    sim.setSwitch('b1', 1)
+    sim.step()
+    expect(sim.signal('cmp', 'out:0')).toBe(0)
   })
 
   it('produces a clock square wave over time', () => {

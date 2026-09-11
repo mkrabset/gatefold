@@ -416,6 +416,15 @@ class Generator {
         return
       }
 
+      if (kind === 'compare') {
+        const [a, b] = inputPorts(ports)
+        const output = outputPorts(ports)[0]
+        let rhs = `(${inv(a, net(a.id))} == ${inv(b, net(b.id))})`
+        if (output.inverted) rhs = `~(${rhs})`
+        stmts.push(`assign ${net(output.id)} = ${rhs};`)
+        return
+      }
+
       if (kind === 'dff') {
         const prim = primitiveOf('dff')
         const clkId = prim.clockPortId?.() ?? 'in:1'

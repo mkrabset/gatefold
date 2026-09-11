@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Instance } from '../src/types'
 import { arrayPorts, defaultPropsOf, forkOf, primitiveOf } from '../src/primitives'
-import { connectionError } from '../src/widths'
+import { connectionError, pinWidth } from '../src/widths'
 
 const inst = (id: string, def: ChildDef, x = 0, y = 0, props?: Instance['props']): Instance => ({
   id,
@@ -67,6 +67,25 @@ describe('array primitives', () => {
       connections: [],
     }
     expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
+  })
+
+  it('COMPARE adopts the connected width for both inputs and keeps a single-wire output', () => {
+    const main: CompositeDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        inst('b1', forkOf('bus'), 0, 0, { lanes: 4 }),
+        inst('cmp', forkOf('compare'), 100, 0),
+      ],
+      connections: [
+        { id: 'c1', from: { instanceId: 'b1', portId: 'out:0' }, to: { instanceId: 'cmp', portId: 'in:0' } },
+      ],
+    }
+    expect(pinWidth(main, { instanceId: 'cmp', portId: 'in:0' })).toBe(4)
+    expect(pinWidth(main, { instanceId: 'cmp', portId: 'in:1' })).toBe(4)
+    expect(pinWidth(main, { instanceId: 'cmp', portId: 'out:0' })).toBe(1)
   })
 
   it('rejects a bus width that is not a multiple of 4 for seven-seg', () => {

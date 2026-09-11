@@ -375,6 +375,26 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Y = A ^ B;')
   })
 
+  it('emits a COMPARE as a == assignment', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), input('in:1', 'B'), output('out:0', 'EQ')],
+      instances: [pgIn(), prim('b1', 'bus', { lanes: 4 }), prim('b2', 'bus', { lanes: 4 }), prim('cmp', 'compare'), pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('b1', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('b2', 'in:0') },
+        { id: 'c3', from: iref('b1', 'out:0'), to: iref('cmp', 'in:0') },
+        { id: 'c4', from: iref('b2', 'out:0'), to: iref('cmp', 'in:1') },
+        { id: 'c5', from: iref('cmp', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('input [3:0] A')
+    expect(source).toContain('input [3:0] B')
+    expect(source).toContain('output EQ')
+    expect(source).toContain('assign EQ = (b1_Y == b2_Y);')
+  })
+
   it('emits slicing for a bus-split fed by a fan-in bus', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',

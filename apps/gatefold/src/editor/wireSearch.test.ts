@@ -17,7 +17,7 @@ describe('findWireAtLine', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    const hit = findWireAtLine(main, { x: 50, y: -10 }, { x: 50, y: 10 })
+    const hit = findWireAtLine(main, main, { x: 50, y: -10 }, { x: 50, y: 10 })
     expect(hit).not.toBeNull()
     expect(hit!.connection.id).toBe('c1')
     expect(hit!.point.x).toBeCloseTo(50, 3)
@@ -29,7 +29,7 @@ describe('findWireAtLine', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    expect(findWireAtLine(main, { x: 50, y: 50 }, { x: 50, y: 60 })).toBeNull()
+    expect(findWireAtLine(main, main, { x: 50, y: 50 }, { x: 50, y: 60 })).toBeNull()
   })
 
   it('returns null when two wires are both crossed (ambiguous)', () => {
@@ -40,7 +40,7 @@ describe('findWireAtLine', () => {
         { id: 'c2', from: iref('b3', 'out:0'), to: iref('b4', 'in:0') },
       ],
     )
-    expect(findWireAtLine(main, { x: 50, y: -10 }, { x: 50, y: 50 })).toBeNull()
+    expect(findWireAtLine(main, main, { x: 50, y: -10 }, { x: 50, y: 50 })).toBeNull()
   })
 
   it('returns null when the crossing is a bus (never a single wire)', () => {
@@ -52,7 +52,7 @@ describe('findWireAtLine', () => {
         { id: 'c3', from: iref('fi', 'out:0'), to: iref('fo', 'in:0') },
       ],
     )
-    expect(findWireAtLine(main, { x: 110, y: -10 }, { x: 110, y: 10 })).toBeNull()
+    expect(findWireAtLine(main, main, { x: 110, y: -10 }, { x: 110, y: 10 })).toBeNull()
   })
 
   it('returns null for a degenerate (zero-length) segment', () => {
@@ -60,7 +60,7 @@ describe('findWireAtLine', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    expect(findWireAtLine(main, { x: 50, y: 0 }, { x: 50, y: 0 })).toBeNull()
+    expect(findWireAtLine(main, main, { x: 50, y: 0 }, { x: 50, y: 0 })).toBeNull()
   })
 })
 
@@ -70,7 +70,7 @@ describe('findJoinpointWire', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    const hit = findJoinpointWire(main, { x: 50, y: 0 })
+    const hit = findJoinpointWire(main, main, { x: 50, y: 0 })
     expect(hit).not.toBeNull()
     expect(hit!.connection.id).toBe('c1')
   })
@@ -80,7 +80,7 @@ describe('findJoinpointWire', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    expect(findJoinpointWire(main, { x: 50, y: 6 })?.connection.id).toBe('c1')
+    expect(findJoinpointWire(main, main, { x: 50, y: 6 })?.connection.id).toBe('c1')
   })
 
   it('returns null when no wire is near', () => {
@@ -88,7 +88,7 @@ describe('findJoinpointWire', () => {
       [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
-    expect(findJoinpointWire(main, { x: 50, y: 60 })).toBeNull()
+    expect(findJoinpointWire(main, main, { x: 50, y: 60 })).toBeNull()
   })
 
   it('returns null when two wires are both crossed (ambiguous)', () => {
@@ -99,7 +99,7 @@ describe('findJoinpointWire', () => {
         { id: 'c2', from: iref('b3', 'out:0'), to: iref('b4', 'in:0') },
       ],
     )
-    expect(findJoinpointWire(main, { x: 50, y: 10 })).toBeNull()
+    expect(findJoinpointWire(main, main, { x: 50, y: 10 })).toBeNull()
   })
 
   it('returns null when the two diagonals resolve to different connections', () => {
@@ -113,6 +113,6 @@ describe('findJoinpointWire', () => {
         { id: 'cb', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') },
       ],
     )
-    expect(findJoinpointWire(main, { x: 50, y: 0 })).toBeNull()
+    expect(findJoinpointWire(main, main, { x: 50, y: 0 })).toBeNull()
   })
 })

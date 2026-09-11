@@ -51,7 +51,7 @@ describe('array primitives', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
+    expect(connectionError(main, main, { instanceId: 'sa', portId: 'out:0' }, { instanceId: 'fo', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 
   it('BUS fixes the width of its terminals to the lanes property', () => {
@@ -66,7 +66,7 @@ describe('array primitives', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
+    expect(connectionError(main, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'and', portId: 'in:0' })).toBe('Bus width mismatch')
   })
 
   it('COMPARE adopts the connected width for both inputs and keeps a single-wire output', () => {
@@ -83,9 +83,9 @@ describe('array primitives', () => {
         { id: 'c1', from: { instanceId: 'b1', portId: 'out:0' }, to: { instanceId: 'cmp', portId: 'in:0' } },
       ],
     }
-    expect(pinWidth(main, { instanceId: 'cmp', portId: 'in:0' })).toBe(4)
-    expect(pinWidth(main, { instanceId: 'cmp', portId: 'in:1' })).toBe(4)
-    expect(pinWidth(main, { instanceId: 'cmp', portId: 'out:0' })).toBe(1)
+    expect(pinWidth(main, main, { instanceId: 'cmp', portId: 'in:0' })).toBe(4)
+    expect(pinWidth(main, main, { instanceId: 'cmp', portId: 'in:1' })).toBe(4)
+    expect(pinWidth(main, main, { instanceId: 'cmp', portId: 'out:0' })).toBe(1)
   })
 
   it('rejects a bus width that is not a multiple of 4 for seven-seg', () => {
@@ -100,7 +100,7 @@ describe('array primitives', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
+    expect(connectionError(main, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be a multiple of 4')
   })
 
   it('rejects a bus wider than 64 lanes for seven-seg', () => {
@@ -115,6 +115,6 @@ describe('array primitives', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')
+    expect(connectionError(main, main, { instanceId: 'b', portId: 'out:0' }, { instanceId: 'seg', portId: 'in:0' })).toBe('7-seg width must be at most 64 lanes')
   })
 })

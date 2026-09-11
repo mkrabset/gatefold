@@ -38,10 +38,10 @@ interface Endpoint {
   join: boolean
 }
 
-function resolve(parentDef: CompositeDef, ref: PinRef): Endpoint | null {
+function resolve(root: CompositeDef, parentDef: CompositeDef, ref: PinRef): Endpoint | null {
   const inst = parentDef.instances.find((i) => i.id === ref.instanceId)
   if (!inst) return null
-  return { pos: portPosition(parentDef, inst, inst.def, ref.portId), join: isJoinpoint(inst.def) }
+  return { pos: portPosition(root, parentDef, inst, inst.def, ref.portId), join: isJoinpoint(inst.def) }
 }
 
 // --- cubic flattening (de Casteljau) ---
@@ -139,15 +139,15 @@ function shiftY(b: CubicBezier, dy: number): CubicBezier {
  * (a, b). Returns the connection and crossing point, or null when the crossing is absent
  * or ambiguous (multiple wires/bus lanes, or a single wire crossed more than once).
  */
-export function findWireAtLine(parentDef: CompositeDef, a: Point, b: Point): WireHitResult | null {
+export function findWireAtLine(root: CompositeDef, parentDef: CompositeDef, a: Point, b: Point): WireHitResult | null {
   if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return null
 
   const hits: WireHitResult[] = []
   for (const conn of parentDef.connections) {
-    const from = resolve(parentDef, conn.from)
-    const to = resolve(parentDef, conn.to)
+    const from = resolve(root, parentDef, conn.from)
+    const to = resolve(root, parentDef, conn.to)
     if (!from || !to) continue
-    const width = pinWidth(parentDef, conn.from)
+    const width = pinWidth(root, parentDef, conn.from)
     const base = wirePath(from.pos, to.pos, { fromJoin: from.join, toJoin: to.join })
     for (const dy of busWireOffsets(width)) {
       const curve = shiftY(base, dy)
@@ -160,7 +160,7 @@ export function findWireAtLine(parentDef: CompositeDef, a: Point, b: Point): Wir
 
   if (hits.length !== 1) return null
   const hit = hits[0]
-  if (pinWidth(parentDef, hit.connection.from) !== 1) return null
+  if (pinWidth(root, parentDef, hit.connection.from) !== 1) return null
   return hit
 }
 
@@ -173,9 +173,9 @@ export const JOINPOINT_PICK_HALF = 16
  * direction; if the two diagonals resolve to *different* connections the drop is
  * ambiguous and null is returned.
  */
-export function findJoinpointWire(parentDef: CompositeDef, pos: Point, half: number = JOINPOINT_PICK_HALF): WireHitResult | null {
-  const d1 = findWireAtLine(parentDef, { x: pos.x - half, y: pos.y - half }, { x: pos.x + half, y: pos.y + half })
-  const d2 = findWireAtLine(parentDef, { x: pos.x - half, y: pos.y + half }, { x: pos.x + half, y: pos.y - half })
+export function findJoinpointWire(root: CompositeDef, parentDef: CompositeDef, pos: Point, half: number = JOINPOINT_PICK_HALF): WireHitResult | null {
+  const d1 = findWireAtLine(root, parentDef, { x: pos.x - half, y: pos.y - half }, { x: pos.x + half, y: pos.y + half })
+  const d2 = findWireAtLine(root, parentDef, { x: pos.x - half, y: pos.y + half }, { x: pos.x + half, y: pos.y - half })
   if (d1 && d2 && d1.connection.id !== d2.connection.id) return null
   return d1 ?? d2 ?? null
 }

@@ -68,7 +68,7 @@ export function portPlacement(def: CompositeDef, direction: PortDirection): { x:
   for (const inst of insts) {
     // Ignore existing port groups so placement is relative to real components only.
     if (isPortGroupDef(inst.def)) continue
-    const b = instanceBounds(def, inst, inst.def)
+    const b = instanceBounds(def, def, inst, inst.def)
     minX = Math.min(minX, b.x)
     maxX = Math.max(maxX, b.x + b.w)
     minY = Math.min(minY, b.y)

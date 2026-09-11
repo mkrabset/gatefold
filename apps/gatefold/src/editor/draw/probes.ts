@@ -25,6 +25,7 @@ import type { SimView, Viewport } from '../types'
 /** Draw a seven-seg body, one display slot per the primitive's mode, or "?" when undetermined. */
 export function drawSevenSegBody(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -35,7 +36,7 @@ export function drawSevenSegBody(
   p: Palette,
   sim?: SimView,
 ) {
-  const lanes = sevenSegLaneCount(parentDef, instance, def)
+  const lanes = sevenSegLaneCount(root, parentDef, instance, def)
   const mode = sevenSegModeOf(instance.props)
   const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
   const zoom = vp.zoom
@@ -80,6 +81,7 @@ export function drawSevenSegBody(
 /** Draw an array body (row of LEDs or switches), or a "?" box when its bus width is undetermined. */
 export function drawArrayBody(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -100,20 +102,20 @@ export function drawArrayBody(
   drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
 
   if (compact) {
-    const n = arrayLaneCount(parentDef, instance, def)
+    const n = arrayLaneCount(root, parentDef, instance, def)
     if (n === null) {
       drawUndetermined(ctx, cx, cy, h, p)
       return
     }
     drawCompactSwitchValue(ctx, instance, def, cx, cy, w, n, vp, p, sim)
     if (sim) {
-      const badge = switchValueBadge(parentDef, instance, def, cw, ch, vp)
+      const badge = switchValueBadge(root, parentDef, instance, def, cw, ch, vp)
       if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
     }
     return
   }
 
-  const lanes = arrayIndicatorLanes(parentDef, instance, def, vp.zoom)
+  const lanes = arrayIndicatorLanes(root, parentDef, instance, def, vp.zoom)
   if (!lanes) {
     drawUndetermined(ctx, cx, cy, h, p)
     return
@@ -142,7 +144,7 @@ export function drawArrayBody(
 
   // The "#" value-entry badge sits in the body's top-left corner (simulate mode only).
   if (isSwitch && sim) {
-    const badge = switchValueBadge(parentDef, instance, def, cw, ch, vp)
+    const badge = switchValueBadge(root, parentDef, instance, def, cw, ch, vp)
     if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
   }
 }

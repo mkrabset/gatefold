@@ -216,9 +216,13 @@ design.root.instances = [
 - **Buses**: a terminal's *width* (wire count) is derived, never stored. `portWidth` reports
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
-  composite-terminal mirrors, and the `×2` relations of `bus-split`/`bus-merge` via
-  `Primitive.deriveWidth`). `Primitive.intrinsicWidth(ports, port, props?)` takes the instance
-  props so a primitive can fix its width from a property (the `bus` primitive returns `lanes`).
+  composite-terminal mirrors, and the `×2`/equality relations of `bus-split`/`bus-merge`/
+  `compare` via `Primitive.deriveWidth`). The graph is solved **globally** across the whole
+  subtree rooted at the width root (the edited template, else `design.root`), and a composite's
+  `Port.terminal` mirror is **bidirectional** — so an external bus connection determines an
+  otherwise-undetermined (neutral) bus *inside* a component, and vice versa.
+  `Primitive.intrinsicWidth(ports, port, props?)` takes the instance props so a primitive can
+  fix its width from a property (the `bus` primitive returns `lanes`).
   An undetermined pin is neutral; a conflict, a non-integer result (odd bus into a splitter),
   or a failed `Primitive.widthError` constraint marks the sheet invalid — `widthError` carries
   a per-primitive validation message (e.g. the 7-seg requires a width divisible by 4 and ≤ 64).
@@ -362,10 +366,11 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 - `hitTestPort(wx, wy, instances, design, parentDef)` — nearest connectable pin, hit-tested
   against the whole terminal marker (a vertical segment of half-height `pinRadiusWorld(width)`),
   returning `{ ref, role }` where `role` is `source` (output pin) or `sink` (input pin).
-- `pinWidth(design, parentDef, ref)` / `isNeutralPin(design, parentDef, ref)` — re-exported
-  from `widths.ts`, which solves the whole sheet's widths by fixpoint propagation (see §2).
-- `undeterminedHint(design, parentDef, ref)` — hover hint for an undetermined relation pin.
-- `connectionError(design, def, from, to)` — runs the solver with a proposed wire and returns
+- `pinWidth(root, parentDef, ref)` / `isNeutralPin(root, parentDef, ref)` — re-exported
+  from `widths.ts`, which solves the whole subtree's widths by global fixpoint propagation
+  (see §2). `root` is the width root (the edited template, else `design.root`).
+- `undeterminedHint(parentDef, ref)` — hover hint for an undetermined relation pin.
+- `connectionError(root, def, from, to)` — runs the solver with a proposed wire and returns
   an error message if it would be invalid (used by `addConnection`/`retargetConnection`).
 
 ### Routing (`routing.ts`)
@@ -714,7 +719,7 @@ beside the data they operate on.
 | `composite.ts` | Composite tree walks + template queries | `walkComposites`, `allCompositeIds`, `findComposite`, `isTemplateDef`, `templateNames`, `templateCategory` |
 | `util.ts` | Generic helpers | `newUuid`, `uniqueId`, `UnionFind` |
 | `value.ts` | Value entry/formatting (radix, order) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `maxSwitchValueText` |
-| `widths.ts` | Bus-width fixpoint solver | `pinWidth`, `isNeutralPin`, `connectionError` |
+| `widths.ts` | Bus-width fixpoint solver (global, bidirectional) | `pinWidth`, `isNeutralPin`, `resolvedPinWidth`, `connectionError` |
 | `group.ts` | Grouping into composites + deep-clone | `inferGroup`, `applyGroup`, `cloneComposite`, `cloneDesign`, `cloneChildDef` |
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |

@@ -1,4 +1,4 @@
-import type { ChildDef, Instance, Palette, PinRef } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Instance, Palette, PinRef } from '@gatefold/model'
 import { childPorts, childPrimitive, inputPorts, isPortGroupDef, outputPorts, pinKey, portWidth, UnionFind } from '@gatefold/model'
 import {
   busWireOffsets,
@@ -26,6 +26,7 @@ export function drawScene(
   cw: number,
   ch: number,
   def: ChildDef,
+  root: CompositeDef,
   vp: Viewport,
   selectedIds: string[],
   editingTemplate: boolean,
@@ -74,7 +75,7 @@ export function drawScene(
   const resolveEndpoint = (ref: PinRef): { x: number; y: number } | null => {
     const inst = byId.get(ref.instanceId)
     if (!inst) return null
-    return portPosition(def, inst, inst.def, ref.portId)
+    return portPosition(root, def, inst, inst.def, ref.portId)
   }
 
   const isJoin = (ref: PinRef): boolean => {
@@ -119,8 +120,8 @@ export function drawScene(
       c1: w2s(path.c1.x, path.c1.y, cw, ch, vp),
       c2: w2s(path.c2.x, path.c2.y, cw, ch, vp),
       e: w2s(path.end.x, path.end.y, cw, ch, vp),
-      width: pinWidth(def, conn.from),
-      undetermined: isNeutralPin(def, conn.from),
+      width: pinWidth(root, def, conn.from),
+      undetermined: isNeutralPin(root, def, conn.from),
       from: conn.from,
     }
     const key = uf.find(pinKey(conn.from))
@@ -180,7 +181,7 @@ export function drawScene(
     }
     for (const w of wires) strokeWire(ctx, w.s, w.c1, w.c2, w.e, w.color, WIRE_WIDTH * vp.zoom)
     for (const jp of dots) {
-      drawJoinpointNode(ctx, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
+      drawJoinpointNode(ctx, root, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
     }
   }
 
@@ -188,7 +189,7 @@ export function drawScene(
   for (const jp of unconnectedJoinPoints) {
     const s = w2s(jp.pos.x, jp.pos.y, cw, ch, vp)
     drawJoinpointHalo(ctx, s.x, s.y, vp, bg)
-    drawJoinpointNode(ctx, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
+    drawJoinpointNode(ctx, root, def, jp, cw, ch, vp, selectedIds.includes(jp.id), p, !!hoverPort && hoverPort.instanceId === jp.id, sim)
   }
 
   // Preview of a wire currently being drawn (dashed, accent color). A bus drag draws
@@ -197,7 +198,7 @@ export function drawScene(
   if (pendingWire) {
     const a = resolveEndpoint(pendingWire.from)
     if (a) {
-      const width = pinWidth(def, pendingWire.from)
+      const width = pinWidth(root, def, pendingWire.from)
       const offsets = busWireOffsets(width)
       const target = hoverPort ? resolveEndpoint(hoverPort) : null
       ctx.strokeStyle = p.selection
@@ -239,9 +240,9 @@ export function drawScene(
     // Join-points are rendered with their net in the wire pass above.
     if (childPrimitive(instDef) === 'join-point') continue
     if (isPortGroupDef(instDef)) {
-      drawPortGroup(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
+      drawPortGroup(ctx, root, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
     } else {
-      drawInstance(ctx, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, atRoot, sim)
+      drawInstance(ctx, root, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, atRoot, sim)
     }
   }
 
@@ -250,7 +251,7 @@ export function drawScene(
     const pos = resolveEndpoint(hoverPort)
     if (pos) {
       const s = w2s(pos.x, pos.y, cw, ch, vp)
-      const width = pinWidth(def, hoverPort)
+      const width = pinWidth(root, def, hoverPort)
       if (width > 1) {
         drawTooltip(ctx, `×${width}`, s.x, s.y, p)
       } else {

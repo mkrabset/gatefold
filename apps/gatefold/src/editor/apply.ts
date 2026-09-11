@@ -20,7 +20,7 @@ export function scopeDefIds(root: CompositeDef): Set<string> {
 function portArity(def: CompositeDef, port: Port): number | null {
   const t = port.terminal
   if (!t) return null
-  return resolvedPinWidth(def, { instanceId: t.instanceId, portId: t.pinId })
+  return resolvedPinWidth(def, def, { instanceId: t.instanceId, portId: t.pinId })
 }
 
 /** Whether `copy`'s terminals match `template`'s by ordered id (names ignored). */

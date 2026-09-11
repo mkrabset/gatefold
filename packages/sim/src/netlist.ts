@@ -122,7 +122,7 @@ export function flatten(design: Design): Netlist {
     const outputs: FlatPort[] = []
     for (const p of leaf.ports) {
       const net = netIdOf(pinKey(leaf.id, p.id))
-      const w = pinWidth(leaf.parentDef, { instanceId: leaf.inst.id, portId: p.id })
+      const w = pinWidth(design.root, leaf.parentDef, { instanceId: leaf.inst.id, portId: p.id })
       if (w > netWidths[net]) netWidths[net] = w
       const port = { portId: p.id, net, inverted: p.inverted === true }
       if (p.direction === 'input') inputs.push(port)

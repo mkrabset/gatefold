@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { currentDef, useEditorStore } from '../state/editorStore'
+import { currentDef, currentWidthRoot, useEditorStore } from '../state/editorStore'
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
@@ -68,7 +68,7 @@ export function Canvas() {
       const sim = simState.mode === 'simulate' && simState.engine
         ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf, speedLabel: formatSpeed(simState.timeScale) }
         : undefined
-      drawScene(ctx, cw, ch, currentDef(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
+      drawScene(ctx, cw, ch, currentDef(state), currentWidthRoot(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
     }
 
     const resize = () => {
@@ -105,6 +105,9 @@ export function Canvas() {
       const def = currentDef(state)
       return def.kind === 'composite' ? def : null
     }
+
+    /** The composite to resolve bus widths against (root, or the edited template). */
+    const widthRoot = (): CompositeDef => currentWidthRoot(useEditorStore.getState())
 
     const currentInstances = (): Instance[] => {
       return currentScope()?.instances ?? []
@@ -150,9 +153,9 @@ export function Canvas() {
         const sy = e.clientY - rect.top
         for (const inst of [...instances].reverse()) {
           if (def && inst.def.kind !== 'composite' && childPrimitiveKind(inst) === 'switch-array') {
-            const badge = switchValueBadge(def, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
+            const badge = switchValueBadge(widthRoot(), def, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
             if (badge && sx >= badge.x && sx <= badge.x + badge.s && sy >= badge.y && sy <= badge.y + badge.s) {
-              const size = arrayLaneCount(def, inst, inst.def)
+              const size = arrayLaneCount(widthRoot(), def, inst, inst.def)
               if (size !== null) {
                 useSimStore.getState().openSwitchDialog(inst.id, size, valueFormatOf(inst.props), valueOrderOf(inst.props))
               }
@@ -164,7 +167,7 @@ export function Canvas() {
         // A compact switch has no individual switches, so its lanes are not clickable.
         for (const inst of [...instances].reverse()) {
           if (def && childPrimitiveKind(inst) === 'switch-array' && inst.props?.compact !== true) {
-            const lane = hitArrayIndicator(w.x, w.y, def, inst, inst.def, state.viewport.zoom)
+            const lane = hitArrayIndicator(widthRoot(), w.x, w.y, def, inst, inst.def, state.viewport.zoom)
             if (lane !== null) {
               useSimStore.getState().toggleSwitch(inst.id, lane)
               return
@@ -179,13 +182,13 @@ export function Canvas() {
 
       if (e.shiftKey) {
         // Shift+drag on a terminal marker moves the owning component (instead of panning).
-        const port = hitTestPort(w.x, w.y, instances, def)
+        const port = hitTestPort(widthRoot(), w.x, w.y, instances, def)
         const markerInst = port && instances.find((i) => i.id === port.ref.instanceId)
         if (markerInst) {
           startMoveDrag(e, markerInst.id)
           return
         }
-        const hit = hitTest(w.x, w.y, instances, def)
+        const hit = hitTest(widthRoot(), w.x, w.y, instances, def)
         if (hit) {
           drag = { type: 'shiftClick', id: hit.id, startX: e.clientX, startY: e.clientY, vp: { ...state.viewport } }
         } else {
@@ -209,7 +212,7 @@ export function Canvas() {
       // Alt+press grabs a driven input's wire. This is how you grab a join-point's
       // incoming wire, whose input terminal sits underneath its output terminal.
       if (e.altKey) {
-        const sink = hitTestPort(w.x, w.y, instances, def, 'sink')
+        const sink = hitTestPort(widthRoot(), w.x, w.y, instances, def, 'sink')
         const conn = sink && findConnectionTo(currentConnections(), sink.ref)
         if (conn) {
           drag = { type: 'wire', from: conn.from, originalId: conn.id, originalTo: conn.to }
@@ -223,7 +226,7 @@ export function Canvas() {
 
       // Pressing an output port always starts a wire — this takes priority over
       // selecting the component the port belongs to.
-      const source = hitTestPort(w.x, w.y, instances, def, 'source')
+      const source = hitTestPort(widthRoot(), w.x, w.y, instances, def, 'source')
       if (source) {
         drag = { type: 'wire', from: source.ref, originalId: null, originalTo: null }
         state.setPendingWire({ from: source.ref, x: w.x, y: w.y })
@@ -234,7 +237,7 @@ export function Canvas() {
 
       // Pressing an input that already has a wire grabs that wire (to re-target or
       // delete it), instead of selecting the component.
-      const sink = hitTestPort(w.x, w.y, instances, def, 'sink')
+      const sink = hitTestPort(widthRoot(), w.x, w.y, instances, def, 'sink')
       if (sink) {
         const conn = findConnectionTo(currentConnections(), sink.ref)
         if (conn) {
@@ -247,7 +250,7 @@ export function Canvas() {
         }
       }
 
-      const hit = hitTest(w.x, w.y, instances, def)
+      const hit = hitTest(widthRoot(), w.x, w.y, instances, def)
       if (hit) {
         startMoveDrag(e, hit.id)
       } else {
@@ -282,7 +285,7 @@ export function Canvas() {
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         const def = currentScope()
         if (def) {
-          const port = hitTestPort(w.x, w.y, currentInstances(), def)
+          const port = hitTestPort(widthRoot(), w.x, w.y, currentInstances(), def)
           state.setHoverPort(port ? port.ref : null)
         }
         return
@@ -326,7 +329,7 @@ export function Canvas() {
           if (def) {
             const selected = instances
               .filter((inst) => {
-                const b = instanceBounds(def, inst, inst.def)
+                const b = instanceBounds(widthRoot(), def, inst, inst.def)
                 return b.x < x1 && b.x + b.w > x0 && b.y < y1 && b.y + b.h > y0
               })
               .map((inst) => inst.id)
@@ -346,7 +349,7 @@ export function Canvas() {
           state.setPendingWire({ from: d.from, x: cur.x, y: cur.y, originalId: d.originalId ?? undefined })
           const def = currentScope()
           if (def) {
-            const target = hitTestPort(cur.x, cur.y, currentInstances(), def, 'sink')
+            const target = hitTestPort(widthRoot(), cur.x, cur.y, currentInstances(), def, 'sink')
             state.setHoverPort(target ? target.ref : null)
           }
           return
@@ -372,7 +375,7 @@ export function Canvas() {
         state.setCutLine(null)
         const def = currentScope()
         if (def) {
-          const hit = findWireAtLine(def, d.startWorld, { x: end.x, y: end.y })
+          const hit = findWireAtLine(widthRoot(), def, d.startWorld, { x: end.x, y: end.y })
           if (hit) {
             state.insertJoinPointAt(hit.connection.id, hit.point)
           }
@@ -384,7 +387,7 @@ export function Canvas() {
         const w = toWorld(e.clientX - rect.left, e.clientY - rect.top)
         const def = currentScope()
         if (def) {
-          const port = hitTestPort(w.x, w.y, currentInstances(), def, 'sink')
+          const port = hitTestPort(widthRoot(), w.x, w.y, currentInstances(), def, 'sink')
           if (port) {
             if (d.originalTo && pinRefEquals(port.ref, d.originalTo)) {
               // Released back onto the original target — no change.
@@ -435,14 +438,14 @@ export function Canvas() {
       if (useSimStore.getState().mode === 'simulate') {
         for (const inst of [...instances].reverse()) {
           if (def && childPrimitiveKind(inst) === 'switch-array' && inst.props?.compact !== true) {
-            if (hitArrayIndicator(w.x, w.y, def, inst, inst.def, state.viewport.zoom) !== null) {
+            if (hitArrayIndicator(widthRoot(), w.x, w.y, def, inst, inst.def, state.viewport.zoom) !== null) {
               return
             }
           }
         }
       }
       if (!def) return
-      const hit = hitTest(w.x, w.y, instances, def)
+      const hit = hitTest(widthRoot(), w.x, w.y, instances, def)
       if (hit && isNavigableDef(hit.def)) {
         if (useSimStore.getState().mode === 'simulate') {
           useSimStore.getState().descend(hit.id)
@@ -534,7 +537,7 @@ export function Canvas() {
       lastFitToken.current = state.fitToken
       const def = currentDef(state)
       if (!def || def.kind !== 'composite') return
-      const bounds = defContentsBounds(def)
+      const bounds = defContentsBounds(currentWidthRoot(state), def)
       const wrap = wrapRef.current
       if (bounds && wrap) {
         state.setViewport(fitViewport(bounds, wrap.clientWidth, wrap.clientHeight))
@@ -564,7 +567,7 @@ export function Canvas() {
     if (kindOrId === 'join-point') {
       const scope = currentDef(state)
       if (scope.kind === 'composite') {
-        const hit = findJoinpointWire(scope, { x: wx, y: wy })
+        const hit = findJoinpointWire(currentWidthRoot(state), scope, { x: wx, y: wy })
         if (hit) {
           state.insertJoinPointAt(hit.connection.id, { x: wx, y: wy })
           return

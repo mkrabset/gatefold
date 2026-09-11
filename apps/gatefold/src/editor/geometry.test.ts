@@ -33,43 +33,45 @@ function makeBusDesign(): Design {
 describe('pinWidth / isNeutralPin', () => {
   it('resolves fan-in bus width from its arity', () => {
     const design = makeBusDesign()
-    expect(pinWidth(design.root, iref('fi', 'out:0'))).toBe(2)
-    expect(pinWidth(design.root, iref('fi', 'in:0'))).toBe(1)
+    expect(pinWidth(design.root, design.root, iref('fi', 'out:0'))).toBe(2)
+    expect(pinWidth(design.root, design.root, iref('fi', 'in:0'))).toBe(1)
   })
 
   it('propagates bus width through a composite port via its connection', () => {
     const design = makeBusDesign()
-    expect(pinWidth(design.root, iref('ci', 'in:0'))).toBe(2)
-    expect(isNeutralPin(design.root, iref('ci', 'in:0'))).toBe(false)
+    expect(pinWidth(design.root, design.root, iref('ci', 'in:0'))).toBe(2)
+    expect(isNeutralPin(design.root, design.root, iref('ci', 'in:0'))).toBe(false)
   })
 
-  it('treats an unconnected composite port as neutral', () => {
+  it('propagates an external bus width into a composite\'s internal ports', () => {
     const design = makeBusDesign()
     const comp = design.root.instances.find((i) => i.id === 'ci')!.def as CompositeDef
-    expect(pinWidth(comp, iref('c-in', 'in:0'))).toBe(1)
-    expect(isNeutralPin(comp, iref('c-in', 'in:0'))).toBe(true)
+    // Solved from the root, the child's internal input-port pin adopts the external
+    // width (2) instead of staying neutral.
+    expect(pinWidth(design.root, comp, iref('c-in', 'in:0'))).toBe(2)
+    expect(isNeutralPin(design.root, comp, iref('c-in', 'in:0'))).toBe(false)
   })
 
   it('surfaces an internal fan-in bus on a composite output port from the outside', () => {
     const design = makeBusHolderDesign()
     const main = design.root
-    expect(pinWidth(main, iref('bh', 'out:0'))).toBe(2)
-    expect(isNeutralPin(main, iref('bh', 'out:0'))).toBe(false)
+    expect(pinWidth(main, main, iref('bh', 'out:0'))).toBe(2)
+    expect(isNeutralPin(main, main, iref('bh', 'out:0'))).toBe(false)
   })
 
-  it('keeps the internal bus width even when the outside wire is single-width', () => {
+  it('rejects connecting a composite bus output to a single-wire input', () => {
     const design = makeBusHolderDesign()
     const main = design.root
-    main.connections.push({ id: 'w', from: iref('bh', 'out:0'), to: iref('g', 'in:0') })
-    expect(pinWidth(main, iref('bh', 'out:0'))).toBe(2)
-    expect(isNeutralPin(main, iref('bh', 'out:0'))).toBe(false)
+    // `bh.out:0` is a 2-wide bus internally; wiring it to a single-wire AND input is a
+    // width mismatch (reported through the solver, which now treats both sides equally).
+    expect(connectionError(main, main, iref('bh', 'out:0'), iref('g', 'in:0'))).toBe('Bus width mismatch')
   })
 
   it('surfaces an internal fan-out bus on a composite input port from the outside', () => {
     const design = makeBusHolderDesign()
     const main = design.root
-    expect(pinWidth(main, iref('bh', 'in:0'))).toBe(2)
-    expect(isNeutralPin(main, iref('bh', 'in:0'))).toBe(false)
+    expect(pinWidth(main, main, iref('bh', 'in:0'))).toBe(2)
+    expect(isNeutralPin(main, main, iref('bh', 'in:0'))).toBe(false)
   })
 })
 
@@ -145,23 +147,23 @@ describe('bus-split / bus-merge derived width', () => {
   it('propagates width through a merge→split chain', () => {
     const design = makeRelationDesign(6)
     const main = design.root
-    expect(pinWidth(main, iref('fi', 'out:0'))).toBe(6)
-    expect(pinWidth(main, iref('bm', 'in:0'))).toBe(6)
-    expect(pinWidth(main, iref('bm', 'in:1'))).toBe(6)
-    expect(pinWidth(main, iref('bm', 'out:0'))).toBe(12)
-    expect(pinWidth(main, iref('bs', 'in:0'))).toBe(12)
-    expect(pinWidth(main, iref('bs', 'out:0'))).toBe(6)
-    expect(pinWidth(main, iref('bs', 'out:1'))).toBe(6)
-    expect(isNeutralPin(main, iref('bs', 'out:0'))).toBe(false)
+    expect(pinWidth(main, main, iref('fi', 'out:0'))).toBe(6)
+    expect(pinWidth(main, main, iref('bm', 'in:0'))).toBe(6)
+    expect(pinWidth(main, main, iref('bm', 'in:1'))).toBe(6)
+    expect(pinWidth(main, main, iref('bm', 'out:0'))).toBe(12)
+    expect(pinWidth(main, main, iref('bs', 'in:0'))).toBe(12)
+    expect(pinWidth(main, main, iref('bs', 'out:0'))).toBe(6)
+    expect(pinWidth(main, main, iref('bs', 'out:1'))).toBe(6)
+    expect(isNeutralPin(main, main, iref('bs', 'out:0'))).toBe(false)
   })
 
   it('leaves an unwired merge→split chain undetermined (neutral)', () => {
     const design = makeRelationDesign(6)
     const main = design.root
     main.connections = [{ id: 'c2', from: iref('bm', 'out:0'), to: iref('bs', 'in:0') }]
-    expect(isNeutralPin(main, iref('bm', 'out:0'))).toBe(true)
-    expect(isNeutralPin(main, iref('bs', 'in:0'))).toBe(true)
-    expect(pinWidth(main, iref('bm', 'out:0'))).toBe(1)
+    expect(isNeutralPin(main, main, iref('bm', 'out:0'))).toBe(true)
+    expect(isNeutralPin(main, main, iref('bs', 'in:0'))).toBe(true)
+    expect(pinWidth(main, main, iref('bm', 'out:0'))).toBe(1)
   })
 
   it('rejects an odd-width bus feeding a splitter input', () => {
@@ -173,7 +175,7 @@ describe('bus-split / bus-merge derived width', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBe('Bus width must be even')
+    expect(connectionError(main, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBe('Bus width must be even')
   })
 
   it('accepts an even-width bus feeding a splitter input', () => {
@@ -185,7 +187,7 @@ describe('bus-split / bus-merge derived width', () => {
       ],
       connections: [],
     }
-    expect(connectionError(main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBeNull()
+    expect(connectionError(main, main, iref('fi', 'out:0'), iref('bs', 'in:0'))).toBeNull()
   })
 })
 
@@ -211,12 +213,12 @@ describe('dynamic body sizing', () => {
     const def = bs.def
 
     const base = defBodySize(def)
-    const eff = instanceBodySize(main, bs, def)
+    const eff = instanceBodySize(main, main, bs, def)
     expect(eff.h).toBeGreaterThan(base.h)
 
-    const p0 = portPosition(main, bs, def, 'out:0')
-    const p1 = portPosition(main, bs, def, 'out:1')
-    const r = pinRadiusWorld(pinWidth(main, { instanceId: bs.id, portId: 'out:0' }))
+    const p0 = portPosition(main, main, bs, def, 'out:0')
+    const p1 = portPosition(main, main, bs, def, 'out:1')
+    const r = pinRadiusWorld(pinWidth(main, main, { instanceId: bs.id, portId: 'out:0' }))
     expect(Math.abs(p1.y - p0.y)).toBeGreaterThanOrEqual(2 * r)
     expect(p0.y - (bs.pos.y - eff.h / 2)).toBeGreaterThanOrEqual(r)
     expect((bs.pos.y + eff.h / 2) - p1.y).toBeGreaterThanOrEqual(r)
@@ -226,7 +228,7 @@ describe('dynamic body sizing', () => {
     const design = makeBusDesign()
     const main = design.root
     const fi = main.instances.find((i) => i.id === 'fi')!
-    expect(instanceBodySize(main, fi, fi.def)).toEqual(defBodySize(fi.def))
+    expect(instanceBodySize(main, main, fi, fi.def)).toEqual(defBodySize(fi.def))
   })
 })
 
@@ -299,11 +301,11 @@ describe('lane distance', () => {
     const design = makeArrayDesign(8)
     const main = design.root
     const led = main.instances.find((i) => i.id === 'led')!
-    expect(pinWidth(main, iref('led', 'in:0'))).toBe(8)
-    const atDefault = instanceBodySize(main, led, led.def)
+    expect(pinWidth(main, main, iref('led', 'in:0'))).toBe(8)
+    const atDefault = instanceBodySize(main, main, led, led.def)
     expect(atDefault.h).toBeGreaterThan(defBodySize(led.def).h)
     setLaneDistance(2)
-    expect(instanceBodySize(main, led, led.def).h).toBe(atDefault.h)
+    expect(instanceBodySize(main, main, led, led.def).h).toBe(atDefault.h)
   })
 })
 
@@ -344,19 +346,21 @@ describe('compact switch array body', () => {
     const compact = makeSwitchDesign(8, true)
     const plain = makeSwitchDesign(8, false)
     setLaneDistance(2)
+    const csw = compact.root.instances.find((i) => i.id === 'sw')!
+    const psw = plain.root.instances.find((i) => i.id === 'sw')!
     // Compact switch follows d=2: side height 12 + 2·8 = 28 → body capped at base 40.
-    expect(instanceBodySize(compact.root, compact.root.instances.find((i) => i.id === 'sw')!, compact.root.instances.find((i) => i.id === 'sw')!.def).h).toBe(40)
+    expect(instanceBodySize(compact.root, compact.root, csw, csw.def).h).toBe(40)
     // Non-compact array keeps the default distance (12 + 2·28 = 68).
-    expect(instanceBodySize(plain.root, plain.root.instances.find((i) => i.id === 'sw')!, plain.root.instances.find((i) => i.id === 'sw')!.def).h).toBe(68)
+    expect(instanceBodySize(plain.root, plain.root, psw, psw.def).h).toBe(68)
   })
 
   it('is at least as tall as its terminal marker side', () => {
     const design = makeSwitchDesign(8, true)
     const main = design.root
     const sw = main.instances.find((i) => i.id === 'sw')!
-    expect(pinWidth(main, iref('sw', 'out:0'))).toBe(8)
+    expect(pinWidth(main, main, iref('sw', 'out:0'))).toBe(8)
     // At the default distance the body matches the terminal side height (68).
-    expect(instanceBodySize(main, sw, sw.def).h).toBe(68)
+    expect(instanceBodySize(main, main, sw, sw.def).h).toBe(68)
   })
 
   it('widens to fit the maximum value in the instance radix', () => {
@@ -364,13 +368,13 @@ describe('compact switch array body', () => {
     const main = design.root
     const sw = main.instances.find((i) => i.id === 'sw')!
     // 32-bit HEX = 8 chars → wider than the base 56 box.
-    expect(instanceBodySize(main, sw, sw.def).w).toBe(2 * COMPACT_VALUE_PAD + 8 * COMPACT_VALUE_CHAR_W)
+    expect(instanceBodySize(main, main, sw, sw.def).w).toBe(2 * COMPACT_VALUE_PAD + 8 * COMPACT_VALUE_CHAR_W)
   })
 
   it('inflates the body with the bus width when not compact', () => {
     const design = makeSwitchDesign(8, false)
     const main = design.root
     const sw = main.instances.find((i) => i.id === 'sw')!
-    expect(instanceBodySize(main, sw, sw.def).h).toBeGreaterThan(defBodySize(sw.def).h)
+    expect(instanceBodySize(main, main, sw, sw.def).h).toBeGreaterThan(defBodySize(sw.def).h)
   })
 })

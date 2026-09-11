@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ChildDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue } from '@gatefold/model'
 import {
   allCompositeIds,
   allowInversion,
@@ -108,6 +108,16 @@ export function resolveNav(design: Design, navStack: NavStep[]): ChildDef | unde
 /** The def currently being viewed/edited (top of the navigation stack). */
 export function currentDef(state: EditorState): ChildDef {
   return resolveNav(state.design, state.navStack) ?? state.design.root
+}
+
+/**
+ * The composite to resolve bus widths against: the edited library template when one is
+ * open (a template has no external context), otherwise the design root — so a nested
+ * component's external bus connections still determine its internal widths.
+ */
+export function currentWidthRoot(state: EditorState): CompositeDef {
+  const tpl = state.navStack.find((s) => s.kind === 'template')
+  return tpl ? state.design.library[tpl.id] : state.design.root
 }
 
 interface EditorState {
@@ -643,7 +653,7 @@ export const useEditorStore = create<EditorState>()(
             return
           }
           // Width must be consistent (and splitters require even buses).
-          const err = connectionError(def, from, to)
+          const err = connectionError(currentWidthRoot(s), def, from, to)
           if (err) {
             s.notice = err
             return
@@ -677,7 +687,7 @@ export const useEditorStore = create<EditorState>()(
             s.notice = 'Input already has a driver'
             return
           }
-          const err = connectionError(def, original.from, to)
+          const err = connectionError(currentWidthRoot(s), def, original.from, to)
           if (err) {
             s.notice = err
             return

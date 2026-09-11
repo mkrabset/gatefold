@@ -414,6 +414,52 @@ describe('Simulation engine', () => {
     expect(sim.signal('cmp', 'out:0')).toBe(0)
   })
 
+  it('resolves a nested component\'s bus width from an external connection', () => {
+    // A "compareWithOne" component: bus input → COMPARE, internal switch-array (constant)
+    // → COMPARE. Every internal bus is neutral; the width must come from the outside.
+    const cwo: ChildDef = {
+      kind: 'composite',
+      id: 'cwo',
+      name: 'cwo',
+      ports: [{ id: 'in:0', name: 'BUS', direction: 'input', terminal: { instanceId: 'cwo-in', pinId: 'in:0' } }],
+      instances: [
+        { id: 'cwo-in', name: '', def: INPUT_PORT, pos: { x: 0, y: 0 } },
+        inst('cmp', 'compare'),
+        inst('sw', switchBus),
+      ],
+      connections: [
+        conn('c1', iref('cwo-in', 'in:0'), iref('cmp', 'in:0')),
+        conn('c2', iref('sw', 'out:0'), iref('cmp', 'in:1')),
+      ],
+    }
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('s0', 'switch-array'), inst('s1', 'switch-array'), inst('s2', 'switch-array'), inst('s3', 'switch-array'),
+          inst('fi', fanIn4),
+          { id: 'cwo', name: 'cwo', def: cwo, pos: { x: 0, y: 0 } },
+        ],
+        [
+          conn('c0', iref('s0', 'out:0'), iref('fi', 'in:0')),
+          conn('c1', iref('s1', 'out:0'), iref('fi', 'in:1')),
+          conn('c2', iref('s2', 'out:0'), iref('fi', 'in:2')),
+          conn('c3', iref('s3', 'out:0'), iref('fi', 'in:3')),
+          conn('c4', iref('fi', 'out:0'), iref('cwo', 'in:0')),
+        ],
+      ),
+    )
+    // The external 4-wide bus determines the internal widths (not the default 1).
+    sim.step()
+    expect(sim.signalOf('cwo.cmp', 'in:0')).toEqual([0, 0, 0, 0])
+    expect(sim.signalOf('cwo.sw', 'out:0')).toEqual([0, 0, 0, 0])
+    // 0000 == 0000 → match.
+    expect(sim.signal('cwo.cmp', 'out:0')).toBe(1)
+
+    sim.setSwitch('s0', 1)
+    sim.step()
+    expect(sim.signal('cwo.cmp', 'out:0')).toBe(0)
+  })
+
   it('produces a clock square wave over time', () => {
     const sim = new Simulation(
       mkDesign([clk('clk', { period: 1000 }), inst('l', 'led-array')], [conn('c1', iref('clk', 'out:0'), iref('l', 'in:0'))]),

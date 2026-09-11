@@ -96,6 +96,7 @@ function drawPin(
 
 function drawPorts(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -110,9 +111,9 @@ function drawPorts(
   const ports = childPorts(def)
   const d = laneDistanceFor(def, instance)
   const drawPort = (port: Port, color: string, bubbleOnLeft: boolean) => {
-    const pos = portPosition(parentDef, instance, def, port.id)
+    const pos = portPosition(root, parentDef, instance, def, port.id)
     const s = w2s(pos.x, pos.y, cw, ch, vp)
-    const width = pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
+    const width = pinWidth(root, parentDef, { instanceId: instance.id, portId: port.id })
     const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
     const signalColor = sim?.colorOf(instance.id, port.id)
     drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, d, signalColor)
@@ -129,6 +130,7 @@ function drawPorts(
  */
 function drawTerminalLabels(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -142,13 +144,13 @@ function drawTerminalLabels(
   ctx.textBaseline = 'middle'
   const gap = 8 * vp.zoom
   for (const port of inputPorts(childPorts(def))) {
-    const pos = portPosition(parentDef, instance, def, port.id)
+    const pos = portPosition(root, parentDef, instance, def, port.id)
     const ps = w2s(pos.x, pos.y, cw, ch, vp)
     ctx.textAlign = 'left'
     ctx.fillText(port.name, ps.x + gap, ps.y)
   }
   for (const port of outputPorts(childPorts(def))) {
-    const pos = portPosition(parentDef, instance, def, port.id)
+    const pos = portPosition(root, parentDef, instance, def, port.id)
     const ps = w2s(pos.x, pos.y, cw, ch, vp)
     ctx.textAlign = 'right'
     ctx.fillText(port.name, ps.x - gap, ps.y)
@@ -186,6 +188,7 @@ function drawJoinpointHalo(ctx: CanvasRenderingContext2D, cx: number, cy: number
 /** Draw a join-point (NODE): its selection outline and its dot. */
 function drawJoinpointNode(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   cw: number,
@@ -199,7 +202,7 @@ function drawJoinpointNode(
   const def = instance.def
   const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
   if (selected) {
-    const b = instanceBounds(parentDef, instance, def, 6)
+    const b = instanceBounds(root, parentDef, instance, def, 6)
     const tl = w2s(b.x, b.y, cw, ch, vp)
     strokeDashedRect(ctx, tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, p.selection)
   }
@@ -208,6 +211,7 @@ function drawJoinpointNode(
 
 function drawInstance(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -221,12 +225,12 @@ function drawInstance(
   atRoot: boolean,
   sim?: SimView,
 ) {
-  const { w, h } = instanceBodySize(parentDef, instance, def)
+  const { w, h } = instanceBodySize(root, parentDef, instance, def)
   const s = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
   const kind = childPrimitive(def)
 
   if (selected) {
-    const b = instanceBounds(parentDef, instance, def, 6)
+    const b = instanceBounds(root, parentDef, instance, def, 6)
     const tl = w2s(b.x, b.y, cw, ch, vp)
     strokeDashedRect(ctx, tl.x, tl.y, b.w * vp.zoom, b.h * vp.zoom, p.selection)
   }
@@ -248,7 +252,7 @@ function drawInstance(
     ctx.fillStyle = p.text
 
     const drawPortLabel = (port: Port, align: CanvasTextAlign) => {
-      const pos = portPosition(parentDef, instance, def, port.id)
+      const pos = portPosition(root, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
       const offset = pinLabelOffset(port.inverted ?? false, vp.zoom)
       ctx.textAlign = align
@@ -265,9 +269,9 @@ function drawInstance(
   } else {
     const prim = primitiveOf(kind)
     const pinRadiusOf = (portId: string) =>
-      pinRadiusWorld(pinWidth(parentDef, { instanceId: instance.id, portId })) * vp.zoom
+      pinRadiusWorld(pinWidth(root, parentDef, { instanceId: instance.id, portId })) * vp.zoom
     if (kind === 'switch-array' || kind === 'led-array') {
-      drawArrayBody(ctx, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
+      drawArrayBody(ctx, root, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
       // A main-scope switch with `exported` set becomes a module input; mark it with a
       // small badge in the body's top-right corner (mirroring the "#" badge at top-left).
       if (kind === 'switch-array' && atRoot && instance.props?.exported === true) {
@@ -275,7 +279,7 @@ function drawInstance(
         drawExportBadge(ctx, s.x + (w * vp.zoom) / 2 - 4 - badgeSize, s.y - (h * vp.zoom) / 2 + 4, badgeSize, p)
       }
     } else if (kind === 'seven-seg') {
-      drawSevenSegBody(ctx, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
+      drawSevenSegBody(ctx, root, parentDef, instance, def, s.x, s.y, h * vp.zoom, vp, p, sim)
     } else {
       prim.draw(canvasVectorContext(ctx), {
         x: s.x,
@@ -288,7 +292,7 @@ function drawInstance(
     }
     // Terminal names inside the body for primitives with distinct terminals (DFF).
     if (prim.showTerminalNames?.()) {
-      drawTerminalLabels(ctx, parentDef, instance, def, cw, ch, vp, p)
+      drawTerminalLabels(ctx, root, parentDef, instance, def, cw, ch, vp, p)
     }
     // Type label: AND/OR/XOR write it inside the body, the arrays keep it above,
     // every other primitive omits it.
@@ -322,7 +326,7 @@ function drawInstance(
     ctx.fillText(instance.name, s.x, s.y + h * vp.zoom * 0.5 + 8 * vp.zoom)
   }
 
-  drawPorts(ctx, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
+  drawPorts(ctx, root, parentDef, instance, def, cw, ch, vp, p, bg, hoverPort, sim)
 }
 
 /**
@@ -332,6 +336,7 @@ function drawInstance(
  */
 function drawPortGroup(
   ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -346,7 +351,7 @@ function drawPortGroup(
 ) {
   const isInput = portGroupDirection(def) === 'input'
   const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
-  const widthFor = (port: Port) => pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
+  const widthFor = (port: Port) => pinWidth(root, parentDef, { instanceId: instance.id, portId: port.id })
   drawPortGroupBox(ctx, isInput, ports, instance.pos, widthFor, cw, ch, vp, selected, p, bg, hoverPort, instance.id, sim, false)
 }
 

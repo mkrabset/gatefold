@@ -185,7 +185,7 @@ class Generator {
     const inputPortNames = new Map<string, string>()
     const inputPortWidths = new Map<string, number>()
     for (const p of inputPorts(def.ports)) {
-      const w = inputGroup ? pinWidth(def, { instanceId: inputGroup.id, portId: p.id }) : 1
+      const w = inputGroup ? pinWidth(this.design.root, def, { instanceId: inputGroup.id, portId: p.id }) : 1
       const name = portNameMap.get(p.id)!
       ports.push({ dir: 'input', name, width: w })
       inputPortNames.set(p.id, name)
@@ -194,7 +194,7 @@ class Generator {
     const outputPortNames = new Map<string, string>()
     const outputPortWidths = new Map<string, number>()
     for (const p of outputPorts(def.ports)) {
-      const w = outputGroup ? pinWidth(def, { instanceId: outputGroup.id, portId: p.id }) : 1
+      const w = outputGroup ? pinWidth(this.design.root, def, { instanceId: outputGroup.id, portId: p.id }) : 1
       const name = portNameMap.get(p.id)!
       ports.push({ dir: 'output', name, width: w })
       outputPortNames.set(p.id, name)
@@ -204,7 +204,7 @@ class Generator {
     for (const inst of sources) {
       const prim = asPrimitive(inst.def)!
       for (const p of outputPorts(prim.ports)) {
-        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
+        const w = pinWidth(this.design.root, def, { instanceId: inst.id, portId: p.id })
         sourcePorts.set(pinKey({ instanceId: inst.id, portId: p.id }), { name: addExtraPort('input', `${inst.name}_${p.name}`, w), width: w })
       }
     }
@@ -278,7 +278,7 @@ class Generator {
           const port = ports && ports.find((p) => p.id === m.portId)
           if (port && port.direction === 'output') {
             name = uniqueName(`${inst!.name}_${port.name || port.id}`, used)
-            width = pinWidth(def, m)
+            width = pinWidth(this.design.root, def, m)
             break
           }
         }
@@ -485,7 +485,7 @@ class Generator {
         }
         // Inverted instance terminal: bridge the parent net to the child port through a
         // temp net, since a Verilog module port can't take an expression directly.
-        const w = pinWidth(def, { instanceId: inst.id, portId: p.id })
+        const w = pinWidth(this.design.root, def, { instanceId: inst.id, portId: p.id })
         const tmp = uniqueName(`${iname}_${portName}_inv`, used)
         conns.push(`    .${portName}(${tmp})`)
         decls.push(w > 1 ? `wire [${w - 1}:0] ${tmp};` : `wire ${tmp};`)

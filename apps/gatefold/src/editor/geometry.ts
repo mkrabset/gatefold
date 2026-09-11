@@ -97,8 +97,8 @@ export function busWireOffsets(width: number, d: number = laneDistance): number[
 }
 
 /** The resolved widths (one per port, in order) of a side's terminals. */
-function widthsOf(parentDef: CompositeDef, instanceId: string, ports: Port[]): number[] {
-  return ports.map((p) => pinWidth(parentDef, { instanceId, portId: p.id }))
+function widthsOf(root: CompositeDef, parentDef: CompositeDef, instanceId: string, ports: Port[]): number[] {
+  return ports.map((p) => pinWidth(root, parentDef, { instanceId, portId: p.id }))
 }
 
 /** Total height of a terminal side: its markers stacked with a constant gap, plus
@@ -132,17 +132,19 @@ export function sizeForPorts(widths: number[], d: number = laneDistance): { w: n
 
 /** Resolved bus width of a seven-seg input, or null when undetermined. */
 export function sevenSegLaneCount(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
 ): number | null {
   const input = inputPorts(childPorts(def))[0]
   if (!input) return null
-  return resolvedPinWidth(parentDef, { instanceId: instance.id, portId: input.id })
+  return resolvedPinWidth(root, parentDef, { instanceId: instance.id, portId: input.id })
 }
 
 /** Effective body size of an instance (port group or normal), accounting for pin radii. */
 export function instanceBodySize(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -151,15 +153,15 @@ export function instanceBodySize(
   if (isPortGroupDef(def)) {
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
-    return sizeForPorts(widthsOf(parentDef, instance.id, ports), d)
+    return sizeForPorts(widthsOf(root, parentDef, instance.id, ports), d)
   }
   const k = childPrimitive(def)
   if (k === 'seven-seg') {
-    const lanes = sevenSegLaneCount(parentDef, instance, def)
+    const lanes = sevenSegLaneCount(root, parentDef, instance, def)
     const mode = sevenSegModeOf(instance.props)
     const positions = lanes === null ? 1 : sevenSegPositionCount(lanes, mode)
     const w = 2 * SEVEN_SEG_PAD + positions * SEVEN_SEG_DIGIT_W + (positions - 1) * SEVEN_SEG_GAP
-    const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))), d)
+    const inH = sideHeight(widthsOf(root, parentDef, instance.id, inputPorts(childPorts(def))), d)
     return { w, h: Math.max(SEVEN_SEG_DIGIT_H + 2 * SEVEN_SEG_PAD, inH) }
   }
   if (k && primitiveOf(k).coincidentTerminals?.()) {
@@ -167,13 +169,13 @@ export function instanceBodySize(
     return defBodySize(def)
   }
   const base = defBodySize(def)
-  const inH = sideHeight(widthsOf(parentDef, instance.id, inputPorts(childPorts(def))), d)
-  const outH = sideHeight(widthsOf(parentDef, instance.id, outputPorts(childPorts(def))), d)
+  const inH = sideHeight(widthsOf(root, parentDef, instance.id, inputPorts(childPorts(def))), d)
+  const outH = sideHeight(widthsOf(root, parentDef, instance.id, outputPorts(childPorts(def))), d)
   let w = base.w
   if (k === 'switch-array' && instance.props?.compact === true) {
     // A compact switch renders a value: make the box wide enough for the longest value
     // in the instance's radix (the height below is at least the terminal side height).
-    const n = arrayLaneCount(parentDef, instance, def)
+    const n = arrayLaneCount(root, parentDef, instance, def)
     if (n !== null) {
       const len = maxSwitchValueText(n, valueFormatOf(instance.props)).length
       w = Math.max(base.w, 2 * COMPACT_VALUE_PAD + len * COMPACT_VALUE_CHAR_W)
@@ -189,6 +191,7 @@ export function instanceBodySize(
  * right edge for `input-port`, on the left for `output-port`).
  */
 export function portPosition(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -199,7 +202,7 @@ export function portPosition(
     const isInput = portGroupDirection(def) === 'input'
     const ports = isInput ? inputPorts(parentDef.ports) : outputPorts(parentDef.ports)
     const idx = ports.findIndex((p) => p.id === portId)
-    const widths = widthsOf(parentDef, instance.id, ports)
+    const widths = widthsOf(root, parentDef, instance.id, ports)
     const { w } = sizeForPorts(widths, d)
     const y = instance.pos.y + sidePinOffset(widths, idx, d)
     return { x: instance.pos.x + (isInput ? w / 2 : -w / 2), y }
@@ -211,15 +214,15 @@ export function portPosition(
     return { x: instance.pos.x, y: instance.pos.y }
   }
 
-  const { w } = instanceBodySize(parentDef, instance, def)
+  const { w } = instanceBodySize(root, parentDef, instance, def)
   const ports = childPorts(def)
   const inIdx = inputPorts(ports).findIndex((p) => p.id === portId)
   if (inIdx >= 0) {
-    const widths = widthsOf(parentDef, instance.id, inputPorts(ports))
+    const widths = widthsOf(root, parentDef, instance.id, inputPorts(ports))
     return { x: instance.pos.x - w / 2, y: instance.pos.y + sidePinOffset(widths, inIdx, d) }
   }
   const outIdx = outputPorts(ports).findIndex((p) => p.id === portId)
-  const widths = widthsOf(parentDef, instance.id, outputPorts(ports))
+  const widths = widthsOf(root, parentDef, instance.id, outputPorts(ports))
   return { x: instance.pos.x + w / 2, y: instance.pos.y + sidePinOffset(widths, outIdx, d) }
 }
 
@@ -230,8 +233,8 @@ export interface Bounds {
   h: number
 }
 
-export function instanceBounds(parentDef: CompositeDef, instance: Instance, def: ChildDef, pad = 0): Bounds {
-  const { w, h } = instanceBodySize(parentDef, instance, def)
+export function instanceBounds(root: CompositeDef, parentDef: CompositeDef, instance: Instance, def: ChildDef, pad = 0): Bounds {
+  const { w, h } = instanceBodySize(root, parentDef, instance, def)
   return {
     x: instance.pos.x - w / 2 - pad,
     y: instance.pos.y - h / 2 - pad,
@@ -242,6 +245,7 @@ export function instanceBounds(parentDef: CompositeDef, instance: Instance, def:
 
 /** Return the topmost instance whose padded bounds contain the world point, if any. */
 export function hitTest(
+  root: CompositeDef,
   wx: number,
   wy: number,
   instances: Instance[],
@@ -249,7 +253,7 @@ export function hitTest(
 ): Instance | null {
   for (let i = instances.length - 1; i >= 0; i--) {
     const inst = instances[i]
-    const b = instanceBounds(parentDef, inst, inst.def, 4)
+    const b = instanceBounds(root, parentDef, inst, inst.def, 4)
     if (wx >= b.x && wx <= b.x + b.w && wy >= b.y && wy <= b.y + b.h) {
       return inst
     }
@@ -269,6 +273,7 @@ export interface PortHit {
  * a join-point's coincident input/output terminals).
  */
 export function hitTestPort(
+  root: CompositeDef,
   wx: number,
   wy: number,
   instances: Instance[],
@@ -281,7 +286,7 @@ export function hitTestPort(
     if (prefer && prefer !== role) return
     // Distance to the terminal marker (a vertical segment of half-height r): anywhere
     // along the marker counts, not just its centre.
-    const r = pinRadiusWorldAt(pinWidth(parentDef, ref), d)
+    const r = pinRadiusWorldAt(pinWidth(root, parentDef, ref), d)
     let dist: number
     if (wy < pos.y - r) dist = Math.hypot(wx - pos.x, wy - (pos.y - r))
     else if (wy > pos.y + r) dist = Math.hypot(wx - pos.x, wy - (pos.y + r))
@@ -298,19 +303,19 @@ export function hitTestPort(
     const dir = portGroupDirection(def)
     if (dir === 'input') {
       for (const p of inputPorts(parentDef.ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source', d)
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(root, parentDef, inst, def, p.id), 'source', d)
       }
     } else if (dir === 'output') {
       for (const p of outputPorts(parentDef.ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink', d)
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(root, parentDef, inst, def, p.id), 'sink', d)
       }
     } else {
       const ports = childPorts(def)
       for (const p of outputPorts(ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'source', d)
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(root, parentDef, inst, def, p.id), 'source', d)
       }
       for (const p of inputPorts(ports)) {
-        consider({ instanceId: inst.id, portId: p.id }, portPosition(parentDef, inst, def, p.id), 'sink', d)
+        consider({ instanceId: inst.id, portId: p.id }, portPosition(root, parentDef, inst, def, p.id), 'sink', d)
       }
     }
   }
@@ -320,38 +325,40 @@ export function hitTestPort(
 
 /** The number of lanes an array currently has (WIRE = port count, BUS = resolved width). */
 export function arrayLaneCount(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
 ): number | null {
   const ports = childPorts(def)
   if (ports.length > 1) return ports.length
-  return resolvedPinWidth(parentDef, { instanceId: instance.id, portId: ports[0].id })
+  return resolvedPinWidth(root, parentDef, { instanceId: instance.id, portId: ports[0].id })
 }
 
 /** World-space indicator circles (center y + radius) for a switch/led array, or null
  *  when its bus width is undetermined. The radius is zoom-aware so it matches the
  *  screen-space circle drawn by the renderer. */
 export function arrayIndicatorLanes(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
   zoom: number,
 ): { y: number; r: number }[] | null {
-  const n = arrayLaneCount(parentDef, instance, def)
+  const n = arrayLaneCount(root, parentDef, instance, def)
   if (n === null) return null
-  const h = instanceBodySize(parentDef, instance, def).h
+  const h = instanceBodySize(root, parentDef, instance, def).h
   const r = Math.max(3 / zoom, (h / Math.max(n, 1)) * 0.3)
   const lanes: { y: number; r: number }[] = []
   const ports = childPorts(def)
   if (ports.length > 1) {
     for (let i = 0; i < n; i++) {
-      lanes.push({ y: portPosition(parentDef, instance, def, ports[i].id).y, r })
+      lanes.push({ y: portPosition(root, parentDef, instance, def, ports[i].id).y, r })
     }
   } else {
     const port = ports[0]
-    const y = portPosition(parentDef, instance, def, port.id).y
-    const width = pinWidth(parentDef, { instanceId: instance.id, portId: port.id })
+    const y = portPosition(root, parentDef, instance, def, port.id).y
+    const width = pinWidth(root, parentDef, { instanceId: instance.id, portId: port.id })
     for (const dy of busWireOffsets(width, DEFAULT_LANE_DISTANCE)) lanes.push({ y: y + dy, r })
   }
   return lanes
@@ -359,6 +366,7 @@ export function arrayIndicatorLanes(
 
 /** Lane index of the array indicator under a world point, or null when outside. */
 export function hitArrayIndicator(
+  root: CompositeDef,
   wx: number,
   wy: number,
   parentDef: CompositeDef,
@@ -366,7 +374,7 @@ export function hitArrayIndicator(
   def: ChildDef,
   zoom: number,
 ): number | null {
-  const lanes = arrayIndicatorLanes(parentDef, instance, def, zoom)
+  const lanes = arrayIndicatorLanes(root, parentDef, instance, def, zoom)
   if (!lanes) return null
   const dx = wx - instance.pos.x
   for (let i = 0; i < lanes.length; i++) {
@@ -385,6 +393,7 @@ const SWITCH_VALUE_BADGE = 16
  * badge geometry, shared by the renderer and the canvas hit-testing.
  */
 export function switchValueBadge(
+  root: CompositeDef,
   parentDef: CompositeDef,
   instance: Instance,
   def: ChildDef,
@@ -394,7 +403,7 @@ export function switchValueBadge(
 ): { x: number; y: number; s: number } | null {
   if (childPrimitive(def) !== 'switch-array') return null
   const c = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
-  const size = instanceBodySize(parentDef, instance, def)
+  const size = instanceBodySize(root, parentDef, instance, def)
   return {
     x: c.x - (size.w * vp.zoom) / 2 + 4,
     y: c.y - (size.h * vp.zoom) / 2 + 4,
@@ -403,14 +412,14 @@ export function switchValueBadge(
 }
 
 /** World-space bounding box of everything inside a composite def, or null when empty. */
-export function defContentsBounds(def: CompositeDef): Bounds | null {
+export function defContentsBounds(root: CompositeDef, def: CompositeDef): Bounds | null {
   const insts = def.instances
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
   for (const inst of insts) {
-    const b = instanceBounds(def, inst, inst.def)
+    const b = instanceBounds(root, def, inst, inst.def)
     minX = Math.min(minX, b.x)
     minY = Math.min(minY, b.y)
     maxX = Math.max(maxX, b.x + b.w)

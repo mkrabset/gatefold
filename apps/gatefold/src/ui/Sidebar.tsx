@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { resolveNav, useEditorStore } from '../state/editorStore'
+import { currentWidthRoot, resolveNav, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
 import type { ChildDef, CompositeDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
@@ -336,7 +336,7 @@ function SwitchInitialValueField({
 
   const commit = (raw: string) => {
     const t = raw.trim()
-    const width = arrayLaneCount(parentDef, instance, instance.def)
+    const width = arrayLaneCount(currentWidthRoot(useEditorStore.getState()), parentDef, instance, instance.def)
     if (width !== null && !parseSwitchValue(t, valueFormatOf(instance.props), width)) {
       setNotice(`Not a valid ${width}-bit value`)
       setText(lastValid.current)

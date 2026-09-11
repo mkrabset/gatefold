@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-11 (added the COMPARE primitive).
+Last updated: 2026-09-11 (global bidirectional width solver).
 
 ## Where we are
 
@@ -12,6 +12,33 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Global bidirectional width solver** — fixed the long-standing gap where a component whose
+  internal buses are all neutral/derived (e.g. a `compareWithOne` built from an input port,
+  a COMPARE, and an internal switch-array constant) stayed undetermined even when its parent
+  wired the port to a fixed-width bus: rendering showed dotted wires inside the component and
+  the simulator/Verilog used the wrong (1-bit) net widths. The old `widths.ts` solved each
+  composite in isolation and mirrored a child's terminals **one-way** ("internal is
+  authoritative"), so an external width never propagated inward.
+  - **Model** (`widths.ts`) rewritten as a **global** fixpoint over the whole subtree rooted
+    at a `root: CompositeDef`, using the same flattened-path pin-key scheme as `netlist.flatten`.
+    A composite's `Port.terminal` mirror is now a **bidirectional equality**, so external
+    widths flow in and internal widths flow out, with conflict/non-integer/constraint detection
+    unchanged. The API is root-aware: `pinWidth(root, parentDef, ref)`,
+    `resolvedPinWidth(root, …)`, `isNeutralPin(root, …)`, `connectionError(root, parentDef, …)`
+    (`undeterminedHint(parentDef, ref)` unchanged). `SheetWidths` now maps *global* pin keys.
+  - **Consumers** thread the root: `netlist.ts`/`verilog.ts` pass `design.root`; the app adds
+    `currentWidthRoot(state)` (the edited library template, else `design.root`) in
+    `editorStore.ts`, and `Canvas` passes it through `drawScene` → `geometry.ts` /
+    `draw/instances.ts` / `draw/probes.ts` / `wireSearch.ts` (each gained a `root` parameter);
+    `Sidebar` resolves the switch `initialValue` width against the root; `apply.ts`/
+    `portEdit.ts` resolve their layout/arity against the def itself (isolation, as before).
+  - **Tests** — model `widths.test.ts` (a nested component's every neutral internal pin
+    resolves from the external connection; stays neutral when unwired), sim `engine.test.ts`
+    (a `compareWithOne` component simulates with the correct 4-bit widths), plus updated
+    `array.test.ts`/`geometry.test.ts`/`wireSearch.test.ts` for the new signatures (the old
+    "internal is authoritative" conflict case is now asserted as a `Bus width mismatch`).
+    Docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`).
 
 - **COMPARE primitive** — a new library primitive (`PrimitiveKind 'compare'`,
   `primitives/compare.ts`) with two bus inputs of **equal derived width** and one single-wire

@@ -143,7 +143,7 @@ describe('model primitives', () => {
     expect(inP('bus')).toHaveLength(1)
     expect(outP('bus')).toHaveLength(1)
     expect(primitiveOf('bus').properties()).toEqual([
-      { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 32 },
+      { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 64 },
     ])
     expect(defaultPropsOf('bus')).toEqual({ lanes: 8 })
 

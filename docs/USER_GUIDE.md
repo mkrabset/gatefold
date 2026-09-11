@@ -253,7 +253,7 @@ its properties, and what it does.
 
 ### BUS
 - **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)
-- A passthrough that **fixes** the bus width. Property **Lanes** (default 8, 1–32) sets the
+- A passthrough that **fixes** the bus width. Property **Lanes** (default 8, 1–64) sets the
   width of both terminals; use it to pin a bus to a specific width regardless of its source.
 
 ### COMPARE

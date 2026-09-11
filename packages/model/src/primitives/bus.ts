@@ -25,7 +25,7 @@ export class Bus extends Gate {
 
   properties(): PropertySpec[] {
     return [
-      { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 32 },
+      { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 64 },
     ]
   }
 

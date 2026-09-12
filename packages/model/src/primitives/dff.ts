@@ -22,7 +22,7 @@ export class Dff extends Gate {
     return [
       { id: inputPortId(0), name: 'D', direction: 'input' },
       { id: inputPortId(1), name: 'CLK', direction: 'input' },
-      { id: inputPortId(2), name: 'RST', direction: 'input' },
+      { id: inputPortId(2), name: 'RST', direction: 'input', pull: 'down' },
       { id: outputPortId(0), name: 'Q', direction: 'output' },
       { id: outputPortId(1), name: '!Q', direction: 'output' },
     ]

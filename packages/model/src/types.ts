@@ -13,6 +13,9 @@ export type Signal = 0 | 1 | 'x'
 /** Which edge of a component a terminal sits on: inputs flow in, outputs flow out. */
 export type PortDirection = 'input' | 'output'
 
+/** The direction a floating input terminal is weakly driven: high (`up`) or low (`down`). */
+export type PullDirection = 'up' | 'down'
+
 /**
  * A named terminal on a component. `id` is stable (referenced by connections);
  * `name` is a user-facing label. Order within `ComponentDef.ports` (inputs first,
@@ -28,6 +31,9 @@ export interface Port {
   terminal?: { instanceId: string; pinId: string }
   /** True when the terminal is logically inverted (shown as a bubble). */
   inverted?: boolean
+  /** A weak drive applied while the terminal is floating: pull-up (`1`) or pull-down (`0`).
+   *  Only meaningful on input terminals; has no effect once the port is connected. */
+  pull?: PullDirection
 }
 
 /** The discriminant for the built-in primitive registry: one kind per `Primitive` class. */

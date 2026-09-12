@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue, PullDirection } from '@gatefold/model'
 import {
   allCompositeIds,
   allowInversion,
@@ -166,6 +166,7 @@ interface EditorState {
   renamePort: (portId: string, name: string, instanceId?: string) => void
   setPortInverted: (portId: string, inverted: boolean, instanceId?: string) => void
   togglePinInversion: (ref: PinRef) => void
+  togglePinPull: (ref: PinRef, pull: PullDirection) => void
   renameInstance: (id: string, name: string) => void
   renameDef: (defId: string, name: string) => void
   setDefCategory: (defId: string, category: string) => void
@@ -401,6 +402,7 @@ export const useEditorStore = create<EditorState>()(
           const inferred = inferGroup(scope, s.selectedIds)
           const inputInverted = inferred.inputs.map((g) => g.inverted === true)
           const outputInverted = inferred.outputs.map((g) => g.inverted === true)
+          const inputPull = inferred.inputs.map((g) => g.pull)
           const inputPortIncluded = inferred.inputPortIncluded
           const outputPortIncluded = inferred.outputPortIncluded
           const parentId = scope.id
@@ -432,6 +434,10 @@ export const useEditorStore = create<EditorState>()(
               for (const [i, inv] of outputInverted.entries()) {
                 const port = outputPorts(copy.ports)[i]
                 if (port && inv) port.inverted = true
+              }
+              for (const [i, pull] of inputPull.entries()) {
+                const port = inputPorts(copy.ports)[i]
+                if (port && pull) port.pull = pull
               }
             }
           }
@@ -520,6 +526,22 @@ export const useEditorStore = create<EditorState>()(
           if (!port) return
           if (port.inverted) delete port.inverted
           else port.inverted = true
+        }),
+      togglePinPull: (ref, pull) =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const inst = def.instances.find((i) => i.id === ref.instanceId)
+          if (!inst) return
+          const instDef = inst.def
+          // Pull is external-only, applied to a placed instance's input terminal; the
+          // current scope's own terminals (the input/output port groups) are never pullable.
+          if (isPortGroupDef(instDef)) return
+          if (instDef.kind === 'composite' && isTemplateDef(s.design, instDef)) return
+          const port = childPorts(instDef).find((p) => p.id === ref.portId)
+          if (!port || port.direction !== 'input') return
+          if (port.pull === pull) delete port.pull
+          else port.pull = pull
         }),
       renameInstance: (id, name) =>
         set((s) => {

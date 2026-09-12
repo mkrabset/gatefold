@@ -27,14 +27,16 @@ Demo [here](https://mkrabset.github.io/pages/?focus=gatefold).
   edits never affect the template or sibling instances.
 - **Editing internals** — double-click any component (composite or gate) to enter it;
   press Escape to go back up.
-- **Port editing** — add, remove, rename, reorder, and invert a component's terminals.
+- **Port editing** — add, remove, rename, reorder, and invert a component's terminals;
+  press `1`/`0` while hovering an input pin to set a **pull-up/pull-down** (applies only while
+  the pin is floating), shown as a small `1`/`0` beside the pin.
 - **Copy / paste / delete** and **undo / redo**.
 - **Component properties** — per-instance values (e.g. CLOCK `period`, BUS `lanes`,
   7-SEG `order`, array `terminalType`).
 - **Save / load** — whole designs as JSON; library export/import for custom components; and
   **Verilog export** (synthesizable `.v` for FPGA/HDL, via a toolbar button or a CLI).
 - **Simulation** — design/simulate modes with Run/Step/Stop/Reset, signal-colored wires
-  (`1` red, `0` black, `x` gray) on a dark-green canvas, a CLOCK source, interactive
+  (`1` red, `0` black, `x` yellow) on a dark-green canvas, a CLOCK source, interactive
   switch/led/7-seg probes, and configurable gate delays + step modes. **Run** enters simulate
   mode and starts running; **Space** toggles run/pause; **Escape** exits at the top level.
 - **Theming** — light and dark modes, resizable panels; preferences persist across reloads.

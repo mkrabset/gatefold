@@ -400,6 +400,30 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(port().inverted).toBeUndefined()
   })
 
+  it('toggles pin pull on the hovered input pin and refuses invalid targets', () => {
+    reset()
+    const port = () => (mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef).ports.find((p) => p.id === 'in:0')!
+    const outPort = () => (mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef).ports.find((p) => p.id === 'out:0')!
+
+    useEditorStore.getState().togglePinPull({ instanceId: 'ha1', portId: 'in:0' }, 'up')
+    expect(port().pull).toBe('up')
+
+    useEditorStore.getState().togglePinPull({ instanceId: 'ha1', portId: 'in:0' }, 'down')
+    expect(port().pull).toBe('down')
+
+    useEditorStore.getState().togglePinPull({ instanceId: 'ha1', portId: 'in:0' }, 'down')
+    expect(port().pull).toBeUndefined()
+
+    // An output terminal is never pullable.
+    useEditorStore.getState().togglePinPull({ instanceId: 'ha1', portId: 'out:0' }, 'up')
+    expect(outPort().pull).toBeUndefined()
+
+    // A port-group pin is never pullable.
+    useEditorStore.setState({ design: makePortGroupDesign() })
+    useEditorStore.getState().togglePinPull({ instanceId: 'in', portId: 'in:0' }, 'up')
+    expect(useEditorStore.getState().design.root.ports.find((p) => p.id === 'in:0')!.pull).toBeUndefined()
+  })
+
   it('splits a wire and inserts a join-point', () => {
     reset()
     useEditorStore.getState().insertJoinPointAt('c1', { x: 200, y: 150 })

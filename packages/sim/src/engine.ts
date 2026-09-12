@@ -132,10 +132,13 @@ export class Simulation {
     this.stepMode = config.stepMode
 
     const n = netlist.netCount
-    // Power-on: driven nets start at 0; floating (undriven) nets stay unknown.
-    this.values = Array.from({ length: n }, (_, i) =>
-      Array.from({ length: this.netWidths[i] }, () => (this.driven[i] ? 0 : ('x' as Signal))),
-    )
+    // Power-on: driven nets start at 0; floating (undriven) nets stay unknown, except
+    // those with a pull-up/pull-down, which start at their pulled level.
+    this.values = Array.from({ length: n }, (_, i) => {
+      const pull = netlist.pulled.get(i)
+      const v: Signal = pull ? (pull === 'up' ? 1 : 0) : this.driven[i] ? 0 : ('x' as Signal)
+      return Array.from({ length: this.netWidths[i] }, () => v)
+    })
     this.fanout = Array.from({ length: n }, () => [])
     this.seqFanout = Array.from({ length: n }, () => [])
     this.version = new Array(n).fill(0)

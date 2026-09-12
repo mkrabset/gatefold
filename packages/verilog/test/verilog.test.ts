@@ -135,7 +135,7 @@ describe('exportVerilog', () => {
     expect(issues.filter((i) => i.level === 'error')).toEqual([])
   })
 
-  it('emits a DFF with a clock source (no reset)', () => {
+  it('emits a DFF with a clock source and a tied-off (pulled-down) reset', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',
       ports: [input('in:0', 'D'), output('out:0', 'Q')],
@@ -151,10 +151,12 @@ describe('exportVerilog', () => {
         { id: 'c3', from: iref('f', 'out:0'), to: iref('po', 'out:0') },
       ],
     }
-    const { source } = exportVerilog(jsonOf(main))
+    const { source, issues } = exportVerilog(jsonOf(main))
     expect(source).toContain('input clk_CLK')
     expect(source).toContain('output reg Q')
-    expect(source).toContain('always @(posedge clk_CLK) Q <= D;')
+    expect(source).toContain("always @(posedge clk_CLK or posedge f_RST) if (f_RST) Q <= 1'b0; else Q <= D;")
+    expect(source).toContain("assign f_RST = 1'b0;")
+    expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
   })
 
   it('emits a DFF with an async reset', () => {
@@ -198,7 +200,7 @@ describe('exportVerilog', () => {
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain('output reg Q')
     expect(source).toContain('output QN')
-    expect(source).toContain('always @(posedge clk_CLK) Q <= D;')
+    expect(source).toContain("always @(posedge clk_CLK or posedge f_RST) if (f_RST) Q <= 1'b0; else Q <= D;")
     expect(source).toContain('assign QN = ~(Q);')
   })
 
@@ -333,6 +335,78 @@ describe('exportVerilog', () => {
     const { source, issues } = exportVerilog(jsonOf(main))
     expect(issues.some((i) => i.level === 'error' && i.message.includes('floating input'))).toBe(true)
     expect(source).toContain('assign Y = A & z;')
+  })
+
+  it('ties a floating pulled-up input to a constant and suppresses the floating warning', () => {
+    const andPulled: ChildDef = {
+      kind: 'fork',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input', pull: 'up' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), fork('g', andPulled), pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('g', 'in:0') },
+        { id: 'c2', from: iref('g', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(source).toContain("assign g_B = 1'b1;")
+    expect(source).toContain('assign Y = A & g_B;')
+    expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
+  })
+
+  it('ties a floating pulled-down input to a constant', () => {
+    const andPulled: ChildDef = {
+      kind: 'fork',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input', pull: 'down' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), fork('g', andPulled), pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('g', 'in:0') },
+        { id: 'c2', from: iref('g', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain("assign g_B = 1'b0;")
+    expect(source).toContain('assign Y = A & g_B;')
+  })
+
+  it('ties a floating pulled-up bus input to an all-ones constant', () => {
+    const fanOutPulled: ChildDef = {
+      kind: 'fork',
+      primitive: 'fan-out',
+      ports: [
+        { id: 'in:0', name: 'BUS', direction: 'input', pull: 'up' },
+        { id: 'out:0', name: 'Y1', direction: 'output' },
+        { id: 'out:1', name: 'Y2', direction: 'output' },
+      ],
+    }
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Y1'), output('out:1', 'Y2')],
+      instances: [pgOut(), fork('g', fanOutPulled)],
+      connections: [
+        { id: 'c1', from: iref('g', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c2', from: iref('g', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain("assign g_BUS = {2{1'b1}};")
   })
 
   it('exports a nested switch as a fixed initial value', () => {

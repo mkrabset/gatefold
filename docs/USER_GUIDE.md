@@ -123,6 +123,7 @@ level.
 | Escape | Go up one level (or leave simulate mode at the top level) |
 | Space | Toggle run/pause (in simulate mode) |
 | `i` | Toggle inversion on the hovered terminal |
+| `1` / `0` | Set (or remove) a pull-up / pull-down on the hovered input terminal (see §3) |
 
 ---
 
@@ -148,6 +149,22 @@ Inversion is **external-only**: it applies to a component *instance's* terminals
 the sheet it is placed on), never to a component's *own* terminals from the inside. The current
 scope's input/output port groups cannot be inverted and never show a bubble — to invert a
 composite's terminal, select the composite instance on the parent sheet and invert it there.
+
+### Terminal pull-up / pull-down
+
+An **input** terminal can be given a weak pull-up or pull-down, which drives it only while the
+pin is left **floating** (nothing wired to it). Press **`1`** while hovering an input pin to
+set a pull-up, **`0`** for a pull-down; press the same key again to remove it. A small `1`/`0`
+glyph is drawn just left of the pin while a pull is active and the pin is unconnected.
+
+- A floating pulled input reads as a real `1`/`0` in simulation (instead of `x`) — so, for
+  example, an unconnected active-high reset can be tied inactive.
+- In Verilog export a pulled floating input is tied to a constant and is not reported as a
+  floating net.
+- Like inversion, pull is instance-level and external-only: it lives on the placed instance,
+  never on the template or on a component's own port groups.
+- The **DFF**'s `RST` input is pulled **down** by default, so a DFF whose reset is left
+  unconnected behaves as "no reset" rather than floating.
 
 ### Copy-on-place and templates
 
@@ -189,7 +206,7 @@ Logic values are 3-state:
 |-------|---------|------------|
 | `1` | high | red |
 | `0` | low | black |
-| `x` | unknown / floating | gray |
+| `x` | unknown / floating | yellow |
 
 `x` arises from unconnected inputs; it propagates through gates unless a dominant value
 determines the output (0 dominates AND, 1 dominates OR).
@@ -234,6 +251,8 @@ its properties, and what it does.
 - When `RST` is asserted (high by default, low with
   *Active-high reset* off), `Q` is forced **asynchronously** to the **Initial value**, overriding
   the clock. On power-on `Q` starts at the **Initial value**.
+- `RST` is pulled **down** by default, so leaving it unconnected reads as inactive (no reset)
+  rather than floating.
 
 ### FAN-IN
 - **Inputs:** 2+ (single-wire), default 4 · **Outputs:** 1 (`BUS`) · *inputs variable*
@@ -357,11 +376,12 @@ canvas (e.g. `10x faster`, `200x slower`, or `real-time` at `1`).
 The engine is event-driven with **inertial gate delays**: a gate's output changes a configured
 number of picoseconds after its inputs change. On start (or reset), driven nets begin at `0`
 (floating stay `x`), then a zero-delay settle pass resolves feedback loops (latches, flip-flops)
-to a stable state; a true oscillator is detected and shown as `x`.
+to a stable state; a true oscillator is detected and shown as `x`. A floating input with a
+**pull-up/pull-down** (§3) starts at its pulled level (`1`/`0`) instead of `x`.
 
 ### Signals and probes
 
-- Wires and terminal markers are colored by their value: **red = 1, black = 0, gray = x**.
+- Wires and terminal markers are colored by their value: **red = 1, black = 0, yellow = x**.
 - **CLOCK** toggles its output on a square wave with its `Period`.
 - **SWITCHES** lanes toggle by clicking their indicator circles (a double-click just
   toggles twice — it does *not* enter the component).
@@ -419,7 +439,9 @@ wired to anything is ignored, and **LEDS** and **7-SEG** are always ignored.
 The export reports issues by severity:
 
 - **Errors** (shown as a toast and logged to the console): *floating nets* (an input/output with no
-  driver) and a *nested CLOCK* (a clock inside a composite can't be exported).
+  driver) and a *nested CLOCK* (a clock inside a composite can't be exported). A floating input
+  with a **pull-up/pull-down** is *not* an error — its net is tied to a constant
+  (`assign net = 1'b1;` / `1'b0`).
 
 The same generator is available as a CLI: `pnpm --filter @gatefold/verilog cli <design.json> [out.v]`.
 

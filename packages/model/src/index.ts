@@ -8,6 +8,7 @@
 export type {
   Signal,
   PortDirection,
+  PullDirection,
   Port,
   PrimitiveKind,
   PropertyValue,

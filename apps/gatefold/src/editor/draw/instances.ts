@@ -1,5 +1,5 @@
-import type { ChildDef, CompositeDef, Instance, Palette, PinRef, Port } from '@gatefold/model'
-import { childPorts, childPrimitive, inputPorts, outputPorts, periodOf, pinWidth, portGroupDirection, primitiveOf } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Instance, Palette, PinRef, Port, PullDirection } from '@gatefold/model'
+import { childPorts, childPrimitive, findConnectionTo, inputPorts, outputPorts, periodOf, pinWidth, portGroupDirection, primitiveOf } from '@gatefold/model'
 import {
   busWireOffsets,
   currentLaneDistance,
@@ -52,10 +52,41 @@ function drawInversionRing(
 /** Gap between a terminal and its name label, in world units. */
 const PIN_LABEL_GAP = 10
 
+/** Gap (×zoom) between a pulled input pin and its "1"/"0" glyph. */
+const PULL_GLYPH_GAP = 4
+/** Extra clearance (×zoom) added to a composite port name when its pin is pulled. */
+const PULL_NAME_EXTRA = 10
+
 /** Screen-space offset for a terminal label (clears the pin stroke and any bubble). */
 function pinLabelOffset(inverted: boolean, zoom: number): number {
   const bubble = inverted ? 2 * pinRadiusWorld(1) : 0
   return (bubble + PIN_LABEL_GAP) * zoom
+}
+
+/** Whether a terminal's pull-up/pull-down is active: an input pin with a pull set and
+ *  nothing wired to it (a connected input ignores its pull). */
+function portPullActive(parentDef: CompositeDef, instance: Instance, port: Port): boolean {
+  return (
+    port.direction === 'input' &&
+    port.pull !== undefined &&
+    !findConnectionTo(parentDef.connections, { instanceId: instance.id, portId: port.id })
+  )
+}
+
+/** Draw the small "1"/"0" glyph just left of a pulled input pin. */
+function drawPullGlyph(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  pull: PullDirection,
+  vp: Viewport,
+  p: Palette,
+) {
+  ctx.fillStyle = p.text
+  ctx.font = `${9 * vp.zoom}px system-ui, sans-serif`
+  ctx.textBaseline = 'middle'
+  ctx.textAlign = 'right'
+  ctx.fillText(pull === 'up' ? '1' : '0', x - PULL_GLYPH_GAP * vp.zoom, y)
 }
 
 /**
@@ -117,6 +148,9 @@ function drawPorts(
     const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
     const signalColor = sim?.colorOf(instance.id, port.id)
     drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, d, signalColor)
+    if (portPullActive(parentDef, instance, port)) {
+      drawPullGlyph(ctx, s.x, s.y, port.pull!, vp, p)
+    }
   }
 
   for (const port of inputPorts(ports)) drawPort(port, p.pin, true)
@@ -254,7 +288,7 @@ function drawInstance(
     const drawPortLabel = (port: Port, align: CanvasTextAlign) => {
       const pos = portPosition(root, parentDef, instance, def, port.id)
       const ps = w2s(pos.x, pos.y, cw, ch, vp)
-      const offset = pinLabelOffset(port.inverted ?? false, vp.zoom)
+      const offset = pinLabelOffset(port.inverted ?? false, vp.zoom) + (portPullActive(parentDef, instance, port) ? PULL_NAME_EXTRA * vp.zoom : 0)
       ctx.textAlign = align
       const x = align === 'right' ? ps.x - offset : ps.x + offset
       ctx.fillText(port.name, x, ps.y)

@@ -483,6 +483,12 @@ export function Canvas() {
           e.preventDefault()
           useEditorStore.getState().togglePinInversion(hover)
         }
+      } else if ((e.key === '1' || e.key === '0') && pointerOver) {
+        const hover = useEditorStore.getState().hoverPort
+        if (hover) {
+          e.preventDefault()
+          useEditorStore.getState().togglePinPull(hover, e.key === '1' ? 'up' : 'down')
+        }
       }
     }
 

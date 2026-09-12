@@ -212,6 +212,8 @@ describe('model primitives', () => {
     expect(outP('dff').map((p) => p.name)).toEqual(['Q', '!Q'])
     expect(outP('dff').map((p) => p.id)).toEqual(['out:0', 'out:1'])
     expect(outP('dff')[1].inverted).toBeUndefined()
+    expect(inP('dff')[2].pull).toBe('down')
+    expect(inP('dff')[0].pull).toBeUndefined()
     expect(isArityFixed(def('dff'), 'input')).toBe(true)
     expect(isArityFixed(def('dff'), 'output')).toBe(true)
 

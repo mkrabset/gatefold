@@ -283,6 +283,19 @@ class Generator {
           }
         }
       }
+      if (name === null) {
+        // A floating pulled input: name the net after its pin for a readable constant.
+        for (const m of members) {
+          const inst = byId.get(m.instanceId)
+          const ports = inst && childPorts(inst.def)
+          const port = ports && ports.find((p) => p.id === m.portId)
+          if (port && port.direction === 'input' && port.pull) {
+            name = uniqueName(`${inst!.name}_${port.name || port.id}`, used)
+            width = pinWidth(this.design.root, def, m)
+            break
+          }
+        }
+      }
       if (name === null) { name = uniqueName('z', used); width = 1 }
       for (const m of members) netNameOfPin.set(pinKey(m), name)
       netWidthByName.set(name, width)
@@ -297,7 +310,7 @@ class Generator {
       if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
       if (ignoredIds.has(inst.id)) continue
       for (const p of inputPorts(childPorts(inst.def))) {
-        if (!findConnectionTo(connections, { instanceId: inst.id, portId: p.id })) {
+        if (!findConnectionTo(connections, { instanceId: inst.id, portId: p.id }) && !p.pull) {
           this.error(`floating input "${inst.name}.${p.name}" in composite "${def.name}"`)
         }
       }
@@ -449,7 +462,7 @@ class Generator {
         const qv = (expr: string): string => (qInverted ? `~(${expr})` : expr)
         const dSig = dPort?.inverted ? `~(${d})` : d
 
-        const rstConnected = findConnectionTo(connections, { instanceId: inst.id, portId: rstId }) !== null
+        const rstConnected = findConnectionTo(connections, { instanceId: inst.id, portId: rstId }) !== null || rstPort?.pull != null
         if (rstConnected) {
           const rstKw = effActiveHigh ? 'posedge' : 'negedge'
           const rstCond = effActiveHigh ? rst : `!${rst}`
@@ -530,6 +543,23 @@ class Generator {
         continue
       }
       emitPrimitive(inst, idef.primitive, childPorts(idef))
+    }
+
+    // Pull-up/pull-down on a disconnected input terminal: drive the floating net to a
+    // constant. Takes effect only when nothing else drives the pin (a connected pin is
+    // skipped). Ignored probes (LEDs / 7-seg) are not wired, so their pins are skipped.
+    for (const inst of instances) {
+      if (inst.id === inputGroup?.id || inst.id === outputGroup?.id) continue
+      if (ignoredIds.has(inst.id)) continue
+      for (const p of inputPorts(childPorts(inst.def))) {
+        if (!p.pull) continue
+        const ref = { instanceId: inst.id, portId: p.id }
+        if (findConnectionTo(connections, ref)) continue
+        const net = netOf(ref)
+        const w = pinWidth(this.design.root, def, ref)
+        const bit = p.pull === 'up' ? '1' : '0'
+        stmts.push(w > 1 ? `assign ${net} = {${w}{1'b${bit}}};` : `assign ${net} = 1'b${bit};`)
+      }
     }
 
     const lines: string[] = []

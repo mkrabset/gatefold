@@ -180,6 +180,56 @@ describe('Simulation engine', () => {
     expect(sim.signal('g', 'out:0')).toBe('x')
   })
 
+  it('pulls a floating input up/down and ignores the pull once connected', () => {
+    const bufferUp: ChildDef = {
+      kind: 'fork',
+      primitive: 'buffer',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', pull: 'up' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const bufferDown: ChildDef = {
+      kind: 'fork',
+      primitive: 'buffer',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', pull: 'down' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+
+    const up = new Simulation(mkDesign([inst('b', bufferUp)], []))
+    expect(up.signal('b', 'in:0')).toBe(1)
+    expect(up.signal('b', 'out:0')).toBe(1)
+
+    const down = new Simulation(mkDesign([inst('b', bufferDown)], []))
+    expect(down.signal('b', 'in:0')).toBe(0)
+    expect(down.signal('b', 'out:0')).toBe(0)
+
+    // Once wired, the pull is ignored: the switch drives the input to 0.
+    const wired = new Simulation(
+      mkDesign([inst('b', bufferUp), inst('sw', 'switch-array')], [conn('c1', iref('sw', 'out:0'), iref('b', 'in:0'))]),
+    )
+    wired.setSwitch('sw', 0)
+    wired.step()
+    expect(wired.signal('b', 'in:0')).toBe(0)
+    expect(wired.signal('b', 'out:0')).toBe(0)
+  })
+
+  it('pulls a DFF RST low by default when unconnected', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('d', 'switch-array'), clk('clk', { period: 1000 }), inst('f', 'dff')],
+        [
+          conn('c1', iref('d', 'out:0'), iref('f', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('f', 'in:1')),
+        ],
+      ),
+    )
+    expect(sim.signal('f', 'in:2')).toBe(0)
+    expect(sim.signal('f', 'out:0')).toBe(0)
+  })
+
   it('settles a NOR SR latch with set/reset/hold', () => {
     const sim = new Simulation(
       mkDesign(

@@ -44,6 +44,7 @@ interface Port {
   direction: PortDirection
   terminal?: { instanceId: string; pinId: string } // composite only: internal port instance
   inverted?: boolean                               // logical inversion (rendered as a bubble)
+  pull?: 'up' | 'down'                             // weak drive on a floating input (rendered as a 1/0 glyph)
 }
 
 type PrimitiveKind =
@@ -245,6 +246,13 @@ design.root.instances = [
   `inverted` lives on copies. Grouping writes inversion onto the instance copy (not the
   template); the ports editor / `i` shortcut are disabled while editing a template. Built-in
   primitives (NOT, BUFFER) keep their intrinsic inverted outputs.
+- **Terminal pull (pull-up/pull-down)**: like inversion, `pull` (`'up'`/`'down'`) lives on an
+  instance's input terminals (toggled with `1`/`0` while hovering, stored on the copy, never
+  on templates or port groups). It only takes effect while the pin is **floating** — the
+  simulator reads the pulled level instead of `x`, and Verilog export ties the net to a
+  constant and suppresses the floating-input error. The DFF's `RST` input defaults to
+  `pull: 'down'`. Grouping carries an exposed input's pull onto the new component's input
+  terminal, and template apply preserves it (like inversion).
 - **Custom properties**: a primitive declares its properties via `properties(): PropertySpec[]`
   (schema + default + unit/min/max/step; plus a `'select'` type with `options`). Per-instance
   values live in `Instance.props`, seeded at instantiation from the primitive's defaults and
@@ -329,7 +337,7 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   `closeSwitchDialog`/`setSwitchValue` (the last drives `engine.setSwitchLanes` + `step`),
   `descend`/`ascend`, `setStepMode`/`setDefaultDelay`, `openSettings`/`closeSettings`.
 - View helpers `simColorOf`/`simValueOf` (kept out of the store state) map a flattened pin's
-  signal to a theme-aware wire color (`1`→red, `0`→black, `x`→gray).
+  signal to a theme-aware wire color (`1`→red, `0`→black, `x`→yellow).
 
 ---
 
@@ -419,6 +427,9 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   small bubble per lane (aligned with each individual wire). Inversion is instance-level
   (templates stay clean); press `i` while hovering a terminal or use the ports-editor checkbox
   — both disabled while editing a template.
+- **Pull glyph**: a pulled, disconnected input terminal draws a small `1` (pull-up) or `0`
+  (pull-down) just to the left of its pin. A composite instance's port name is pushed further
+  left to clear the glyph. Press `1`/`0` while hovering the pin to toggle.
 - **Labels**: primitives show type above and instance name below; composites show the
   instance name centered with the type above and port names beside the pins.
 - **Wires**: two strokes — a thick background "halo" then the thin wire — so crossings read
@@ -571,7 +582,10 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
   - **Power-on resolution**: driven nets initialize to `0` (floating stay `x`), then a
     zero-delay **Gauss-Seidel** pass settles feedback loops to a valid stable state; a per-net
     change counter detects true oscillators and freezes them at `x`. This breaks the `x`
-    deadlock in gated feedback (e.g. a JK whose set/reset is gated by its own outputs).
+    deadlock in gated feedback (e.g. a JK whose set/reset is gated by its own outputs). A
+    floating net with a **pull** (an input terminal's `pull: 'up'|'down'`, see §2) powers on to
+    its pulled level (`1`/`0`) instead of `x`; a pulled net is always floating, so it is never
+    re-driven.
   - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF) is not a
     combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
     `resetPortId()`) net, and `evaluateSequential` — on a configured `edge` — samples `D` and
@@ -659,8 +673,12 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   is wired to nothing is ignored entirely; **LEDS** and **7-SEG** are ignored. A nested clock is an
   error.
 - **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested
-  clocks, and dangling refs. The app logs infos to the console and surfaces errors as a toast; the
-  CLI (`tsx src/cli.ts`) prints them to stderr.
+  clocks, and dangling refs. A floating input that carries a **pull** (`pull: 'up'|'down'`) is not
+  an error — its net is tied to a constant (`assign net = 1'b1/0;`, width-aware for buses) and named
+  after the instance/port. A pulled DFF `RST` makes the reset "present" in the emitted `always`
+  block (its tied-off net drives the reset condition), so a pulled-down reset reads as "no reset" and
+  a pulled-up reset as "always reset" — matching the simulator. The app logs infos to the console
+  and surfaces errors as a toast; the CLI (`tsx src/cli.ts`) prints them to stderr.
 - Identifier sanitization + Verilog-keyword avoidance + collision dedup apply to module, port, and
   net names.
 

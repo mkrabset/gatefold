@@ -47,6 +47,35 @@ describe('serializeDesign / parseDesign', () => {
     expect(parsed.root.instances[0].pos).toEqual({ x: 1.23, y: -3 })
   })
 
+  it('round-trips a terminal pull-up/pull-down', () => {
+    const design = makeDesign()
+    design.root.instances[0] = {
+      id: 'a1',
+      name: 'a1',
+      def: {
+        kind: 'fork',
+        primitive: 'and',
+        ports: [
+          { id: 'in:0', name: 'A', direction: 'input', pull: 'up' },
+          { id: 'in:1', name: 'B', direction: 'input', pull: 'down' },
+          { id: 'out:0', name: 'Y', direction: 'output' },
+        ],
+      },
+      pos: { x: 0, y: 0 },
+    }
+    const parsed = parseDesign(serializeDesign(design))
+    const fork = parsed.root.instances.find((i) => i.id === 'a1')!.def
+    expect(fork).toEqual({
+      kind: 'fork',
+      primitive: 'and',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input', pull: 'up' },
+        { id: 'in:1', name: 'B', direction: 'input', pull: 'down' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    })
+  })
+
   it('rejects malformed JSON', () => {
     expect(() => parseDesign('{ not json')).toThrow()
   })

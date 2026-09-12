@@ -71,7 +71,7 @@ export function applyTemplate(design: Design, templateId: string, scope: Set<str
     const oldPorts = live.ports
     live.instances = top.instances
     live.connections = top.connections
-    live.ports = top.ports.map((tp, i) => ({ ...tp, inverted: oldPorts[i]?.inverted }))
+    live.ports = top.ports.map((tp, i) => ({ ...tp, inverted: oldPorts[i]?.inverted, pull: oldPorts[i]?.pull }))
     live.name = template.name
     updated++
   }

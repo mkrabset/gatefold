@@ -1,4 +1,4 @@
-import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port } from './types'
+import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port, PullDirection } from './types'
 import { findConnectionTo, pinKey, pinRefEquals } from './connections'
 import { inputPortId, inputPorts, outputPortId, outputPorts } from './ports'
 import { allCompositeIds, findComposite, templateNames } from './composite'
@@ -31,6 +31,8 @@ export interface InferredInput {
   name?: string
   /** Inherited terminal inversion (when the parent's input-port is included in the group). */
   inverted?: boolean
+  /** Terminal pull, inherited or carried from an exposed (floating) input. */
+  pull?: PullDirection
 }
 
 /** An inferred output: one selected output pin driving one or more external pins. */
@@ -172,7 +174,7 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
     if (!inputPortIncluded) {
       for (const port of inputPorts(ports)) {
         const ref = { instanceId: inst.id, portId: port.id }
-        if (!findConnectionTo(def.connections, ref)) exposedInputs.push({ targets: [ref] })
+        if (!findConnectionTo(def.connections, ref)) exposedInputs.push({ targets: [ref], pull: port.pull })
       }
     }
     if (!outputPortIncluded) {
@@ -198,7 +200,7 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
             !isPortGroupInst(c.to.instanceId),
         )
         .map((c) => ({ instanceId: c.to.instanceId, portId: c.to.portId }))
-      inheritedInputs.push({ name: p.name, inverted: p.inverted, source, targets })
+      inheritedInputs.push({ name: p.name, inverted: p.inverted, pull: p.pull, source, targets })
     }
   }
   const inheritedOutputs: InferredOutput[] = []

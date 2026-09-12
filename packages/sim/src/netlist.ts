@@ -1,4 +1,4 @@
-import type { CompositeDef, Design, Instance, Port, PrimitiveKind, PropertyValue } from '@gatefold/model'
+import type { CompositeDef, Design, Instance, Port, PrimitiveKind, PropertyValue, PullDirection } from '@gatefold/model'
 import { childPorts, isPortGroupDef, pinWidth, UnionFind } from '@gatefold/model'
 
 export interface FlatPort {
@@ -25,6 +25,8 @@ export interface Netlist {
   /** Maps every flattened pin key (`instancePath:portId`) to its net, including
    *  port-group and composite-boundary pins (not just leaf primitives). */
   pinNet: Map<string, number>
+  /** Nets weakly pulled up/down (only floating nets — those with no driver). */
+  pulled: Map<number, PullDirection>
 }
 
 /** Separator joining instance ids into a flattened `.`-path (shared with the app). */
@@ -54,6 +56,8 @@ export function flatten(design: Design): Netlist {
   const allPins = new Set<string>()
   /** Inverted composite terminals, resolved into synthesized inverters after nets are assigned. */
   const inverters: { source: string; target: string }[] = []
+  /** Input pins carrying a pull, resolved to nets (and filtered to floating) after assignment. */
+  const pulls: { key: string; pull: PullDirection }[] = []
 
   const join = (path: string, id: string): string => joinInstancePath(path, id)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
@@ -74,6 +78,7 @@ export function flatten(design: Design): Netlist {
       const ik = pinKey(join(path, p.terminal.instanceId), p.terminal.pinId)
       allPins.add(bk)
       allPins.add(ik)
+      if (p.direction === 'input' && p.pull) pulls.push({ key: bk, pull: p.pull })
       if (p.inverted === true) {
         // Inverted composite terminal: the boundary pin and the internal port-group pin
         // are separate nets joined by a synthesized inverter (an input inverts on the way
@@ -125,8 +130,10 @@ export function flatten(design: Design): Netlist {
       const w = pinWidth(design.root, leaf.parentDef, { instanceId: leaf.inst.id, portId: p.id })
       if (w > netWidths[net]) netWidths[net] = w
       const port = { portId: p.id, net, inverted: p.inverted === true }
-      if (p.direction === 'input') inputs.push(port)
-      else {
+      if (p.direction === 'input') {
+        inputs.push(port)
+        if (p.pull) pulls.push({ key: pinKey(leaf.id, p.id), pull: p.pull })
+      } else {
         outputs.push(port)
         driven[net] = true
       }
@@ -154,5 +161,14 @@ export function flatten(design: Design): Netlist {
   const pinNet = new Map<string, number>()
   for (const key of allPins) pinNet.set(key, netIdOf(key))
 
-  return { instances, netCount: netWidths.length, netWidths, driven, pinNet }
+  // A pull only takes effect on a floating net (no driver). On a driven net it is
+  // ignored. If two pulls land on the same floating net (conflicting), the first wins.
+  const pulled = new Map<number, PullDirection>()
+  for (const { key, pull } of pulls) {
+    const net = netIdOf(key)
+    if (driven[net]) continue
+    if (!pulled.has(net)) pulled.set(net, pull)
+  }
+
+  return { instances, netCount: netWidths.length, netWidths, driven, pinNet, pulled }
 }

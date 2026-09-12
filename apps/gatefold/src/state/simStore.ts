@@ -11,7 +11,7 @@ type SimMode = 'design' | 'simulate'
 const SIGNAL_COLORS: Record<Signal, { dark: string; light: string }> = {
   1: { dark: '#ef4444', light: '#dc2626' },
   0: { dark: '#4b5563', light: '#111827' },
-  x: { dark: '#6b7280', light: '#9ca3af' },
+  x: { dark: '#fde047', light: '#eab308' },
 }
 
 /** A run tick advances the engine by this much simulated time (ps) per real tick. */

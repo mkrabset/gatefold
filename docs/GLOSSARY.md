@@ -40,7 +40,8 @@ authoritative — update this when a term's meaning changes.
   simulator evaluates on clock edges rather than via `transfer`: on the configured `edge`
   (`posedge`/`negedge`) `Q` samples `D` (clk-to-q delay), and an asserted `RST` (`resetActiveHigh`
   selects polarity) forces `Q` asynchronously to its `initialValue`. `!Q` is the complement of
-  `Q`, inverted internally (its output carries `~Q` without an inversion bubble). This is the
+  `Q`, inverted internally (its output carries `~Q` without an inversion bubble). The `RST` input
+  defaults to **pull-down**, so an unconnected reset reads inactive rather than floating. This is the
   primitive the future Verilog exporter maps 1:1 to `always @(posedge clk) q <= d` (with a reset
   branch), so sequential circuits export as real FPGA registers rather than feedback gate
   structures.
@@ -110,6 +111,15 @@ authoritative — update this when a term's meaning changes.
   Inversion is **external-only**: a component's own terminals as seen from *inside* (the
   `input-port`/`output-port` port groups) are never invertable and never show a bubble — you
   invert a terminal on a placed instance, never on the scope's own ports.
+- **Pull-up / pull-down** — a weak drive applied to a floating *input* terminal. Stored on
+  `Port.pull` (`'up'`/`'down'`), toggled by pressing `1`/`0` while hovering the pin (like
+  `i` for inversion). It only takes effect while the pin is **disconnected** (floating):
+  the simulator reads the pulled level (`1`/`0`) instead of `x`, and Verilog export ties the
+  net to a constant (`assign net = 1'b1/0;`) instead of flagging a floating input. A small
+  `1`/`0` glyph is drawn just left of the pin when a pull is active and the pin is unwired.
+  Instance-level and external-only like inversion (templates and port groups stay clean).
+  The **DFF's `RST` input defaults to pull-down**, so an unconnected reset reads inactive
+  rather than floating.
 - **Terminal / pin** — a connectable endpoint on an *instance*. (We use "port" for the
   declaration and "pin/terminal" for the concrete endpoint; often interchangeable.)
 - **Terminal marker** — the vertical stroke drawn along a component's edge for a pin; its
@@ -226,4 +236,4 @@ authoritative — update this when a term's meaning changes.
   latches a *half-period* breach (logic settles after the next clock edge) or a *full-period*
   breach (after a whole period), derived from gate delays vs. the clock period.
 - **Signal coloring** — wires/markers colored by their simulated value: red = `1`, black = `0`,
-  gray = `x`.
+  yellow = `x` (floating/unknown).

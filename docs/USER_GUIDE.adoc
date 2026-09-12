@@ -148,17 +148,27 @@ driven input is rejected with a message.
 
 ==== Keyboard shortcuts
 
-[cols=",",options="header",]
+[width="100%",cols="56%,44%",options="header",]
 |===
 |Shortcut |Action
 |Ctrl/Cmd {plus} C |Copy selection
+
 |Ctrl/Cmd {plus} V |Paste
+
 |Delete / Backspace |Delete selection
+
 |Ctrl/Cmd {plus} Z |Undo
+
 |Ctrl/Cmd {plus} Shift {plus} Z / Ctrl/Cmd {plus} Y |Redo
+
 |Escape |Go up one level (or leave simulate mode at the top level)
+
 |Space |Toggle run/pause (in simulate mode)
+
 |`i` |Toggle inversion on the hovered terminal
+
+|`1` / `0` |Set (or remove) a pull-up / pull-down on the hovered input
+terminal (see §3)
 |===
 
 '''''
@@ -191,6 +201,26 @@ component’s _own_ terminals from the inside. The current scope’s
 input/output port groups cannot be inverted and never show a bubble — to
 invert a composite’s terminal, select the composite instance on the
 parent sheet and invert it there.
+
+==== Terminal pull-up / pull-down
+
+An *input* terminal can be given a weak pull-up or pull-down, which
+drives it only while the pin is left *floating* (nothing wired to it).
+Press *`1`* while hovering an input pin to set a pull-up, *`0`* for a
+pull-down; press the same key again to remove it. A small `1`/`0` glyph
+is drawn just left of the pin while a pull is active and the pin is
+unconnected.
+
+* A floating pulled input reads as a real `1`/`0` in simulation (instead
+of `x`) — so, for example, an unconnected active-high reset can be tied
+inactive.
+* In Verilog export a pulled floating input is tied to a constant and is
+not reported as a floating net.
+* Like inversion, pull is instance-level and external-only: it lives on
+the placed instance, never on the template or on a component’s own port
+groups.
+* The *DFF*’s `RST` input is pulled *down* by default, so a DFF whose
+reset is left unconnected behaves as "`no reset`" rather than floating.
 
 ==== Copy-on-place and templates
 
@@ -238,7 +268,7 @@ Logic values are 3-state:
 |Value |Meaning |Wire color
 |`1` |high |red
 |`0` |low |black
-|`x` |unknown / floating |gray
+|`x` |unknown / floating |yellow
 |===
 
 `x` arises from unconnected inputs; it propagates through gates unless a
@@ -300,6 +330,8 @@ of `D` (after a clk-to-q delay); between edges `Q` holds.
 * When `RST` is asserted (high by default, low with _Active-high reset_
 off), `Q` is forced *asynchronously* to the *Initial value*, overriding
 the clock. On power-on `Q` starts at the *Initial value*.
+* `RST` is pulled *down* by default, so leaving it unconnected reads as
+inactive (no reset) rather than floating.
 
 ==== FAN-IN
 
@@ -466,12 +498,14 @@ The engine is event-driven with *inertial gate delays*: a gate’s output
 changes a configured number of picoseconds after its inputs change. On
 start (or reset), driven nets begin at `0` (floating stay `x`), then a
 zero-delay settle pass resolves feedback loops (latches, flip-flops) to
-a stable state; a true oscillator is detected and shown as `x`.
+a stable state; a true oscillator is detected and shown as `x`. A
+floating input with a *pull-up/pull-down* (§3) starts at its pulled
+level (`1`/`0`) instead of `x`.
 
 ==== Signals and probes
 
 * Wires and terminal markers are colored by their value: *red = 1, black
-= 0, gray = x*.
+= 0, yellow = x*.
 * *CLOCK* toggles its output on a square wave with its `Period`.
 * *SWITCHES* lanes toggle by clicking their indicator circles (a
 double-click just toggles twice — it does _not_ enter the component).
@@ -541,7 +575,9 @@ The export reports issues by severity:
 
 * *Errors* (shown as a toast and logged to the console): _floating nets_
 (an input/output with no driver) and a _nested CLOCK_ (a clock inside a
-composite can’t be exported).
+composite can’t be exported). A floating input with a
+*pull-up/pull-down* is _not_ an error — its net is tied to a constant
+(`assign net = 1'b1;` / `1'b0`).
 
 The same generator is available as a CLI:
 `pnpm --filter @gatefold/verilog cli ++<++design.json++>++ ++[++out.v++]++`.

@@ -85,7 +85,9 @@ authoritative — update this when a term's meaning changes.
   panel shows one category at a time via a dropdown, and a component is moved by selecting its
   card and choosing a category (or typing a new one). The move dropdown is always visible but
   disabled until a component is selected, and while a template is being edited. Serialized with
-  the design and carried through library export/import.
+  the design and carried through library export/import. Categories can be deleted in bulk via
+  the library's **Delete** button, which opens a dialog listing every category (with a
+  **Select all** toggle).
 - **Copy** — an instantiation of a template (or a fork of a primitive) that is a full, independent
   definition. A **live copy** lives in the content tree (a nested `CompositeDef` under `root`);
   an **embedded copy** lives inline inside a library template as "part of" it. Whether a def

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSimStore } from '../state/simStore'
+import { useEscapeToClose } from './useDialog'
 
 /**
  * Modal for simulation settings: default gate delay (ps), the step mode, and the
@@ -17,6 +18,7 @@ export function SimSettingsDialog() {
   const closeSettings = useSimStore((s) => s.closeSettings)
   const [delay, setDelay] = useState(String(defaultDelay))
   const [speed, setSpeed] = useState(String(timeScale))
+  useEscapeToClose(closeSettings, open)
 
   if (!open) return null
 

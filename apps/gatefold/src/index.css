@@ -665,6 +665,14 @@ body {
   cursor: default;
 }
 
+.dialog-cat-list {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { isTemplateDef, templateCategories, templateCategory } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
+import { useAutoFocus, useEscapeToClose } from './useDialog'
 
 /**
  * Confirmation dialog shown before clearing parts of the design. It lists a checkbox for
@@ -14,6 +15,8 @@ export function ClearAllDialog() {
   const design = useEditorStore((s) => s.design)
   const confirmClearAll = useEditorStore((s) => s.confirmClearAll)
   const cancelClearAll = useEditorStore((s) => s.cancelClearAll)
+  const yesRef = useAutoFocus<HTMLButtonElement>()
+  useEscapeToClose(cancelClearAll)
 
   const categories = templateCategories(design)
   const [tree, setTree] = useState(true)
@@ -66,6 +69,7 @@ export function ClearAllDialog() {
         <div className="dialog-actions">
           <button className="dialog-btn" onClick={cancelClearAll}>No</button>
           <button
+            ref={yesRef}
             className="dialog-btn danger"
             disabled={nothingSelected}
             onClick={() => confirmClearAll({ tree, templateIds })}

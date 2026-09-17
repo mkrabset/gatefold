@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DEFAULT_LANE_DISTANCE, useUiStore } from '../state/uiStore'
+import { useEscapeToClose } from './useDialog'
 
 /**
  * Global settings modal. Currently hosts a single setting — the bus-lane spacing
@@ -13,6 +14,7 @@ export function SettingsDialog() {
   const setLaneDistance = useUiStore((s) => s.setLaneDistance)
   const closeSettings = useUiStore((s) => s.closeSettings)
   const [distance, setDistance] = useState(String(laneDistance))
+  useEscapeToClose(closeSettings, open)
 
   if (!open) return null
 

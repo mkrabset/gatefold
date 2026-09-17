@@ -13,6 +13,26 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Dialog focus + Escape** — confirmation dialogs (delete component, clear-everything, delete
+  categories) now auto-focus their primary button on open, and every dialog closes on Escape. A new
+  `ui/useDialog.ts` exports two hooks: `useAutoFocus<T>(enabled?)` (returns a ref, defers `focus()`
+  past the opening click gesture via `setTimeout(0)`, mirroring GroupDialog/SwitchValueDialog) and
+  `useEscapeToClose(onClose, enabled?)` (a `window` keydown listener, active only while the dialog
+  is open so it never swallows Escape meant for canvas navigation). `SwitchValueDialog`'s inline
+  Escape handler was migrated to the hook. `USER_GUIDE.md` updated.
+
+- **Delete library components by category** — a new **Delete** button in the library panel's
+  "My components" actions opens a `DeleteCategoriesDialog` that lists every category
+  (`templateCategories`, incl. **Uncategorized**) with a checkbox each plus a **Select all**
+  master toggle, in a scrollable list (`.dialog-cat-list`, ~15 rows visible before scrolling).
+  The store gained `pendingCategoryDelete` + `requestCategoryDelete`/`cancelCategoryDelete`/
+  `confirmCategoryDelete(categoryNames)` — the last resolves the selected category names to
+  template ids (`isTemplateDef` + `templateCategory`) and folds `deleteTemplate` over them in one
+  undoable step, then shares a new `resetAfterBulkDelete` helper with `confirmClearAll`. The
+  button is disabled while simulating or when the library is empty. Tests in
+  `editorStore.test.ts`; docs updated (`ARCHITECTURE.md` unchanged, `GLOSSARY.md`,
+  `USER_GUIDE.md`).
+
 - **Alt+drag delete-cut gesture** — a companion to the Ctrl/Cmd+drag cut line. Holding Alt and
   dragging draws a **red** dashed line (a new `CutLine.kind: 'insert' | 'delete'` discriminator,
   colored via a new `Palette.cutDelete`); on release it removes **every** wire the line crosses

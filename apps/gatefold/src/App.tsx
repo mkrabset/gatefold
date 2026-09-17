@@ -7,6 +7,7 @@ import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
 import { DeleteDialog } from './ui/DeleteDialog'
 import { ClearAllDialog } from './ui/ClearAllDialog'
+import { DeleteCategoriesDialog } from './ui/DeleteCategoriesDialog'
 import { SimSettingsDialog } from './ui/SimSettingsDialog'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { SwitchValueDialog } from './ui/SwitchValueDialog'
@@ -38,6 +39,7 @@ export default function App() {
   const setSidebarWidth = useUiStore((s) => s.setSidebarWidth)
   const setLibraryWidth = useUiStore((s) => s.setLibraryWidth)
   const pendingClearAll = useEditorStore((s) => s.pendingClearAll)
+  const pendingCategoryDelete = useEditorStore((s) => s.pendingCategoryDelete)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -95,6 +97,7 @@ export default function App() {
       <GroupDialog />
       <DeleteDialog />
       {pendingClearAll && <ClearAllDialog />}
+      {pendingCategoryDelete && <DeleteCategoriesDialog />}
       <SimSettingsDialog />
       <SettingsDialog />
       <SwitchValueDialog />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Signal, ValueFormat } from '@gatefold/model'
 import { applyValueOrder, formatSwitchValue, parseSwitchValue } from '@gatefold/model'
 import { useSimStore } from '../state/simStore'
+import { useEscapeToClose } from './useDialog'
 
 /**
  * Modal for entering a numeric value into a switch-array. Reads the target from
@@ -26,6 +27,7 @@ function SwitchValueForm({
   const [text, setText] = useState(() => formatSwitchValue(applyValueOrder(dialog.lanes, dialog.order), dialog.format))
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  useEscapeToClose(closeSwitchDialog)
 
   // Focus the input (with the current value selected) so typing replaces it right away.
   // Deferred past the opening click gesture: the dialog opens on the canvas `pointerdown`,
@@ -73,12 +75,6 @@ function SwitchValueForm({
       <div
         className="dialog"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            e.stopPropagation()
-            closeSwitchDialog()
-          }
-        }}
       >
         <div className="dialog-title dialog-title-row">
           <span>enter {dialog.size}-bit value in</span>

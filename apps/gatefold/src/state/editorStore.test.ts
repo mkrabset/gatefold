@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { builtinOf, forkOf, inputPortId, newUuid, outputPortId } from '@gatefold/model'
+import { builtinOf, forkOf, inputPortId, newUuid, outputPortId, UNCATEGORIZED } from '@gatefold/model'
 import type { CompositeDef, Design, Instance } from '@gatefold/model'
 import {
   beginMoveTransaction,
@@ -238,6 +238,42 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(s.design.root.connections).toHaveLength(0)
     expect(s.design.root.ports).toHaveLength(0)
     expect(Object.keys(s.design.library)).toHaveLength(2)
+  })
+
+  it('deletes library components by category after confirmation', () => {
+    reset()
+    useEditorStore.getState().setDefCategory('half-adder', 'Arithmetic')
+
+    useEditorStore.getState().requestCategoryDelete()
+    expect(useEditorStore.getState().pendingCategoryDelete).toBe(true)
+    useEditorStore.getState().cancelCategoryDelete()
+    expect(useEditorStore.getState().pendingCategoryDelete).toBe(false)
+    expect(useEditorStore.getState().design.library['half-adder']).toBeDefined()
+    expect(useEditorStore.getState().design.library['or-gate']).toBeDefined()
+
+    useEditorStore.getState().requestCategoryDelete()
+    useEditorStore.getState().confirmCategoryDelete(['Arithmetic'])
+
+    const s = useEditorStore.getState()
+    expect(s.pendingCategoryDelete).toBe(false)
+    expect(s.design.library['half-adder']).toBeUndefined()
+    expect(s.design.library['or-gate']).toBeDefined()
+    expect(s.navStack).toEqual([{ kind: 'root' }])
+    expect(s.selectedIds).toEqual([])
+  })
+
+  it('deletes every category (full delete) and undoes it', () => {
+    reset()
+    const before = Object.keys(useEditorStore.getState().design.library).length
+    expect(before).toBeGreaterThan(0)
+
+    useEditorStore.getState().requestCategoryDelete()
+    useEditorStore.getState().confirmCategoryDelete([UNCATEGORIZED])
+
+    expect(Object.keys(useEditorStore.getState().design.library)).toHaveLength(0)
+
+    useEditorStore.temporal.getState().undo()
+    expect(Object.keys(useEditorStore.getState().design.library)).toHaveLength(before)
   })
 
   it('sets, renames, and clears a template category', () => {

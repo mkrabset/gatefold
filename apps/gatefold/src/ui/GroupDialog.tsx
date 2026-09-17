@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PendingGroup } from '../state/editorStore'
 import { useEditorStore } from '../state/editorStore'
+import { useEscapeToClose } from './useDialog'
 
 /**
  * Modal shown after clicking "Group". Lists the inferred input/output ports with
@@ -21,6 +22,7 @@ function GroupForm({ pendingGroup }: { pendingGroup: PendingGroup }) {
   const confirmGroup = useEditorStore((s) => s.confirmGroup)
   const cancelGroup = useEditorStore((s) => s.cancelGroup)
   const nameRef = useRef<HTMLInputElement>(null)
+  useEscapeToClose(cancelGroup)
 
   // Focus the name field (with the inferred name selected) so typing replaces it.
   // Deferred past the toolbar button's click gesture, whose mouse-up/click would

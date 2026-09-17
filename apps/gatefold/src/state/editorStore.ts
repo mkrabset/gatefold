@@ -37,6 +37,7 @@ import {
   portGroupDirection,
   serializeDesign,
   serializeLibrary,
+  templateCategory,
   templateNames,
   uniqueId,
 } from '@gatefold/model'
@@ -138,6 +139,8 @@ interface EditorState {
   pendingDelete: string | null
   /** True while the "delete everything" confirmation dialog is open. */
   pendingClearAll: boolean
+  /** True while the "delete library categories" confirmation dialog is open. */
+  pendingCategoryDelete: boolean
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
   toggleSelected: (id: string) => void
@@ -163,6 +166,9 @@ interface EditorState {
   requestClearAll: () => void
   confirmClearAll: (selection: ClearAllSelection) => void
   cancelClearAll: () => void
+  requestCategoryDelete: () => void
+  confirmCategoryDelete: (categoryNames: string[]) => void
+  cancelCategoryDelete: () => void
   renamePort: (portId: string, name: string, instanceId?: string) => void
   setPortInverted: (portId: string, inverted: boolean, instanceId?: string) => void
   togglePinInversion: (ref: PinRef) => void
@@ -204,6 +210,20 @@ function pruneOwnerPorts(s: EditorState, portIds: Set<string>): void {
   const parent = resolveNav(s.design, steps.slice(0, -1))
   if (!parent || parent.kind !== 'composite') return
   pruneInstancePorts(parent, last.id, portIds)
+}
+
+/** Reset the transient editing state after a bulk structural delete (shared by the
+ *  clear-everything and delete-categories flows). */
+function resetAfterBulkDelete(s: EditorState): void {
+  s.navStack = [{ kind: 'root' }]
+  s.viewportStack = [s.viewport]
+  s.selectedIds = []
+  s.marquee = null
+  s.pendingWire = null
+  s.hoverPort = null
+  s.pendingGroup = null
+  s.pendingDelete = null
+  s.fitToken += 1
 }
 
 // In-memory clipboard (not part of the undoable design state).
@@ -259,6 +279,7 @@ export const useEditorStore = create<EditorState>()(
       pendingGroup: null,
       pendingDelete: null,
       pendingClearAll: false,
+      pendingCategoryDelete: false,
       setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
       setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
       toggleSelected: (id) =>
@@ -471,17 +492,25 @@ export const useEditorStore = create<EditorState>()(
           }
           for (const id of selection.templateIds) design = deleteTemplate(design, id)
           s.design = design
-          s.navStack = [{ kind: 'root' }]
-          s.viewportStack = [s.viewport]
-          s.selectedIds = []
-          s.marquee = null
-          s.pendingWire = null
-          s.hoverPort = null
-          s.pendingGroup = null
-          s.pendingDelete = null
-          s.fitToken += 1
+          resetAfterBulkDelete(s)
         })
         useEditorStore.temporal.getState().clear()
+      },
+      requestCategoryDelete: () => set((s) => void (s.pendingCategoryDelete = true)),
+      cancelCategoryDelete: () => set((s) => void (s.pendingCategoryDelete = false)),
+      confirmCategoryDelete: (categoryNames) => {
+        set((s) => {
+          s.pendingCategoryDelete = false
+          const names = new Set(categoryNames)
+          const ids = Object.values(s.design.library)
+            .filter((d) => isTemplateDef(s.design, d))
+            .filter((d) => names.has(templateCategory(d)))
+            .map((d) => d.id)
+          let design = s.design
+          for (const id of ids) design = deleteTemplate(design, id)
+          s.design = design
+          resetAfterBulkDelete(s)
+        })
       },
       renamePort: (portId, name, instanceId) =>
         set((s) => {

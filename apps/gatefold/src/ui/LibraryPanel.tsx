@@ -40,6 +40,7 @@ export function LibraryPanel({ width }: { width: number }) {
   const applyTemplateToInstances = useEditorStore((s) => s.applyTemplateToInstances)
   const applyTemplateToAll = useEditorStore((s) => s.applyTemplateToAll)
   const setDefCategory = useEditorStore((s) => s.setDefCategory)
+  const requestCategoryDelete = useEditorStore((s) => s.requestCategoryDelete)
   const simulating = useSimStore((s) => s.mode) === 'simulate'
   const fileRef = useRef<HTMLInputElement>(null)
   const composites = Object.values(design.library).filter((d): d is CompositeDef => isTemplateDef(design, d))
@@ -122,6 +123,9 @@ export function LibraryPanel({ width }: { width: number }) {
         </button>
         <button className="lib-action" onClick={() => fileRef.current?.click()} title="Import components from JSON">
           Import
+        </button>
+        <button className="lib-action" onClick={requestCategoryDelete} title="Delete components by category" disabled={composites.length === 0 || simulating}>
+          Delete
         </button>
         {activeTemplate && (
           <button className="lib-action" onClick={() => applyTemplateToInstances(activeTemplate)} title="Apply this template's changes to matching instances in the current scope">

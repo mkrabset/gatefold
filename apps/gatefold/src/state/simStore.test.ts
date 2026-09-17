@@ -60,4 +60,19 @@ describe('simStore history lifecycle', () => {
     expect(second).not.toBeNull()
     expect(second).not.toBe(first)
   })
+
+  it('resets the probe order on a new simulation and keeps it across exit', () => {
+    useSimStore.getState().toggleMode()
+    useSimStore.getState().setProbeOrder(['p', 'clk'])
+    expect(useSimStore.getState().probeOrder).toEqual(['p', 'clk'])
+
+    // Leaving simulate mode keeps the order (the timeline still reads it).
+    useSimStore.getState().toggleMode()
+    expect(useSimStore.getState().mode).toBe('design')
+    expect(useSimStore.getState().probeOrder).toEqual(['p', 'clk'])
+
+    // Re-entering builds a fresh history and clears the order.
+    useSimStore.getState().toggleMode()
+    expect(useSimStore.getState().probeOrder).toBeNull()
+  })
 })

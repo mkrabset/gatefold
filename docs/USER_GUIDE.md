@@ -420,13 +420,16 @@ to a stable state; a true oscillator is detected and shown as `x`. A floating in
 ### Simulation timeline
 
 The **Simulation timeline** tab shows the recorded state history of every **PROBE** in the
-design (at every level of the hierarchy). Each probe lane is one horizontal row — its label on
-the left, and a colored line showing the signal over time (**red = 1, black = 0, yellow = x**).
+design (at every level of the hierarchy). Each probe is a group of one or more lanes (a bus is
+one group, one row per wire); its **drag handle** and **name** are on the left, and a colored
+line shows the signal over time (**red = 1, black = 0, yellow = x**).
 
 - The horizontal axis is **time-proportional**: the distance between two events is proportional
   to the time between them.
-- **Mouse wheel** zooms the time axis (anchored at the cursor); **press-and-drag** pans
-  horizontally; rows that don't fit scroll vertically.
+- **Mouse wheel** zooms the time axis (anchored at the cursor); **press-and-drag** on the
+  waveform area pans horizontally; rows that don't fit scroll vertically.
+- **Drag a probe's handle/name** up or down to reorder it — a bus moves as one unit. The order
+  is remembered while the app is open.
 - The timeline keeps the **last** simulation, so you can inspect it after leaving simulate mode.
 - If the history limit is hit in *Stop* mode, the simulation pauses and the timeline shows a
   *"History limit reached"* notice (change the limit or switch to *Sliding* in **Settings**).

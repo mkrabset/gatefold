@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-17 (simulation timeline + PROBE primitive).
+Last updated: 2026-09-17 (timeline probe reorder + viewport clamping).
 
 ## Where we are
 
@@ -12,6 +12,24 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Timeline probe reorder + viewport clamping** — the simulation timeline gained grouped
+  rendering and drag-to-reorder, plus pan/zoom clamping and a cursor guide line:
+  - **Groups** — `HistoryBuffer` now stores probe *groups* (`setGroups`/`groupCount`/
+    `groupLabel`/`groupLanes`/`groupStart`, with `setLabels` as a single-lane wrapper); the
+    engine enumerates one group per `probe` instance (a bus = N contiguous lanes). The timeline
+    renders each group as a block with a `⣿` drag handle + name (centered) and, for buses, a
+    muted per-lane `[i]` index.
+  - **Reorder** — pressing in the label column starts a reorder drag (4px activation threshold);
+    the grabbed group live-swaps to the slot under the cursor (by group midpoints), moving as one
+    unit for buses. The order persists in `simStore.probeOrder` (ordered group labels, cleared on
+    rebuild) so it survives tab switches; `computeOrder` reconciles labels → indices with a
+    natural-order fallback.
+  - **Clamping** — `clampView` keeps `viewStart` within `[minTime, maxTime]` and caps zoom-out at
+    "fit the whole timeframe"; applied on wheel/pan and auto-fit.
+  - **Cursor line** — a thin theme-aware vertical line follows the pointer across the full height.
+  - Tests: sim `history.test.ts` (`setGroups`), app `simStore.test.ts` (`probeOrder` reset/keep).
+    Docs updated (`GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **Simulation timeline + PROBE primitive** — a new **tab bar** above the canvas (middle panel)
   switches between **Designer** (the schematic) and **Simulation timeline**. The timeline shows

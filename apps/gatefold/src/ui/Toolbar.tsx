@@ -123,6 +123,13 @@ export function Toolbar() {
       return { active: s.engine.hasSingleClock(), half: s.engine.timingHalfViolation, full: s.engine.timingFullViolation }
     }),
   )
+  const historyUsage = useSimStore(
+    useShallow((s) => {
+      const h = s.history
+      if (!h) return null
+      return { used: h.count, capacity: h.capacity, full: h.full }
+    }),
+  )
   const toggleMode = useSimStore((s) => s.toggleMode)
   const run = useSimStore((s) => s.run)
   const step = useSimStore((s) => s.step)
@@ -194,6 +201,18 @@ export function Toolbar() {
                 : 'Timing OK — logic settles within half a clock period'
           }
         />
+      )}
+
+      {historyUsage && (
+        <div
+          className={`history-meter${historyUsage.full ? ' full' : ''}`}
+          title={`Simulation history: ${historyUsage.used.toLocaleString()} / ${historyUsage.capacity.toLocaleString()} events`}
+        >
+          <div
+            className="history-meter-fill"
+            style={{ width: `${Math.min(100, Math.round((historyUsage.used / historyUsage.capacity) * 100))}%` }}
+          />
+        </div>
       )}
 
       <div className="tb-divider" />

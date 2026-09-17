@@ -164,6 +164,28 @@ body {
   box-shadow: 0 0 6px var(--red);
 }
 
+.history-meter {
+  width: 48px;
+  height: 10px;
+  margin: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.history-meter-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.12s linear;
+}
+
+.history-meter.full .history-meter-fill {
+  background: var(--amber);
+}
+
 .tb-spacer {
   flex: 1;
 }

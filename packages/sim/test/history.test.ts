@@ -88,4 +88,26 @@ describe('HistoryBuffer', () => {
     h.record(0, 1, 1)
     expect(h.revision).toBeGreaterThan(r2)
   })
+
+  it('groups a bus probe into contiguous lanes with flattened labels', () => {
+    const h = new HistoryBuffer(10, 'stop')
+    h.setGroups([
+      { label: 'p', lanes: 3 },
+      { label: 'q', lanes: 1 },
+    ])
+
+    expect(h.groupCount).toBe(2)
+    expect(h.groupLabel(0)).toBe('p')
+    expect(h.groupLabel(1)).toBe('q')
+    expect(h.groupLanes(0)).toBe(3)
+    expect(h.groupLanes(1)).toBe(1)
+    expect(h.groupStart(0)).toBe(0)
+    expect(h.groupStart(1)).toBe(3)
+
+    expect(h.labelCount).toBe(4)
+    expect(h.label(0)).toBe('p[0]')
+    expect(h.label(1)).toBe('p[1]')
+    expect(h.label(2)).toBe('p[2]')
+    expect(h.label(3)).toBe('q')
+  })
 })

@@ -7,10 +7,11 @@ import type { HistoryBuffer } from '@gatefold/sim'
 
 /**
  * The "Simulation timeline" tab: a digital-waveform view of every probe lane across the
- * design. Each probe lane is one horizontal row whose line color follows the recorded
- * signal (1 / 0 / x) over simulated time. The x-axis is time-proportional (distance is
- * proportional to the time difference between events); the mouse wheel zooms in time,
- * press-and-drag pans horizontally, and rows that don't fit scroll vertically.
+ * design. Probes are grouped (a bus is one block of lanes); each group has a drag handle
+ * and label on the left, and can be dragged up/down to reorder. Each lane's line color
+ * follows the recorded signal (1 / 0 / x) over simulated time. The x-axis is
+ * time-proportional; the mouse wheel zooms in time, press-and-drag on the waveform area
+ * pans horizontally, and rows that don't fit scroll vertically.
  */
 
 const LABEL_W = 160
@@ -18,10 +19,35 @@ const ROW_H = 22
 const AXIS_H = 26
 const MIN_PX_PER_UNIT = 1e-9 // px per ps (min zoom-out)
 const MAX_PX_PER_UNIT = 1 // px per ps (max zoom-in)
+const REORDER_THRESHOLD = 4 // px of vertical travel before a press becomes a reorder drag
 
 interface Transition {
   t: number
   value: Signal
+}
+
+/** Map a user's probe order (labels) onto group indices, falling back to natural order. */
+function computeOrder(history: HistoryBuffer, probeOrder: string[] | null): number[] {
+  const n = history.groupCount
+  const natural = Array.from({ length: n }, (_, i) => i)
+  if (!probeOrder || probeOrder.length !== n) return natural
+  const byLabel = new Map<string, number>()
+  for (let i = 0; i < n; i++) byLabel.set(history.groupLabel(i), i)
+  const order: number[] = []
+  for (const label of probeOrder) {
+    const idx = byLabel.get(label)
+    if (idx === undefined) return natural
+    order.push(idx)
+  }
+  return order
+}
+
+/** Move the element at `from` to `to`, returning a new array. */
+function moveItem<T>(arr: T[], from: number, to: number): T[] {
+  const next = arr.slice()
+  const [item] = next.splice(from, 1)
+  next.splice(to, 0, item)
+  return next
 }
 
 export function TimelineView() {
@@ -29,6 +55,8 @@ export function TimelineView() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const vpRef = useRef({ pxPerUnit: 1, viewStart: 0 })
   const fittedRef = useRef<HistoryBuffer | null>(null)
+  const hoverXRef = useRef<number | null>(null)
+  const orderRef = useRef<number[]>([])
   const cacheRef = useRef<{ history: HistoryBuffer | null; revision: number; lanes: Transition[][] }>({
     history: null,
     revision: -1,
@@ -40,6 +68,10 @@ export function TimelineView() {
     const canvas = canvasRef.current!
     const ctx = canvas.getContext('2d')!
 
+    let panning = false
+    let lastX = 0
+    let reorder: { pos: number; startY: number; moved: boolean } | null = null
+
     const colors = (theme: string) => ({
       bg: theme === 'dark' ? '#0d1117' : '#f6f8fa',
       text: theme === 'dark' ? '#e6edf3' : '#1f2328',
@@ -47,7 +79,28 @@ export function TimelineView() {
       faint: theme === 'dark' ? '#5b6673' : '#8b949e',
       grid: theme === 'dark' ? '#1c2129' : '#eef1f4',
       border: theme === 'dark' ? '#262d37' : '#d4dae1',
+      cursor: theme === 'dark' ? '#4f8cff' : '#2563eb',
     })
+
+    /** The recorded timeframe `[minT, maxT]`, or null when there is no history yet. */
+    const bounds = (): { minT: number; maxT: number } | null => {
+      const history = useSimStore.getState().history
+      if (!history) return null
+      return { minT: history.minTime(), maxT: history.maxTime() }
+    }
+
+    /** Keep the viewport within `[minT, maxT]`: no panning past either end, and no
+     *  zooming out further than the whole timeframe fits on screen. */
+    const clampView = (width: number, minT: number, maxT: number): void => {
+      const plotW = Math.max(1, width - LABEL_W)
+      const span = Math.max(maxT - minT, 1e-9)
+      const fitPpu = plotW / span
+      const vp = vpRef.current
+      vp.pxPerUnit = Math.min(MAX_PX_PER_UNIT, Math.max(Math.max(fitPpu, MIN_PX_PER_UNIT), vp.pxPerUnit))
+      const visibleSpan = plotW / vp.pxPerUnit
+      const maxStart = Math.max(minT, maxT - visibleSpan)
+      vp.viewStart = Math.min(Math.max(vp.viewStart, minT), maxStart)
+    }
 
     const draw = () => {
       const theme = useUiStore.getState().theme
@@ -92,15 +145,17 @@ export function TimelineView() {
         history.forEachEvent((e) => lanes[e.lane].push({ t: e.t, value: e.value }))
         cacheRef.current = { history, revision: history.revision, lanes }
       }
-      const lanes = cacheRef.current.lanes
+      const transitionLanes = cacheRef.current.lanes
 
-      // Auto-fit the first time (or on a fresh simulation).
+      // Auto-fit the first time (or on a fresh simulation): show the whole timeframe.
       if (fittedRef.current !== history) {
         const minT = history.minTime()
-        const maxT = Math.max(history.maxTime(), minT + 1)
-        const span = maxT - minT
-        vpRef.current.pxPerUnit = Math.min(MAX_PX_PER_UNIT, Math.max(MIN_PX_PER_UNIT, (width - LABEL_W - 16) / span))
-        vpRef.current.viewStart = minT - span * 0.02
+        const maxT = history.maxTime()
+        const plotW = Math.max(1, width - LABEL_W)
+        const span = Math.max(maxT - minT, 1e-9)
+        vpRef.current.pxPerUnit = Math.min(MAX_PX_PER_UNIT, plotW / span)
+        vpRef.current.viewStart = minT
+        clampView(width, minT, maxT)
         fittedRef.current = history
       }
 
@@ -136,34 +191,68 @@ export function TimelineView() {
       ctx.lineTo(LABEL_W, height)
       ctx.stroke()
 
-      // One row per lane: label on the left, signal line on the right.
-      for (let i = 0; i < laneCount; i++) {
-        const y = AXIS_H + i * ROW_H + ROW_H / 2
-        if (i % 2 === 1) {
-          ctx.fillStyle = c.grid
-          ctx.fillRect(LABEL_W, y - ROW_H / 2, width - LABEL_W, ROW_H)
-        }
-        ctx.fillStyle = c.text
-        ctx.font = '11px system-ui, sans-serif'
-        ctx.textAlign = 'right'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(history.label(i), LABEL_W - 8, y)
+      // Display order of groups (kept live during a reorder drag, else derived from the store).
+      if (!reorder) {
+        orderRef.current = computeOrder(history, useSimStore.getState().probeOrder)
+      }
+      const order = orderRef.current
 
-        const row = lanes[i]
-        for (let k = 0; k < row.length; k++) {
-          const tA = row[k].t
-          const tB = k + 1 < row.length ? row[k + 1].t : t1
-          if (tB <= vp.viewStart) continue
-          const xA = Math.max(LABEL_W, xOf(tA))
-          const xB = Math.min(width, xOf(tB))
-          if (xB < xA) continue
-          ctx.strokeStyle = signalColor(row[k].value, theme)
-          ctx.lineWidth = 2
-          ctx.beginPath()
-          ctx.moveTo(xA, y)
-          ctx.lineTo(xB, y)
-          ctx.stroke()
+      // One block per probe group, one row per lane within it.
+      let top = AXIS_H
+      let rowIndex = 0
+      for (const gi of order) {
+        const groupLanes = history.groupLanes(gi)
+        const blockH = groupLanes * ROW_H
+        const yCenter = top + blockH / 2
+        const start = history.groupStart(gi)
+
+        // Drag handle + group label, centered across the block.
+        ctx.fillStyle = c.faint
+        ctx.font = '11px system-ui, sans-serif'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('⣿', 8, yCenter)
+        ctx.fillStyle = c.text
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(26, top, LABEL_W - 30, blockH)
+        ctx.clip()
+        ctx.fillText(history.groupLabel(gi), 26, yCenter)
+        ctx.restore()
+
+        for (let li = 0; li < groupLanes; li++) {
+          const lane = start + li
+          const y = top + li * ROW_H + ROW_H / 2
+          if (rowIndex % 2 === 1) {
+            ctx.fillStyle = c.grid
+            ctx.fillRect(LABEL_W, y - ROW_H / 2, width - LABEL_W, ROW_H)
+          }
+          if (groupLanes > 1) {
+            ctx.fillStyle = c.faint
+            ctx.font = '10px system-ui, sans-serif'
+            ctx.textAlign = 'right'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(`[${li}]`, LABEL_W - 8, y)
+          }
+
+          const row = transitionLanes[lane]
+          for (let k = 0; k < row.length; k++) {
+            const tA = row[k].t
+            const tB = k + 1 < row.length ? row[k + 1].t : t1
+            if (tB <= vp.viewStart) continue
+            const xA = Math.max(LABEL_W, xOf(tA))
+            const xB = Math.min(width, xOf(tB))
+            if (xB < xA) continue
+            ctx.strokeStyle = signalColor(row[k].value, theme)
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(xA, y)
+            ctx.lineTo(xB, y)
+            ctx.stroke()
+          }
+          rowIndex++
         }
+        top += blockH
       }
 
       // Limit-reached badge (STOP mode).
@@ -173,6 +262,17 @@ export function TimelineView() {
         ctx.textAlign = 'left'
         ctx.textBaseline = 'top'
         ctx.fillText('History limit reached — simulation stopped', 8, 6)
+      }
+
+      // Cursor guide line: a thin vertical line under the pointer, spanning the full
+      // height so transitions on far-apart lanes are easy to line up.
+      if (hoverXRef.current !== null) {
+        ctx.strokeStyle = c.cursor
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(hoverXRef.current, 0)
+        ctx.lineTo(hoverXRef.current, height)
+        ctx.stroke()
       }
     }
 
@@ -186,34 +286,121 @@ export function TimelineView() {
     const unsubSim = useSimStore.subscribe(draw)
     const unsubTheme = useUiStore.subscribe(draw)
 
-    let dragging = false
-    let lastX = 0
+    /** Display position of the group block under y, or -1 when over the axis/empty. */
+    const groupPosAtY = (my: number): number => {
+      const history = useSimStore.getState().history
+      if (!history) return -1
+      let top = AXIS_H
+      for (let p = 0; p < orderRef.current.length; p++) {
+        const blockH = history.groupLanes(orderRef.current[p]) * ROW_H
+        if (my >= top && my < top + blockH) return p
+        top += blockH
+      }
+      return -1
+    }
+
+    /** Desired display position (clamped) for the cursor's y, by group midpoints. */
+    const targetPosAtY = (my: number): number => {
+      const n = orderRef.current.length
+      const history = useSimStore.getState().history
+      if (!history || n === 0) return 0
+      let top = AXIS_H
+      for (let p = 0; p < n; p++) {
+        const blockH = history.groupLanes(orderRef.current[p]) * ROW_H
+        if (my < top + blockH / 2) return p
+        top += blockH
+      }
+      return n - 1
+    }
 
     const onPointerDown = (e: PointerEvent) => {
-      dragging = true
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      // Over the label/handle column: start a reorder drag when a group is under the pointer.
+      if (mx < LABEL_W) {
+        const pos = groupPosAtY(my)
+        if (pos !== -1) {
+          reorder = { pos, startY: my, moved: false }
+          hoverXRef.current = null
+          canvas.setPointerCapture(e.pointerId)
+          canvas.style.cursor = 'grabbing'
+          return
+        }
+      }
+
+      // Otherwise: horizontal pan of the waveform area.
+      panning = true
       lastX = e.clientX
       canvas.setPointerCapture(e.pointerId)
       canvas.style.cursor = 'grabbing'
     }
+
     const onPointerMove = (e: PointerEvent) => {
-      if (!dragging) return
-      const dx = e.clientX - lastX
-      lastX = e.clientX
-      vpRef.current.viewStart -= dx / vpRef.current.pxPerUnit
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+
+      if (reorder) {
+        if (!reorder.moved && Math.abs(my - reorder.startY) < REORDER_THRESHOLD) return
+        reorder.moved = true
+        const target = targetPosAtY(my)
+        if (target !== reorder.pos) {
+          orderRef.current = moveItem(orderRef.current, reorder.pos, target)
+          reorder.pos = target
+        }
+        draw()
+        return
+      }
+
+      if (panning) {
+        const dx = e.clientX - lastX
+        lastX = e.clientX
+        vpRef.current.viewStart -= dx / vpRef.current.pxPerUnit
+        const b = bounds()
+        if (b) clampView(scroll.clientWidth, b.minT, b.maxT)
+        hoverXRef.current = mx
+        draw()
+      } else if (hoverXRef.current !== mx) {
+        hoverXRef.current = mx
+        draw()
+      }
+    }
+
+    const onPointerUp = () => {
+      if (reorder) {
+        if (reorder.moved) {
+          const history = useSimStore.getState().history
+          if (history) {
+            useSimStore.getState().setProbeOrder(orderRef.current.map((gi) => history.groupLabel(gi)))
+          }
+        }
+        reorder = null
+      }
+      panning = false
+      canvas.style.cursor = 'default'
       draw()
     }
-    const onPointerUp = () => {
-      dragging = false
-      canvas.style.cursor = 'default'
+
+    const onPointerLeave = () => {
+      if (reorder) reorder = null
+      if (hoverXRef.current !== null) {
+        hoverXRef.current = null
+        draw()
+      }
     }
+
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const rect = canvas.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const anchor = vpRef.current.viewStart + (mx - LABEL_W) / vpRef.current.pxPerUnit
       const factor = Math.pow(1.0015, -e.deltaY)
-      vpRef.current.pxPerUnit = Math.min(MAX_PX_PER_UNIT, Math.max(MIN_PX_PER_UNIT, vpRef.current.pxPerUnit * factor))
+      vpRef.current.pxPerUnit = vpRef.current.pxPerUnit * factor
       vpRef.current.viewStart = anchor - (mx - LABEL_W) / vpRef.current.pxPerUnit
+      const b = bounds()
+      if (b) clampView(scroll.clientWidth, b.minT, b.maxT)
       draw()
     }
 
@@ -221,6 +408,7 @@ export function TimelineView() {
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
     canvas.addEventListener('pointercancel', onPointerUp)
+    canvas.addEventListener('pointerleave', onPointerLeave)
     canvas.addEventListener('wheel', onWheel, { passive: false })
 
     return () => {
@@ -231,6 +419,7 @@ export function TimelineView() {
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointercancel', onPointerUp)
+      canvas.removeEventListener('pointerleave', onPointerLeave)
       canvas.removeEventListener('wheel', onWheel)
     }
   }, [])

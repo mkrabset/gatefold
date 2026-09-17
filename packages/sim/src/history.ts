@@ -13,6 +13,12 @@ export interface HistoryEvent {
   value: Signal
 }
 
+/** A probe in the history: its display label and how many lanes (wires) it carries. */
+export interface HistoryGroup {
+  label: string
+  lanes: number
+}
+
 /**
  * Bounded history of probe signals for the simulation timeline. One event is recorded
  * per probe-lane *signal change*, in chronological order, into a fixed-capacity ring
@@ -28,6 +34,8 @@ export interface HistoryEvent {
 export class HistoryBuffer {
   private readonly cap: number
   private readonly limitMode: HistoryLimitMode
+  private groups: HistoryGroup[] = []
+  private groupStarts: number[] = []
   private labels: string[] = []
   private base: { t: number; value: Signal }[] = []
   private buf: HistoryEvent[] = []
@@ -47,10 +55,41 @@ export class HistoryBuffer {
     return this.rev
   }
 
-  /** Replace the lane labels (their order defines the lane index). */
-  setLabels(labels: string[]): void {
-    this.labels = labels
+  /** Replace the probe groups. Each group owns `lanes` contiguous lanes; the flattened
+   *  labels (used for per-lane display) are `label` for a single lane, or `label[i]`. */
+  setGroups(groups: HistoryGroup[]): void {
+    this.groups = groups.map((g) => ({ label: g.label, lanes: Math.max(1, Math.floor(g.lanes)) }))
+    this.groupStarts = []
+    this.labels = []
+    let n = 0
+    for (const g of this.groups) {
+      this.groupStarts.push(n)
+      for (let i = 0; i < g.lanes; i++) this.labels.push(g.lanes > 1 ? `${g.label}[${i}]` : g.label)
+      n += g.lanes
+    }
     this.rev++
+  }
+
+  /** Convenience: treat every label as a single-lane probe. */
+  setLabels(labels: string[]): void {
+    this.setGroups(labels.map((label) => ({ label, lanes: 1 })))
+  }
+
+  get groupCount(): number {
+    return this.groups.length
+  }
+
+  groupLabel(group: number): string {
+    return this.groups[group]?.label ?? `${group}`
+  }
+
+  groupLanes(group: number): number {
+    return this.groups[group]?.lanes ?? 1
+  }
+
+  /** The flattened lane index of a group's first lane. */
+  groupStart(group: number): number {
+    return this.groupStarts[group] ?? 0
   }
 
   get labelCount(): number {
@@ -74,6 +113,11 @@ export class HistoryBuffer {
   /** The number of recorded events (excluding the per-lane base). */
   get count(): number {
     return this.size
+  }
+
+  /** The maximum number of events this buffer holds. */
+  get capacity(): number {
+    return this.cap
   }
 
   /** Record a lane change at time `t`. A full buffer in `stop` mode records nothing. */

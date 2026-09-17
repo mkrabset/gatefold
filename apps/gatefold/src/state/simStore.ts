@@ -30,6 +30,8 @@ interface SimState {
   engine: Simulation | null
   /** Probe-signal history recorder (kept after leaving simulate mode for the timeline). */
   history: HistoryBuffer | null
+  /** User's probe display order (group labels), or null for the natural order. */
+  probeOrder: string[] | null
   /** How the Step button advances. */
   stepMode: SimConfig['stepMode']
   /** Default gate propagation delay, in picoseconds. */
@@ -53,6 +55,7 @@ interface SimState {
   setStepMode: (mode: SimConfig['stepMode']) => void
   setDefaultDelay: (ps: number) => void
   setTimeScale: (scale: number) => void
+  setProbeOrder: (order: string[] | null) => void
   openSettings: () => void
   closeSettings: () => void
 }
@@ -76,7 +79,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     // Simulate from the top; navigation within the simulation is tracked by `path`.
     useEditorStore.getState().resetNavigation()
     const { engine, history } = rebuild()
-    set({ mode: 'simulate', engine, history, path: [], version: get().version + 1 })
+    set({ mode: 'simulate', engine, history, probeOrder: null, path: [], version: get().version + 1 })
   }
 
   return {
@@ -86,6 +89,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     version: 0,
     engine: null,
     history: null,
+    probeOrder: null,
     stepMode: 'quiescent',
     defaultDelay: DEFAULT_CONFIG.defaultDelay,
     timeScale: DEFAULT_TIME_SCALE,
@@ -143,7 +147,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     reset: () => {
       get().stop()
       const { engine, history } = rebuild()
-      set({ engine, history, version: get().version + 1 })
+      set({ engine, history, probeOrder: null, version: get().version + 1 })
     },
 
     toggleSwitch: (instanceId, lane = 0) => {
@@ -186,10 +190,12 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       get().stop()
       set({ defaultDelay: ps })
       const { engine, history } = rebuild()
-      set({ engine, history, version: get().version + 1 })
+      set({ engine, history, probeOrder: null, version: get().version + 1 })
     },
 
     setTimeScale: (scale) => set({ timeScale: scale }),
+
+    setProbeOrder: (probeOrder) => set({ probeOrder }),
 
     openSettings: () => set({ settingsOpen: true }),
     closeSettings: () => set({ settingsOpen: false }),

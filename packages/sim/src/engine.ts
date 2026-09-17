@@ -137,21 +137,24 @@ export class Simulation {
     this.stepMode = config.stepMode
     this.history = history
 
-    // Enumerate probe lanes for the history recorder: one lane per bit of each probe's
-    // input net (a single-wire probe contributes one lane, a bus probe one per wire).
+    // Enumerate probe lanes for the history recorder: one group per probe (a single-wire
+    // probe contributes one lane, a bus probe one per wire). Lanes stay contiguous per
+    // group, so the timeline can move a whole probe (bus) as one unit.
     if (this.history) {
-      const labels: string[] = []
+      const groups: { label: string; lanes: number }[] = []
+      let laneIndex = 0
       for (const inst of this.instances) {
         if (inst.kind !== 'probe') continue
         const input = inst.inputs[0]
         if (!input) continue
         const width = this.netWidths[input.net] || 1
+        groups.push({ label: inst.label, lanes: width })
         for (let lane = 0; lane < width; lane++) {
-          this.probeLanes.push({ net: input.net, lane, globalLane: labels.length })
-          labels.push(width > 1 ? `${inst.label}[${lane}]` : inst.label)
+          this.probeLanes.push({ net: input.net, lane, globalLane: laneIndex })
+          laneIndex++
         }
       }
-      this.history.setLabels(labels)
+      this.history.setGroups(groups)
     }
 
     const n = netlist.netCount

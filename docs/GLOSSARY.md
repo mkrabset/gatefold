@@ -256,7 +256,10 @@ authoritative — update this when a term's meaning changes.
   over simulated time. The x-axis is **time-proportional** (distance between events is
   proportional to their time difference); the mouse wheel zooms in time, press-and-drag pans
   horizontally, and rows that don't fit scroll vertically. It shows the **last** simulation, even
-  after leaving simulate mode.
+  after leaving simulate mode. Probes are **grouped** (a bus is one block of lanes with a single
+  drag handle and label), and a probe can be **reordered** by dragging its handle/label up or
+  down — a bus moves as one unit. The order is remembered while the app is open (cleared when a
+  new simulation is built).
 - **History buffer** — the bounded, in-memory record of probe signal changes backing the
   timeline. One **event** is recorded per probe-lane *signal change* (an event only registers
   when a probe's input actually changes — other transitions are irrelevant and not recorded),

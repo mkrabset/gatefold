@@ -551,15 +551,18 @@ double-click just toggles twice — it does _not_ enter the component).
 ==== Simulation timeline
 
 The *Simulation timeline* tab shows the recorded state history of every
-*PROBE* in the design (at every level of the hierarchy). Each probe lane
-is one horizontal row — its label on the left, and a colored line
-showing the signal over time (*red = 1, black = 0, yellow = x*).
+*PROBE* in the design (at every level of the hierarchy). Each probe is a
+group of one or more lanes (a bus is one group, one row per wire); its
+*drag handle* and *name* are on the left, and a colored line shows the
+signal over time (*red = 1, black = 0, yellow = x*).
 
 * The horizontal axis is *time-proportional*: the distance between two
 events is proportional to the time between them.
 * *Mouse wheel* zooms the time axis (anchored at the cursor);
-*press-and-drag* pans horizontally; rows that don’t fit scroll
-vertically.
+*press-and-drag* on the waveform area pans horizontally; rows that don’t
+fit scroll vertically.
+* *Drag a probe’s handle/name* up or down to reorder it — a bus moves as
+one unit. The order is remembered while the app is open.
 * The timeline keeps the *last* simulation, so you can inspect it after
 leaving simulate mode.
 * If the history limit is hit in _Stop_ mode, the simulation pauses and

@@ -164,11 +164,11 @@ class Generator {
       }
     }
 
-    // Instances the generator ignores completely (LEDs and 7-seg displays).
+    // Instances the generator ignores completely (LEDs, 7-seg displays, and probes).
     const ignoredIds = new Set<string>()
     for (const inst of instances) {
       const kind = childPrimitive(inst.def)
-      if (kind === 'led-array' || kind === 'seven-seg') ignoredIds.add(inst.id)
+      if (kind === 'led-array' || kind === 'seven-seg' || kind === 'probe') ignoredIds.add(inst.id)
     }
 
     // Module ports (composite terminals first, then source I/O). Composite port names come
@@ -515,8 +515,8 @@ class Generator {
         emitCompositeInstance(inst, idef)
         continue
       }
-      if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg') {
-        // Clock: root is a module input, nested errored. LEDs/7-seg: ignored entirely.
+      if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg' || idef.primitive === 'probe') {
+        // Clock: root is a module input, nested errored. LEDs/7-seg/probes: ignored entirely.
         continue
       }
       if (idef.primitive === 'switch-array') {

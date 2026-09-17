@@ -101,7 +101,11 @@ export function LibraryPanel({ width }: { width: number }) {
             onClick={() => setActive(p.kind)}
             title={`Drag to place ${p.label}`}
           >
-            <img className="lib-icon" src={PRIMITIVE_ICONS[p.kind]} alt={p.label} draggable={false} />
+            {PRIMITIVE_ICONS[p.kind] ? (
+              <img className="lib-icon" src={PRIMITIVE_ICONS[p.kind]} alt={p.label} draggable={false} />
+            ) : (
+              <span className="lib-glyph">{p.glyph}</span>
+            )}
             <span className="lib-label">{p.label}</span>
           </button>
         ))}

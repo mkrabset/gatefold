@@ -57,6 +57,7 @@ export type PrimitiveKind =
   | 'led-array'
   | 'dff'
   | 'join-point'
+  | 'probe'
 
 /** A per-instance custom property value (JSON-scalar only, so props round-trip verbatim). */
 export type PropertyValue = number | string | boolean

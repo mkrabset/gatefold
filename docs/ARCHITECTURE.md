@@ -50,7 +50,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'bus' | 'compare' | 'input-port' | 'output-port'
-  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'join-point'
+  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'join-point' | 'probe'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
 // Ownership is structural, so deleting a composite deletes its children for free.
@@ -195,12 +195,12 @@ design.root.instances = [
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
   `bus.ts`, `compare.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
-  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`, and the sequential `dff.ts`). Each supplies its
-  label/glyph, default ports, arity
-  constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
-  input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
-  DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
-  function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, and the sequential `dff.ts`). Each supplies its
+   `label/glyph`, default ports, arity
+   constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
+   input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
+   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
+   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
   it declares `isSequential()`, `clockPortId()` (`in:1`) and `resetPortId()` (`in:2`), and its
   `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The DFF exposes
   `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
@@ -210,6 +210,11 @@ design.root.instances = [
   `PrimitiveKind` to its behaviour object; `forkOf(kind)` builds an owned primitive fork and
   `builtinOf(kind)` a shared builtin reference. The port primitives are not listed in the library (their pins are derived
   from the enclosing composite). The `not` gate is a `buffer` whose output port is `inverted`.
+  The **PROBE** (`probe`) is a pure sink: a single neutral (adopting) input terminal, no outputs,
+  `transfer` → `[]`, inversion disabled. It is recorded by the simulator's **history buffer**
+  (§6c) and **excluded from grouping** — `isProbeDef` marks it non-groupable in `group.ts`
+  (alongside port groups), so a probe selected with real components stays in the parent and its
+  input reads as an external target of the new component's output. The Verilog exporter ignores it.
   The **NODE join-point** (`join-point`) is a single-wire passthrough with coincident terminals:
   its `coincidentTerminals()` drives special geometry (`portPosition` returns the body center,
   `instanceBodySize` stays a dot), `hitTestPort`'s `prefer` role disambiguates press (source) vs
@@ -601,7 +606,20 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
 - **`signals.ts`** — `invert` (delegates to the model's `invertSignal`),
   `invertVector`/`equalVectors`/`clockValue`.
+- **`history.ts`** — `HistoryBuffer`, the bounded record of probe signals backing the simulation
+  timeline. One **event** is recorded per probe-lane *signal change*, in chronological order, in a
+  fixed-capacity ring buffer; each lane keeps a `base` value (its state at the oldest retained
+  time) so a waveform can be drawn even after early events slide out. `maxEvents` + a limit mode
+  (`stop` = refuse once full and report `full`; `sliding` = overwrite the oldest event, promoting
+  its value into that lane's base). Exposes `labels`, `base`/`baseOf`, `forEachEvent`, `minTime`/
+  `maxTime`, and a `revision` counter for cheap view-cache invalidation.
 - **`config.ts`** — `SimConfig { defaultDelay, perKindDelay, stepMode }` (delays in ps).
+
+`Simulation` optionally takes a `HistoryBuffer`. On construction it enumerates the probe lanes
+(each `probe` leaf's input net, one lane per wire) and seeds their base from the settled power-on
+state; every net write flows through a `setNet` helper that records a probe-lane event when a bit
+actually changes (in `drainEvents` — covering clock toggles and gate/DFF events — and in
+`driveSource` — covering switch toggles).
 
 `Primitive.transfer(inputs: Signal[][]): Signal[][]` is the per-kind combinational function
 (3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
@@ -675,7 +693,7 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
   (an external input). Every other switch is a constant fixed at its `initialValue` (emitted as a
   binary literal from `switchInitialLanes`, e.g. `assign net = 4'b1010;`); a switch that
-  is wired to nothing is ignored entirely; **LEDS** and **7-SEG** are ignored. A nested clock is an
+  is wired to nothing is ignored entirely; **LEDS**, **7-SEG**, and **PROBE** are ignored. A nested clock is an
   error.
 - **Issues by severity** — `{ level: 'info' | 'error', message }`: errors for floating nets, nested
   clocks, and dangling refs. A floating input that carries a **pull** (`pull: 'up'|'down'`) is not
@@ -747,7 +765,7 @@ beside the data they operate on.
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
 | `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
-| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, … |
+| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, … |
 
 ### `packages/sim/src` (`@gatefold/sim`)
 
@@ -755,6 +773,7 @@ beside the data they operate on.
 |--------|----------------|
 | `netlist.ts` | Flatten hierarchy into leaf primitives + nets (union-find) |
 | `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, power-on) |
+| `history.ts` | Bounded probe-signal history (`HistoryBuffer`) for the timeline |
 | `signals.ts` | 3-state helpers (`invert`, `equalVectors`, `clockValue`) |
 | `config.ts` | `SimConfig` + delay lookup |
 
@@ -781,8 +800,9 @@ beside the data they operate on.
 | `editor/viewport.ts` | `w2s` / `s2w` transforms |
 | `editor/Canvas.tsx` | Canvas controller (pointer/wheel/drop interaction) |
 | `state/editorStore.ts` | Document + editing store (immer + zundo) |
-| `state/simStore.ts` | Simulation runtime store |
-| `state/uiStore.ts` | Persisted UI preferences |
+| `state/simStore.ts` | Simulation runtime store (engine + history buffer) |
+| `state/uiStore.ts` | Persisted UI preferences (theme, panels, history settings, tab) |
 | `state/defaultState.ts` | `localStorage` default design |
+| `ui/TimelineView.tsx` | Simulation timeline (probe waveform canvas) |
 | `ui/*` | React panels/dialogs (toolbar, sidebar, library, dialogs) |
 | `util/*` | Downloads, share links, formatting |

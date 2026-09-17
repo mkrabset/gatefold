@@ -19,6 +19,7 @@ import { SwitchArray } from './switch-array'
 import { LedArray } from './led-array'
 import { Dff } from './dff'
 import { JoinPoint } from './join-point'
+import { Probe } from './probe'
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
@@ -47,10 +48,11 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'led-array': new LedArray(),
   dff: new Dff(),
   'join-point': new JoinPoint(),
+  probe: new Probe(),
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point', 'probe']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {
@@ -103,6 +105,11 @@ export function defaultPropsOf(kind: PrimitiveKind): Record<string, PropertyValu
 export function isPortGroupDef(def: ChildDef): boolean {
   const k = childPrimitive(def)
   return !!k && PRIMITIVES[k].isPortGroup()
+}
+
+/** True for the monitoring PROBE primitive (excluded from grouping). */
+export function isProbeDef(def: ChildDef): boolean {
+  return childPrimitive(def) === 'probe'
 }
 
 /** The port group direction of `def`, or null when it is not a port group. */

@@ -18,6 +18,9 @@ The screen is split into four areas:
 | **Canvas** | Center | The schematic — place, select, wire, pan, zoom |
 | **Library** | Right | The primitive palette and your custom components |
 
+The center panel has a **tab bar** with two views: **Designer** (the schematic canvas) and
+**Simulation timeline** (the recorded probe waveforms — see §7).
+
 ### Toolbar
 
 Left to right:
@@ -42,8 +45,8 @@ Left to right:
   (disabled while simulating).
 - **Copy link** — copy a shareable URL to the clipboard: the design is gzipped and base64-encoded
   into a `?d=` query parameter, and opening that URL restores the design on launch (see §9).
-- **Settings** — open the global settings dialog (currently a single **lane distance** setting;
-  see below).
+- **Settings** — open the global settings dialog (lane distance, simulation history size, and
+  history-limit behaviour; see below).
 - **Theme toggle** — switch between dark and light.
 
 ### Sidebar (left)
@@ -76,10 +79,16 @@ Left to right:
 
 - **Group dialog** — name the new component and its inferred inputs/outputs (press **Enter** to create).
 - **Simulation settings** — default gate delay (ps), the step mode, and the simulation speed.
-- **Settings** — the global settings dialog. Its **lane distance** (0–7, world units) controls how
-  far apart the individual wires of a bus terminal are drawn, so large buses can take less vertical
-  space. It affects every bus terminal *except* those on the LED and switch arrays (whose indicator
-  rows keep their fixed spacing). The value persists across reloads.
+- **Settings** — the global settings dialog:
+  - **Lane distance** (0–7, world units) controls how far apart the individual wires of a bus
+    terminal are drawn, so large buses can take less vertical space. It affects every bus
+    terminal *except* those on the LED and switch arrays (whose indicator rows keep their fixed
+    spacing).
+  - **Max simulation history** (events) is the maximum number of probe-signal changes recorded
+    for the simulation timeline (see §7), so a long simulation never exhausts memory.
+  - **History limit** chooses what happens when that limit is hit: **Stop simulation** (pause and
+    keep the full trace) or **Sliding ring buffer** (drop the oldest events and keep recording).
+  The values persist across reloads.
 - **Delete dialog** — confirm deleting a library template.
 - **Delete categories dialog** — opened from the library's **Delete** button: it lists every
   library category (including **Uncategorized**) with a checkbox, plus a **Select all** master
@@ -333,6 +342,14 @@ its properties, and what it does.
 - A multi-lane lamp. In `wire` mode each input terminal is one LED; in `bus` mode a single bus
   input lights one LED per lane. Each lane lights when its signal is `1`.
 
+### PROBE
+- **Inputs:** 1 (`IN`) · **Outputs:** none · Properties none
+- A monitoring tap: it records the signal on whatever it is wired to (a single wire or a whole
+  bus, adopting the connected width) so you can inspect it in the **Simulation timeline** (§7).
+  It has no effect on the circuit. Probes are **not grouped** — if you select a probe alongside
+  other components and click **Group**, the probe stays on the sheet and keeps tapping the new
+  component's output. A probe is ignored by the Verilog export.
+
 > **Internal primitives** (`INPUT-PORT` / `OUTPUT-PORT`) are not in the palette: they model a
 > composite's own input/output terminals internally and are created automatically when you
 > group components or edit a composite's ports.
@@ -398,6 +415,21 @@ to a stable state; a true oscillator is detected and shown as `x`. A floating in
   toggles twice — it does *not* enter the component).
 - **LEDS** lanes light when their signal is `1`.
 - **7-SEG** displays the value of each 4-bit nibble of its bus.
+- **PROBE** records the signal on its input for the timeline (below).
+
+### Simulation timeline
+
+The **Simulation timeline** tab shows the recorded state history of every **PROBE** in the
+design (at every level of the hierarchy). Each probe lane is one horizontal row — its label on
+the left, and a colored line showing the signal over time (**red = 1, black = 0, yellow = x**).
+
+- The horizontal axis is **time-proportional**: the distance between two events is proportional
+  to the time between them.
+- **Mouse wheel** zooms the time axis (anchored at the cursor); **press-and-drag** pans
+  horizontally; rows that don't fit scroll vertically.
+- The timeline keeps the **last** simulation, so you can inspect it after leaving simulate mode.
+- If the history limit is hit in *Stop* mode, the simulation pauses and the timeline shows a
+  *"History limit reached"* notice (change the limit or switch to *Sliding* in **Settings**).
 
 ### Setting a switch value
 

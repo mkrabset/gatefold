@@ -3,7 +3,7 @@ import { findConnectionTo, pinKey, pinRefEquals } from './connections'
 import { inputPortId, inputPorts, outputPortId, outputPorts } from './ports'
 import { allCompositeIds, findComposite, templateNames } from './composite'
 import { newUuid, uniqueId } from './util'
-import { childPorts, isPortGroupDef, portGroupDirection } from './primitives'
+import { childPorts, isPortGroupDef, isProbeDef, portGroupDirection } from './primitives'
 
 /**
  * Pure "group into composite" logic.
@@ -123,9 +123,12 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
   const inputs = new Map<string, InferredInput>()
   const outputs = new Map<string, InferredOutput>()
 
-  const isPortGroupInst = (instanceId: string): boolean => {
+  // Port-group instances and PROBE instances are never "inside" a selection: port
+  // groups define the interface, and probes stay in the parent to keep tapping the
+  // (now-external) net. Their connections therefore read as boundary crossings.
+  const isNonGroupableInst = (instanceId: string): boolean => {
     const inst = def.instances.find((i) => i.id === instanceId)
-    return !!inst && isPortGroupDef(inst.def)
+    return !!inst && (isPortGroupDef(inst.def) || isProbeDef(inst.def))
   }
 
   // If the parent's input-port / output-port instance is included, the new component
@@ -136,10 +139,10 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
   const outputPortIncluded = !!outputPortInst && selected.has(outputPortInst.id)
 
   for (const c of def.connections) {
-    // Port-group instances are never "inside" a selection — their connections define
-    // the interface instead.
-    const fromSel = selected.has(c.from.instanceId) && !isPortGroupInst(c.from.instanceId)
-    const toSel = selected.has(c.to.instanceId) && !isPortGroupInst(c.to.instanceId)
+    // Port-group/probe instances are never "inside" a selection — their connections
+    // define the interface instead.
+    const fromSel = selected.has(c.from.instanceId) && !isNonGroupableInst(c.from.instanceId)
+    const toSel = selected.has(c.to.instanceId) && !isNonGroupableInst(c.to.instanceId)
 
     // Three cases: fully inside the selection (internal), crossing into it (input),
     // or leaving it (output). Connections that don't touch the selection are ignored.
@@ -169,7 +172,7 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
   const exposedInputs: InferredInput[] = []
   const exposedOutputs: InferredOutput[] = []
   for (const inst of def.instances) {
-    if (!selected.has(inst.id) || isPortGroupInst(inst.id)) continue
+    if (!selected.has(inst.id) || isNonGroupableInst(inst.id)) continue
     const ports = childPorts(inst.def)
     if (!inputPortIncluded) {
       for (const port of inputPorts(ports)) {
@@ -197,7 +200,7 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
             c.from.instanceId === inputPortInst.id &&
             c.from.portId === p.id &&
             selected.has(c.to.instanceId) &&
-            !isPortGroupInst(c.to.instanceId),
+            !isNonGroupableInst(c.to.instanceId),
         )
         .map((c) => ({ instanceId: c.to.instanceId, portId: c.to.portId }))
       inheritedInputs.push({ name: p.name, inverted: p.inverted, pull: p.pull, source, targets })
@@ -212,7 +215,7 @@ export function inferGroup(def: CompositeDef, instanceIds: string[]): InferredGr
           c.to.instanceId === outputPortInst.id &&
           c.to.portId === p.id &&
           selected.has(c.from.instanceId) &&
-          !isPortGroupInst(c.from.instanceId),
+          !isNonGroupableInst(c.from.instanceId),
       )
       inheritedOutputs.push({
         name: p.name,
@@ -254,13 +257,13 @@ export function applyGroup(
     throw new Error('group: port name count does not match inferred ports')
   }
 
-  // Port-group instances are not moved into the new component — they stay in the
-  // parent and define the interface instead.
-  const isPortGroupInst = (id: string): boolean => {
+  // Port-group instances and probes are not moved into the new component — port groups
+  // stay in the parent and define the interface, probes stay to keep tapping the net.
+  const isNonGroupableInst = (id: string): boolean => {
     const inst = parent.instances.find((i) => i.id === id)
-    return !!inst && isPortGroupDef(inst.def)
+    return !!inst && (isPortGroupDef(inst.def) || isProbeDef(inst.def))
   }
-  const movable = new Set(instanceIds.filter((id) => !isPortGroupInst(id)))
+  const movable = new Set(instanceIds.filter((id) => !isNonGroupableInst(id)))
 
   const finalName = uniqueId(templateNames(result), defName.trim() || 'component')
   const newDefId = uniqueId(allCompositeIds(result), finalName)

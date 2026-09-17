@@ -11,6 +11,7 @@ import { DeleteCategoriesDialog } from './ui/DeleteCategoriesDialog'
 import { SimSettingsDialog } from './ui/SimSettingsDialog'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { SwitchValueDialog } from './ui/SwitchValueDialog'
+import { TimelineView } from './ui/TimelineView'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
@@ -38,6 +39,8 @@ export default function App() {
   const libraryWidth = useUiStore((s) => s.libraryWidth)
   const setSidebarWidth = useUiStore((s) => s.setSidebarWidth)
   const setLibraryWidth = useUiStore((s) => s.setLibraryWidth)
+  const middleTab = useUiStore((s) => s.middleTab)
+  const setMiddleTab = useUiStore((s) => s.setMiddleTab)
   const pendingClearAll = useEditorStore((s) => s.pendingClearAll)
   const pendingCategoryDelete = useEditorStore((s) => s.pendingCategoryDelete)
 
@@ -89,7 +92,29 @@ export default function App() {
         <Sidebar width={sidebarWidth} />
         {/* direction=1: sidebar is left of the handle, drag right grows it */}
         <ResizeHandle value={sidebarWidth} min={160} max={480} direction={1} onChange={setSidebarWidth} />
-        <Canvas />
+        <div className="center">
+          <div className="tabs" role="tablist">
+            <button
+              className={`tab${middleTab === 'designer' ? ' active' : ''}`}
+              role="tab"
+              aria-selected={middleTab === 'designer'}
+              onClick={() => setMiddleTab('designer')}
+            >
+              Designer
+            </button>
+            <button
+              className={`tab${middleTab === 'timeline' ? ' active' : ''}`}
+              role="tab"
+              aria-selected={middleTab === 'timeline'}
+              onClick={() => setMiddleTab('timeline')}
+            >
+              Simulation timeline
+            </button>
+          </div>
+          <div className="center-content">
+            {middleTab === 'designer' ? <Canvas /> : <TimelineView />}
+          </div>
+        </div>
         {/* direction=-1: library is right of the handle, drag right shrinks it */}
         <ResizeHandle value={libraryWidth} min={220} max={440} direction={-1} onChange={setLibraryWidth} />
         <LibraryPanel width={libraryWidth} />

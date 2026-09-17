@@ -12,6 +12,7 @@ import {
   isArityFixed,
   isArrayDef,
   isPortGroupDef,
+  isProbeDef,
   libraryPrimitives,
   periodOf,
   portWidth,
@@ -27,8 +28,8 @@ const inP = (kind: Parameters<typeof forkOf>[0]) => inputPorts(def(kind).ports)
 const outP = (kind: Parameters<typeof forkOf>[0]) => outputPorts(def(kind).ports)
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, NODE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, NODE, PROBE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point', 'probe'])
   })
 
   it('recognizes the array primitives and their terminal direction', () => {
@@ -279,6 +280,22 @@ describe('model primitives', () => {
     const mergeIn = inP('bus-merge')[0]
     expect(primitiveOf('bus-merge').undeterminedHint!(mergeOut)).toBe('2x?')
     expect(primitiveOf('bus-merge').undeterminedHint!(mergeIn)).toBe('?')
+  })
+
+  it('declares the PROBE as a neutral-width sink excluded from grouping', () => {
+    expect(inP('probe').map((p) => p.id)).toEqual(['in:0'])
+    expect(inP('probe').map((p) => p.name)).toEqual(['IN'])
+    expect(outP('probe')).toHaveLength(0)
+    expect(isArityFixed(def('probe'), 'input')).toBe(true)
+    expect(isArityFixed(def('probe'), 'output')).toBe(true)
+    expect(allowInversion(def('probe'))).toBe(false)
+    expect(primitiveOf('probe').transfer([[1, 0, 1]])).toEqual([])
+    // Neutral: adopts the connected width (single-wire or bus).
+    expect(primitiveOf('probe').intrinsicWidth(def('probe').ports, inP('probe')[0])).toBeNull()
+    expect(portWidth(def('probe'), inP('probe')[0])).toBe(1)
+    expect(isProbeDef(def('probe'))).toBe(true)
+    expect(isProbeDef(def('and'))).toBe(false)
+    expect(defaultPropsOf('probe')).toEqual({})
   })
 
   it('declares COMPARE with two equal derived-width inputs and one single-wire output', () => {

@@ -135,6 +135,21 @@ describe('exportVerilog', () => {
     expect(issues.filter((i) => i.level === 'error')).toEqual([])
   })
 
+  it('ignores PROBE instances', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [],
+      instances: [
+        { id: 'p', name: 'PROBE', def: forkOf('probe'), pos: { x: 0, y: 0 } },
+      ],
+      connections: [],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(source).not.toContain('PROBE')
+    expect(source).not.toContain('probe')
+    expect(issues.filter((i) => i.level === 'error')).toEqual([])
+  })
+
   it('emits a DFF with a clock source and a tied-off (pulled-down) reset', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',

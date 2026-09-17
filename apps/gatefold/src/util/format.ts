@@ -18,3 +18,12 @@ export function formatSpeed(timeScale: number): string {
   if (timeScale < 1) return `${trim3(1 / timeScale)}x slower`
   return 'real-time'
 }
+
+/** Format a simulated duration in picoseconds as ps / ns / µs / ms / s. */
+export function formatTime(ps: number): string {
+  if (ps < 1e3) return `${trim3(ps)} ps`
+  if (ps < 1e6) return `${trim3(ps / 1e3)} ns`
+  if (ps < 1e9) return `${trim3(ps / 1e6)} µs`
+  if (ps < 1e12) return `${trim3(ps / 1e9)} ms`
+  return `${trim3(ps / 1e12)} s`
+}

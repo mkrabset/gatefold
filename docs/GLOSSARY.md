@@ -19,7 +19,7 @@ authoritative — update this when a term's meaning changes.
   ChildDef` (owned by the parent composite).
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
   CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
-  and the probe primitives 7-SEG, SWITCHES, LEDS. Not editable as a circuit.
+  the probe primitives 7-SEG, SWITCHES, LEDS, PROBE, and the join-point. Not editable as a circuit.
 - **Fork** — an owned primitive child def with its own `ports`. Every *placed* primitive is
   a fork from birth (copy-on-place), because per-instance terminal `inverted` and array
   `terminalType`/wire-count live on the fork's ports. A shared `builtin` cannot carry that.
@@ -49,6 +49,12 @@ authoritative — update this when a term's meaning changes.
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)
   picks which end of the bus is the least-significant bit.
+- **Probe** — a monitoring primitive (pure sink) with a single input terminal that taps a wire
+  or bus and records its signal for the **simulation timeline**. Its input adopts the connected
+  width (neutral: single-wire or bus), it has no outputs, it does not affect the circuit, and
+  inversion is disabled (it reads the raw net). Probes are **excluded from grouping**: a probe
+  selected alongside real components stays in the parent sheet (its input reads as an external
+  target of the new component's output), and Verilog export ignores it.
 - **Switches / LEDs** — multi-lane source/sink probes. A `terminalType` property picks
   `wire` (one single-wire terminal per lane, added/removed via the ports editor) or `bus`
   (one terminal whose width is adopted from the connection, rendering a `?` while
@@ -195,7 +201,7 @@ authoritative — update this when a term's meaning changes.
   One `module` per composite (root = top), gates as `assign`, the DFF as `always @(posedge clk)`
   with reset, and buses as `[n-1:0]`. The top module's I/O is its port terminals plus a top-level
   CLOCK and any main-scope SWITCHES with `exported` set; other switches become constants and
-  LEDS/7-SEG are ignored. Reports issues by severity: *errors* (floating nets, nested clocks).
+  LEDS/7-SEG/PROBE are ignored. Reports issues by severity: *errors* (floating nets, nested clocks).
   Also exposed as a CLI and a toolbar button.
 - **Copy-link sharing (`?d=`)** — encoding the whole design into a URL: serialized to JSON,
   gzip-compressed, then base64url-encoded into a `?d=` query parameter. Opening the URL restores
@@ -242,3 +248,21 @@ authoritative — update this when a term's meaning changes.
   breach (after a whole period), derived from gate delays vs. the clock period.
 - **Signal coloring** — wires/markers colored by their simulated value: red = `1`, black = `0`,
   yellow = `x` (floating/unknown).
+- **Middle-panel tabs** — a tab bar above the canvas with two views: **Designer** (the schematic
+  canvas) and **Simulation timeline** (the recorded probe waveforms). The active tab is a
+  session UI preference.
+- **Simulation timeline** — a waveform view of every **probe** lane across the whole design: one
+  horizontal row per probe lane (label on the left), whose line color follows the recorded signal
+  over simulated time. The x-axis is **time-proportional** (distance between events is
+  proportional to their time difference); the mouse wheel zooms in time, press-and-drag pans
+  horizontally, and rows that don't fit scroll vertically. It shows the **last** simulation, even
+  after leaving simulate mode.
+- **History buffer** — the bounded, in-memory record of probe signal changes backing the
+  timeline. One **event** is recorded per probe-lane *signal change* (an event only registers
+  when a probe's input actually changes — other transitions are irrelevant and not recorded),
+  stored chronologically in a ring buffer; each lane keeps a *base* value (its state at the
+  oldest retained time) so its waveform can still be drawn after early events slide out.
+- **History limit** — the maximum number of recorded events (the global *Max simulation history*
+  setting, default 1 000 000). On hitting the limit, *Stop* mode pauses the simulation and keeps
+  the full trace; *Sliding* mode (a ring buffer) drops the oldest events to keep a rolling recent
+  window.

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Signal, ValueFormat, ValueOrder } from '@gatefold/model'
-import { Simulation } from '@gatefold/sim'
+import { Simulation, HistoryBuffer } from '@gatefold/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
 import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
 import { resolveNav, useEditorStore } from './editorStore'
@@ -28,6 +28,8 @@ interface SimState {
   /** Bumped on every signal change so the canvas knows to redraw. */
   version: number
   engine: Simulation | null
+  /** Probe-signal history recorder (kept after leaving simulate mode for the timeline). */
+  history: HistoryBuffer | null
   /** How the Step button advances. */
   stepMode: SimConfig['stepMode']
   /** Default gate propagation delay, in picoseconds. */
@@ -63,13 +65,18 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     defaultDelay: get().defaultDelay,
     stepMode: get().stepMode,
   })
-  const rebuild = (): Simulation => new Simulation(useEditorStore.getState().design, config())
+  const rebuild = (): { engine: Simulation; history: HistoryBuffer } => {
+    const ui = useUiStore.getState()
+    const history = new HistoryBuffer(ui.maxHistoryEvents, ui.historyLimitMode)
+    return { engine: new Simulation(useEditorStore.getState().design, config(), history), history }
+  }
 
   /** Enter simulate mode from design mode: build the engine and reset to the top level. */
   const enterSim = (): void => {
     // Simulate from the top; navigation within the simulation is tracked by `path`.
     useEditorStore.getState().resetNavigation()
-    set({ mode: 'simulate', engine: rebuild(), path: [], version: get().version + 1 })
+    const { engine, history } = rebuild()
+    set({ mode: 'simulate', engine, history, path: [], version: get().version + 1 })
   }
 
   return {
@@ -78,6 +85,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     path: [],
     version: 0,
     engine: null,
+    history: null,
     stepMode: 'quiescent',
     defaultDelay: DEFAULT_CONFIG.defaultDelay,
     timeScale: DEFAULT_TIME_SCALE,
@@ -103,7 +111,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       engine.resetTiming()
       set({ running: true })
       runTimer = setInterval(() => {
-        const { engine } = get()
+        const { engine, history } = get()
         if (!engine) return
         // Advance a fixed slice of simulated time (a multiple of real time), then settle
         // so the circuit is never left mid-cascade (e.g. when pausing). A clock slower
@@ -112,6 +120,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
         engine.advanceTo(engine.time + slice)
         engine.settle()
         set((s) => ({ version: s.version + 1 }))
+        // STOP limit mode: pause once the history buffer is full.
+        if (history?.full) get().stop()
       }, 16)
     },
 
@@ -132,7 +142,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
 
     reset: () => {
       get().stop()
-      set({ engine: rebuild(), version: get().version + 1 })
+      const { engine, history } = rebuild()
+      set({ engine, history, version: get().version + 1 })
     },
 
     toggleSwitch: (instanceId, lane = 0) => {
@@ -174,7 +185,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     setDefaultDelay: (ps) => {
       get().stop()
       set({ defaultDelay: ps })
-      set({ engine: rebuild(), version: get().version + 1 })
+      const { engine, history } = rebuild()
+      set({ engine, history, version: get().version + 1 })
     },
 
     setTimeScale: (scale) => set({ timeScale: scale }),
@@ -216,6 +228,11 @@ function rawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   return engine.signalOf(flatId(instanceId), portId)
 }
 
+/** Theme-aware color for a 3-state signal value (shared by the canvas and timeline). */
+export function signalColor(signal: Signal, theme: string): string {
+  return SIGNAL_COLORS[signal][theme === 'dark' ? 'dark' : 'light']
+}
+
 /** Resolve a wire/marker color for a pin (optionally a specific bus lane). */
 export function simColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
   const sig = rawSignalOf(instanceId, portId)
@@ -223,7 +240,7 @@ export function simColorOf(instanceId: string, portId: string, lane?: number): s
   const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
   if (bit === undefined) return undefined
   const theme = useUiStore.getState().theme
-  return SIGNAL_COLORS[bit][theme === 'dark' ? 'dark' : 'light']
+  return signalColor(bit, theme)
 }
 
 /** Resolve a single-bit signal for a pin (probe state), or undefined. */

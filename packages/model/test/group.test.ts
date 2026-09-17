@@ -356,3 +356,60 @@ describe('grouping with the parent port groups included', () => {
     expect(main.connections.some((c) => pinEq(c, iRef(compInst.id, 'out:0'), iRef('out', 'out:0')))).toBe(true)
   })
 })
+
+// A clock feeding an AND gate, whose output is tapped by a PROBE.
+function buildProbeDesign(): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      inst('src', forkOf('clock'), 0, 0),
+      inst('and1', forkOf('and'), 200, 0),
+      inst('probe1', forkOf('probe'), 400, 0),
+    ],
+    connections: [
+      conn('c1', iRef('src', 'out:0'), iRef('and1', 'in:0')),
+      conn('c2', iRef('src', 'out:0'), iRef('and1', 'in:1')),
+      conn('c3', iRef('and1', 'out:0'), iRef('probe1', 'in:0')),
+    ],
+  }
+  return { version: 2, root: main, library: {} }
+}
+
+describe('grouping with probes', () => {
+  it('excludes a selected probe from the new component, keeping it tapping the output', () => {
+    const design = buildProbeDesign()
+    const g = inferGroup(design.root, ['and1', 'probe1'])
+
+    // The probe reads as an external target of the gate's output — no spurious port.
+    expect(g.inputs).toHaveLength(1)
+    expect(g.inputs[0].source).toEqual({ instanceId: 'src', portId: 'out:0' })
+    expect(g.outputs).toHaveLength(1)
+    expect(g.outputs[0].source).toEqual({ instanceId: 'and1', portId: 'out:0' })
+    expect(g.outputs[0].targets).toEqual([{ instanceId: 'probe1', portId: 'in:0' }])
+
+    const result = applyGroup(design, 'main', ['and1', 'probe1'], ['A'], ['Y'])
+    const main = result.root
+    const comp = result.library['component']
+
+    // Only the gate moved; the probe stays in the parent.
+    expect(comp.instances.map((i) => i.id).sort()).toEqual(['and1', 'component-in', 'component-out'].sort())
+    expect(main.instances.some((i) => i.id === 'probe1')).toBe(true)
+    expect(main.instances.some((i) => i.id === 'and1')).toBe(false)
+
+    // The probe now taps the new component's output port.
+    const compInst = main.instances.find((i) => i.def.kind === 'composite' && i.def.id === 'component')!
+    expect(main.connections.some((c) => pinEq(c, iRef(compInst.id, 'out:0'), iRef('probe1', 'in:0')))).toBe(true)
+  })
+
+  it('does not expose a floating probe input as a port', () => {
+    const design = buildProbeDesign()
+    // An unconnected probe alongside the gate: grouping the gate must not add an input
+    // port for the floating probe input.
+    const g = inferGroup(design.root, ['and1', 'probe1'])
+    expect(g.inputs.some((p) => p.targets.some((t) => t.instanceId === 'probe1'))).toBe(false)
+    expect(g.outputs.some((p) => p.targets.some((t) => t.instanceId === 'probe1'))).toBe(true)
+  })
+})

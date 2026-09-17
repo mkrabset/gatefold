@@ -3,6 +3,7 @@ import { primitiveOf, periodOf, switchInitialLanes } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
 import { clockValue, equalVectors, invert, invertVector } from './signals'
+import type { HistoryBuffer } from './history'
 
 /** Per-net change threshold above which a net is considered oscillating. */
 const OSC_LIMIT = 200
@@ -116,6 +117,10 @@ export class Simulation {
   private events = new MinHeap()
   private timeValue = 0
   private stepMode: SimConfig['stepMode']
+  /** Optional probe-signal history recorder (one entry per lane signal change). */
+  private history?: HistoryBuffer
+  /** The probe lanes to record: each maps a net + bit to a global history lane index. */
+  private probeLanes: { net: number; lane: number; globalLane: number }[] = []
   /** Latched: the logic has failed to settle within half a clock period. */
   timingHalfViolation = false
   /** Latched: the logic has failed to settle within a full clock period. */
@@ -123,13 +128,31 @@ export class Simulation {
   /** The clock-edge time that started the cascade currently being processed. */
   private currentEdgeTime = 0
 
-  constructor(design: Design, config: SimConfig = DEFAULT_CONFIG) {
+  constructor(design: Design, config: SimConfig = DEFAULT_CONFIG, history?: HistoryBuffer) {
     const netlist = flatten(design)
     this.instances = netlist.instances
     this.netWidths = netlist.netWidths
     this.driven = netlist.driven
     this.pinNet = netlist.pinNet
     this.stepMode = config.stepMode
+    this.history = history
+
+    // Enumerate probe lanes for the history recorder: one lane per bit of each probe's
+    // input net (a single-wire probe contributes one lane, a bus probe one per wire).
+    if (this.history) {
+      const labels: string[] = []
+      for (const inst of this.instances) {
+        if (inst.kind !== 'probe') continue
+        const input = inst.inputs[0]
+        if (!input) continue
+        const width = this.netWidths[input.net] || 1
+        for (let lane = 0; lane < width; lane++) {
+          this.probeLanes.push({ net: input.net, lane, globalLane: labels.length })
+          labels.push(width > 1 ? `${inst.label}[${lane}]` : inst.label)
+        }
+      }
+      this.history.setLabels(labels)
+    }
 
     const n = netlist.netCount
     // Power-on: driven nets start at 0; floating (undriven) nets stay unknown, except
@@ -172,6 +195,13 @@ export class Simulation {
 
     this.powerOnSettle()
 
+    // Seed each probe lane's base value from the settled power-on state (t = 0).
+    if (this.history) {
+      for (const pl of this.probeLanes) {
+        this.history.setBase(pl.globalLane, this.timeValue, this.valueOf(pl.net)[pl.lane] ?? 'x')
+      }
+    }
+
     // Initialise each sequential's last-seen clock from the settled clock net, so the
     // first edge after power-on is detected correctly (including gated clocks).
     for (const seq of this.sequentials) {
@@ -185,6 +215,19 @@ export class Simulation {
 
   private valueOf(net: number): Signal[] {
     return this.values[net] ?? ['x']
+  }
+
+  /** Assign a net's value, recording any probe-lane signal changes into the history. */
+  private setNet(net: number, value: Signal[], t: number): void {
+    if (this.history) {
+      for (const pl of this.probeLanes) {
+        if (pl.net !== net) continue
+        const prev = this.valueOf(net)[pl.lane] ?? 'x'
+        const next = value[pl.lane] ?? 'x'
+        if (next !== prev) this.history.record(pl.globalLane, t, next)
+      }
+    }
+    this.values[net] = value
   }
 
   private sourceValues(inst: FlatInstance): Signal[][] {
@@ -233,7 +276,7 @@ export class Simulation {
       const out = inst.outputs[j]
       const v = values[j] ?? ['x']
       this.version[out.net]++
-      this.values[out.net] = out.inverted ? invertVector(v) : v
+      this.setNet(out.net, out.inverted ? invertVector(v) : v, now)
       for (const g of this.fanout[out.net]) this.evaluateGate(g, now)
       for (const s of this.seqFanout[out.net]) this.evaluateSequential(s, now)
     }
@@ -501,11 +544,11 @@ export class Simulation {
         changeCount[e.net]++
         if (changeCount[e.net] > OSC_LIMIT) {
           // Oscillating: freeze at unknown and stop propagating.
-          this.values[e.net] = Array.from({ length: this.netWidths[e.net] }, () => 'x' as Signal)
+          this.setNet(e.net, Array.from({ length: this.netWidths[e.net] }, () => 'x' as Signal), e.t)
           continue
         }
       }
-      this.values[e.net] = e.value
+      this.setNet(e.net, e.value, e.t)
       for (const g of this.fanout[e.net]) this.evaluateGate(g, e.t)
       for (const s of this.seqFanout[e.net]) this.evaluateSequential(s, e.t)
     }

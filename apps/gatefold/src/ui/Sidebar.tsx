@@ -73,7 +73,7 @@ function CompositeChildren({ def, depth, selectId, onOpen }: {
         const isExpanded = expanded[inst.id] ?? false
         const primitiveKind = childPrimitive(inst.def) ?? undefined
         const iconSrc = primitiveKind ? PRIMITIVE_ICONS[primitiveKind] : undefined
-        const icon = primitiveKind ? undefined : '▣'
+        const icon = iconSrc ? undefined : primitiveKind ? primitiveOf(primitiveKind).glyph : '▣'
         return (
           <div key={inst.id}>
             <TreeItem

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { ChildDef, CompositeDef, Design, Instance, PinRef, PrimitiveKind } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, PrimitiveKind, Signal } from '@gatefold/model'
 import { builtinOf, forkOf } from '@gatefold/model'
 import { Simulation } from '../src/engine'
 import { DEFAULT_CONFIG } from '../src/config'
+import { HistoryBuffer } from '../src/history'
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const conn = (id: string, from: PinRef, to: PinRef) => ({ id, from, to })
@@ -1031,5 +1032,75 @@ describe('Simulation engine', () => {
     sim.resetTiming()
     expect(sim.timingHalfViolation).toBe(false)
     expect(sim.timingFullViolation).toBe(false)
+  })
+})
+
+describe('Simulation probe history', () => {
+  it('records a probe lane per clock toggle', () => {
+    const history = new HistoryBuffer(100, 'stop')
+    const sim = new Simulation(
+      mkDesign([clk('clk', { period: 1000 }), inst('p', 'probe')], [conn('c1', iref('clk', 'out:0'), iref('p', 'in:0'))]),
+      DEFAULT_CONFIG,
+      history,
+    )
+
+    expect(history.labelCount).toBe(1)
+    expect(history.label(0)).toBe('p')
+    // The clock powers on high, so the probe's base is 1.
+    expect(history.baseOf(0)).toEqual({ t: 0, value: 1 })
+
+    sim.advanceTo(1200)
+    sim.settle()
+
+    const events: { t: number; value: Signal }[] = []
+    history.forEachEvent((e) => events.push({ t: e.t, value: e.value }))
+    expect(events).toEqual([
+      { t: 500, value: 0 },
+      { t: 1000, value: 1 },
+    ])
+  })
+
+  it('records one lane per wire of a bus probe', () => {
+    const history = new HistoryBuffer(100, 'stop')
+    const sim = new Simulation(
+      mkDesign(
+        [inst('a', 'switch-array'), inst('b', 'switch-array'), inst('fi', fanIn2), inst('p', 'probe')],
+        [
+          conn('c0', iref('a', 'out:0'), iref('fi', 'in:0')),
+          conn('c1', iref('b', 'out:0'), iref('fi', 'in:1')),
+          conn('c2', iref('fi', 'out:0'), iref('p', 'in:0')),
+        ],
+      ),
+      DEFAULT_CONFIG,
+      history,
+    )
+
+    expect(history.labelCount).toBe(2)
+    expect(history.label(0)).toBe('p[0]')
+    expect(history.label(1)).toBe('p[1]')
+    expect(history.baseOf(0).value).toBe(0)
+    expect(history.baseOf(1).value).toBe(0)
+
+    sim.setSwitch('a', 1)
+    sim.step()
+
+    // Only lane 0 changed (fan-in bit 0), after the fan-in's gate delay.
+    const events: { lane: number; value: Signal }[] = []
+    history.forEachEvent((e) => events.push({ lane: e.lane, value: e.value }))
+    expect(events).toEqual([{ lane: 0, value: 1 }])
+  })
+
+  it('records a switch toggle that feeds a probe directly', () => {
+    const history = new HistoryBuffer(100, 'stop')
+    const sim = new Simulation(
+      mkDesign([inst('s', 'switch-array'), inst('p', 'probe')], [conn('c', iref('s', 'out:0'), iref('p', 'in:0'))]),
+      DEFAULT_CONFIG,
+      history,
+    )
+    sim.setSwitch('s', 1)
+    sim.step()
+    const events: { value: Signal }[] = []
+    history.forEachEvent((e) => events.push({ value: e.value }))
+    expect(events).toEqual([{ value: 1 }])
   })
 })

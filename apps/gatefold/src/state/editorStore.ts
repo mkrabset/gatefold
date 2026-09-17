@@ -29,6 +29,7 @@ import {
   isArrayDef,
   isPortGroupDef,
   isPrimitiveKind,
+  isProbeDef,
   isTemplateDef,
   nextConnectionId,
   newUuid,
@@ -362,10 +363,11 @@ export const useEditorStore = create<EditorState>()(
 
           // Infer the ports from the current selection and seed default names for the
           // dialog; the actual transformation happens on `confirmGroup`. Port-group
-          // instances are never grouped — ignore a selection with no real components.
+          // instances and probes are never grouped — ignore a selection with no real
+          // components.
           const movable = s.selectedIds.filter((id) => {
             const inst = def.instances.find((i) => i.id === id)
-            return !!inst && !isPortGroupDef(inst.def)
+            return !!inst && !isPortGroupDef(inst.def) && !isProbeDef(inst.def)
           })
           if (movable.length === 0) return
 

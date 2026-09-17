@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { DEFAULT_LANE_DISTANCE, useUiStore } from '../state/uiStore'
+import type { HistoryLimitMode } from '@gatefold/sim'
 import { useEscapeToClose } from './useDialog'
 
 /**
- * Global settings modal. Currently hosts a single setting — the bus-lane spacing
- * ("lane distance", in world units) — which controls how far apart the individual wires
- * of a bus terminal are drawn, so large buses can take less vertical space. Commits on
- * blur/Enter so typing doesn't re-layout the canvas on every keystroke.
+ * Global settings modal. Hosts the bus-lane spacing ("lane distance"), the simulation
+ * history size, and the history-limit behaviour. Values commit on blur/Enter so typing
+ * doesn't re-layout the canvas (or rebuild the simulator) on every keystroke.
  */
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen)
   const laneDistance = useUiStore((s) => s.laneDistance)
+  const maxHistoryEvents = useUiStore((s) => s.maxHistoryEvents)
+  const historyLimitMode = useUiStore((s) => s.historyLimitMode)
   const setLaneDistance = useUiStore((s) => s.setLaneDistance)
+  const setMaxHistoryEvents = useUiStore((s) => s.setMaxHistoryEvents)
+  const setHistoryLimitMode = useUiStore((s) => s.setHistoryLimitMode)
   const closeSettings = useUiStore((s) => s.closeSettings)
   const [distance, setDistance] = useState(String(laneDistance))
+  const [maxEvents, setMaxEvents] = useState(String(maxHistoryEvents))
   useEscapeToClose(closeSettings, open)
 
   if (!open) return null
@@ -22,6 +27,12 @@ export function SettingsDialog() {
     const n = Number(distance)
     if (Number.isFinite(n) && n >= 0) setLaneDistance(n)
     else setDistance(String(laneDistance))
+  }
+
+  const commitMaxEvents = () => {
+    const n = Number(maxEvents)
+    if (Number.isFinite(n) && n >= 1) setMaxHistoryEvents(n)
+    else setMaxEvents(String(maxHistoryEvents))
   }
 
   return (
@@ -47,6 +58,36 @@ export function SettingsDialog() {
               }
             }}
           />
+        </div>
+        <div className="dialog-section">
+          <div className="dialog-section-title">Max simulation history (events)</div>
+          <input
+            className="dialog-input"
+            type="number"
+            min={1}
+            step={1}
+            value={maxEvents}
+            onChange={(e) => setMaxEvents(e.target.value)}
+            onBlur={commitMaxEvents}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitMaxEvents()
+                e.currentTarget.blur()
+              }
+            }}
+          />
+        </div>
+        <div className="dialog-section">
+          <div className="dialog-section-title">History limit</div>
+          <select
+            className="dialog-input"
+            value={historyLimitMode}
+            onChange={(e) => setHistoryLimitMode(e.target.value as HistoryLimitMode)}
+          >
+            <option value="stop">Stop simulation</option>
+            <option value="sliding">Sliding ring buffer</option>
+          </select>
         </div>
         <div className="dialog-actions">
           <button className="dialog-btn primary" onClick={closeSettings}>

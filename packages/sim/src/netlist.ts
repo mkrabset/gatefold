@@ -10,6 +10,8 @@ export interface FlatPort {
 export interface FlatInstance {
   /** Flattened instance id: a `.`-joined path of original instance ids from the root. */
   id: string
+  /** Human-readable path (instance names, falling back to ids) for display/timeline labels. */
+  label: string
   kind: PrimitiveKind
   props?: Record<string, PropertyValue>
   inputs: FlatPort[]
@@ -39,6 +41,7 @@ export function joinInstancePath(path: string, id: string): string {
 
 interface Leaf {
   id: string
+  label: string
   inst: Instance
   kind: PrimitiveKind
   ports: Port[]
@@ -62,7 +65,7 @@ export function flatten(design: Design): Netlist {
   const join = (path: string, id: string): string => joinInstancePath(path, id)
   const pinKey = (instancePath: string, portId: string): string => `${instancePath}:${portId}`
 
-  const flattenDef = (def: CompositeDef, path: string): void => {
+  const flattenDef = (def: CompositeDef, path: string, labelPath: string[]): void => {
     for (const c of def.connections) {
       const fk = pinKey(join(path, c.from.instanceId), c.from.portId)
       const tk = pinKey(join(path, c.to.instanceId), c.to.portId)
@@ -94,17 +97,18 @@ export function flatten(design: Design): Netlist {
       const idef = inst.def
       if (isPortGroupDef(idef)) continue // dissolved through terminals
       const childPath = join(path, inst.id)
+      const childLabelPath = [...labelPath, inst.name || inst.id]
       if (idef.kind === 'composite') {
-        flattenDef(idef, childPath)
+        flattenDef(idef, childPath, childLabelPath)
       } else {
         const ports = childPorts(idef)
         for (const p of ports) allPins.add(pinKey(childPath, p.id))
-        leaves.push({ id: childPath, inst, kind: idef.primitive, ports, parentDef: def })
+        leaves.push({ id: childPath, label: childLabelPath.join('.'), inst, kind: idef.primitive, ports, parentDef: def })
       }
     }
   }
 
-  flattenDef(design.root, '')
+  flattenDef(design.root, '', [])
 
   const netIds = new Map<string, number>()
   const netWidths: number[] = []
@@ -138,7 +142,7 @@ export function flatten(design: Design): Netlist {
         driven[net] = true
       }
     }
-    instances.push({ id: leaf.id, kind: leaf.kind, props: leaf.inst.props, inputs, outputs })
+    instances.push({ id: leaf.id, label: leaf.label, kind: leaf.kind, props: leaf.inst.props, inputs, outputs })
   }
 
   // Synthesized inverters for inverted composite terminals: a buffer whose output is
@@ -150,6 +154,7 @@ export function flatten(design: Design): Netlist {
     driven[targetNet] = true
     instances.push({
       id: `$inv${invCounter++}`,
+      label: 'inverter',
       kind: 'buffer',
       inputs: [{ portId: 'in:0', net: sourceNet, inverted: false }],
       outputs: [{ portId: 'out:0', net: targetNet, inverted: true }],

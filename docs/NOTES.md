@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-11 (global bidirectional width solver).
+Last updated: 2026-09-17 (simulation timeline + PROBE primitive).
 
 ## Where we are
 
@@ -12,6 +12,36 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Simulation timeline + PROBE primitive** — a new **tab bar** above the canvas (middle panel)
+  switches between **Designer** (the schematic) and **Simulation timeline**. The timeline shows
+  the recorded state history of every **PROBE** (a new sink primitive with a single neutral
+  input), one horizontal row per probe lane, time-proportional x-axis, wheel-zoom in time,
+  drag-pan, native vertical scroll. It keeps the **last** simulation, even after leaving
+  simulate mode.
+  - **Model** — `PrimitiveKind 'probe'` + `primitives/probe.ts` (`Probe`: one input, neutral
+    width, `transfer` → `[]`, `allowInversion=false`); registered in `LIBRARY_KINDS`; new
+    `isProbeDef`. Probes are **excluded from grouping** (`group.ts` treats them like port
+    groups via `isNonGroupableInst`), and the store's `openGroupDialog` won't group a
+    probe-only selection. Verilog ignores `probe` (with LEDs/7-seg). No PNG icon — the library
+    card and sidebar tree fall back to the primitive glyph.
+  - **Sim** — new `history.ts` (`HistoryBuffer`): one event per probe-lane *signal change*,
+    chronological ring buffer, per-lane `base` (oldest retained value), `stop`/`sliding` limit
+    modes, `revision` counter. `engine.ts` takes an optional buffer, enumerates probe lanes
+    (one per wire of each probe's input net, labelled with the flattened instance path), seeds
+    bases after power-on, and routes every net write through `setNet` (in `drainEvents` and
+    `driveSource`) so clock toggles, gate/DFF events, and switch toggles all record. `netlist.ts`
+    adds a human-readable `label` to `FlatInstance`.
+  - **App** — `simStore` owns the `history` buffer (rebuilt on enter/reset/default-delay, kept
+    on exit; `run()` pauses when the buffer fills in `stop` mode). `uiStore` gains persisted
+    `maxHistoryEvents` (default 1 000 000), `historyLimitMode` (`stop`/`sliding`), and
+    `middleTab`; the **Settings** dialog edits the two history settings. `ui/TimelineView.tsx`
+    is a canvas waveform view; `App.tsx` wraps the canvas in a tabbed center panel.
+  - Tests: model (`probe` ports/width/`transfer`, grouping exclusion), sim (`history.test.ts`
+    buffer semantics; engine probe recording), verilog (probe ignored), app (`simStore` history
+    lifecycle). Docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
+
+
 
 - **Dialog focus + Escape** — confirmation dialogs (delete component, clear-everything, delete
   categories) now auto-focus their primary button on open, and every dialog closes on Escape. A new

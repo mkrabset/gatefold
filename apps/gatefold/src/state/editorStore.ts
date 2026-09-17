@@ -179,6 +179,7 @@ interface EditorState {
   insertJoinPointAt: (connectionId: string, pos: { x: number; y: number }) => void
   retargetConnection: (id: string, to: PinRef) => void
   removeConnection: (id: string) => void
+  removeConnections: (ids: string[]) => void
   deleteSelection: () => void
   copySelection: () => void
   paste: () => void
@@ -721,6 +722,13 @@ export const useEditorStore = create<EditorState>()(
           const def = currentDef(s)
           if (!def || def.kind !== 'composite') return
           def.connections = def.connections.filter((c) => c.id !== id)
+        }),
+      removeConnections: (ids) =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const idSet = new Set(ids)
+          def.connections = def.connections.filter((c) => !idSet.has(c.id))
         }),
       deleteSelection: () =>
         set((s) => {

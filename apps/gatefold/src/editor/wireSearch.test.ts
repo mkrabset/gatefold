@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { CompositeDef, Design, Instance, PinRef, PrimitiveKind } from '@gatefold/model'
 import { forkOf } from '@gatefold/model'
-import { findJoinpointWire, findWireAtLine } from './wireSearch'
+import { findJoinpointWire, findWireAtLine, findWiresAtLine } from './wireSearch'
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
 const inst = (id: string, defId: PrimitiveKind, x: number, y: number): Instance => ({ id, name: id, def: forkOf(defId), pos: { x, y } })
@@ -61,6 +61,62 @@ describe('findWireAtLine', () => {
       [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
     )
     expect(findWireAtLine(main, main, { x: 50, y: 0 }, { x: 50, y: 0 })).toBeNull()
+  })
+})
+
+describe('findWiresAtLine', () => {
+  it('returns every single-wire connection the segment crosses', () => {
+    const { main } = mkDesign(
+      [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0), inst('b3', 'buffer', 0, 40), inst('b4', 'buffer', 100, 40)],
+      [
+        { id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') },
+        { id: 'c2', from: iref('b3', 'out:0'), to: iref('b4', 'in:0') },
+      ],
+    )
+    const cut = findWiresAtLine(main, main, { x: 50, y: -10 }, { x: 50, y: 50 })
+    expect(cut.map((c) => c.id)).toEqual(['c1', 'c2'])
+  })
+
+  it('returns no connections when the segment crosses nothing', () => {
+    const { main } = mkDesign(
+      [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
+      [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
+    )
+    expect(findWiresAtLine(main, main, { x: 50, y: 50 }, { x: 50, y: 60 })).toEqual([])
+  })
+
+  it('cuts a bus when the segment crosses all its lanes', () => {
+    const { main } = mkDesign(
+      [inst('sw1', 'switch-array', 0, -20), inst('sw2', 'switch-array', 0, 20), inst('fi', 'fan-in', 60, 0), inst('fo', 'fan-out', 160, 0)],
+      [
+        { id: 'c1', from: iref('sw1', 'out:0'), to: iref('fi', 'in:0') },
+        { id: 'c2', from: iref('sw2', 'out:0'), to: iref('fi', 'in:1') },
+        { id: 'c3', from: iref('fi', 'out:0'), to: iref('fo', 'in:0') },
+      ],
+    )
+    const cut = findWiresAtLine(main, main, { x: 110, y: -10 }, { x: 110, y: 10 })
+    expect(cut.map((c) => c.id)).toEqual(['c3'])
+  })
+
+  it('does not cut a bus when the segment misses some lanes', () => {
+    const { main } = mkDesign(
+      [inst('sw1', 'switch-array', 0, -20), inst('sw2', 'switch-array', 0, 20), inst('fi', 'fan-in', 60, 0), inst('fo', 'fan-out', 160, 0)],
+      [
+        { id: 'c1', from: iref('sw1', 'out:0'), to: iref('fi', 'in:0') },
+        { id: 'c2', from: iref('sw2', 'out:0'), to: iref('fi', 'in:1') },
+        { id: 'c3', from: iref('fi', 'out:0'), to: iref('fo', 'in:0') },
+      ],
+    )
+    const cut = findWiresAtLine(main, main, { x: 110, y: -10 }, { x: 110, y: -4 })
+    expect(cut).toEqual([])
+  })
+
+  it('returns no connections for a degenerate (zero-length) segment', () => {
+    const { main } = mkDesign(
+      [inst('b1', 'buffer', 0, 0), inst('b2', 'buffer', 100, 0)],
+      [{ id: 'c1', from: iref('b1', 'out:0'), to: iref('b2', 'in:0') }],
+    )
+    expect(findWiresAtLine(main, main, { x: 50, y: 0 }, { x: 50, y: 0 })).toEqual([])
   })
 })
 

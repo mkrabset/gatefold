@@ -135,6 +135,30 @@ function shiftY(b: CubicBezier, dy: number): CubicBezier {
 }
 
 /**
+ * Find every connection in `parentDef` that the segment (a, b) cuts: a single wire is
+ * cut when the segment crosses its bezier, and a bus is cut only when the segment crosses
+ * through *all* of its lanes. Unlike `findWireAtLine` there is no uniqueness/ambiguity
+ * constraint — every cut connection is returned.
+ */
+export function findWiresAtLine(root: CompositeDef, parentDef: CompositeDef, a: Point, b: Point): Connection[] {
+  if (Math.hypot(b.x - a.x, b.y - a.y) < EPS) return []
+
+  const cut: Connection[] = []
+  for (const conn of parentDef.connections) {
+    const from = resolve(root, parentDef, conn.from)
+    const to = resolve(root, parentDef, conn.to)
+    if (!from || !to) continue
+    const width = pinWidth(root, parentDef, conn.from)
+    const base = wirePath(from.pos, to.pos, { fromJoin: from.join, toJoin: to.join })
+    const allLanes = busWireOffsets(width).every(
+      (dy) => curveIntersections(shiftY(base, dy), a, b).length > 0,
+    )
+    if (allLanes) cut.push(conn)
+  }
+  return cut
+}
+
+/**
  * Find the unique single-wire connection in `parentDef` whose bezier crosses the segment
  * (a, b). Returns the connection and crossing point, or null when the crossing is absent
  * or ambiguous (multiple wires/bus lanes, or a single wire crossed more than once).

@@ -450,6 +450,24 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(restored.connections.some((c) => c.id === 'c1')).toBe(true)
     expect(restored.instances.some((i) => i.id === jp!.id)).toBe(false)
   })
+
+  it('removes the given connections and undoes them together', () => {
+    reset()
+    const before = mainDef().connections.length
+
+    useEditorStore.getState().removeConnections(['c1', 'c2'])
+
+    const conns = mainDef().connections
+    expect(conns.some((c) => c.id === 'c1')).toBe(false)
+    expect(conns.some((c) => c.id === 'c2')).toBe(false)
+    expect(conns.length).toBe(before - 2)
+
+    useEditorStore.temporal.getState().undo()
+    const restored = mainDef().connections
+    expect(restored.some((c) => c.id === 'c1')).toBe(true)
+    expect(restored.some((c) => c.id === 'c2')).toBe(true)
+    expect(restored.length).toBe(before)
+  })
 })
 
 // A design with a 5-input fan-in and an unconnected bus-split.

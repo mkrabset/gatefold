@@ -440,7 +440,7 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 ### Interactions (`Canvas.tsx`)
 All pointer handling is attached natively to the `<canvas>`; the store drives redraws via
 `subscribe`. A `Drag` union models the active gesture (`pan` / `move` / `marquee` /
-`shiftClick` / `wire`).
+`shiftClick` / `wire` / `cut`).
 
 - **Drag a component** → move it (the whole selection, if multi-selected).
 - **Drag on empty background** → marquee select (live).
@@ -453,6 +453,11 @@ All pointer handling is attached natively to the `<canvas>`; the store drives re
   input pin. Press an input pin that already has a wire → grab it → release on a new input to
   re-target, or on empty space to delete. Dropping onto an already-driven input is rejected
   (toast).
+- **Cut line** (Ctrl/Cmd+drag, selection-colored): releases on a single crossed wire and
+  inserts a NODE join-point there (`insertJoinPointAt`). **Delete-cut** (Alt+drag, red): on
+  release removes every wire the line crosses — no uniqueness constraint — and a bus only when
+  the line cuts through all its lanes (`findWiresAtLine` → `removeConnections`). Alt+press on a
+  driven input pin still grabs that wire.
 
 Global shortcuts (in `App.tsx`, ignored while typing): Ctrl/Cmd+C copy, Ctrl/Cmd+V paste,
 Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.

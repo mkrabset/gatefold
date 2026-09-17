@@ -221,11 +221,12 @@ export function drawScene(
     }
   }
 
-  // Imaginary cut line (Ctrl/Cmd+drag): a dashed straight line under the instances.
+  // Imaginary cut line: Ctrl/Cmd+drag (insert NODE) is selection-colored; Alt+drag
+  // (delete wires) is red.
   if (cutLine) {
     const a = w2s(cutLine.start.x, cutLine.start.y, cw, ch, vp)
     const b = w2s(cutLine.end.x, cutLine.end.y, cw, ch, vp)
-    ctx.strokeStyle = p.selection
+    ctx.strokeStyle = cutLine.kind === 'delete' ? p.cutDelete : p.selection
     ctx.lineWidth = WIRE_WIDTH * vp.zoom
     ctx.setLineDash([5, 4])
     ctx.beginPath()

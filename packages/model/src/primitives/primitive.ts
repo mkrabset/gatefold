@@ -14,6 +14,8 @@ export interface Palette {
   /** Hovered-terminal marker highlight. */
   pinHighlight: string
   selection: string
+  /** Dashed delete-cut line (Alt+drag). */
+  cutDelete: string
   text: string
   /** Canvas background while editing a composite template. */
   templateBg: string

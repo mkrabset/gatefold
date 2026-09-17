@@ -210,6 +210,9 @@ authoritative — update this when a term's meaning changes.
   `from → node.in:0` and `node.out:0 → to`.
 - **Cut line** — a transient dashed line drawn while holding Ctrl/Cmd and dragging; on release it
   finds the single wire it crosses and inserts a NODE join-point there, slicing the wire.
+- **Delete-cut** — a transient dashed line drawn while holding Alt and dragging; on release it
+  removes **every** wire it crosses (no uniqueness constraint), and a bus only when the line cuts
+  through all of its lanes. Rendered red (vs. the insert cut line's selection color).
 
 ## Simulation
 

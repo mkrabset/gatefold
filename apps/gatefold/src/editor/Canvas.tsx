@@ -5,7 +5,7 @@ import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, setLaneDistance } from './geometry'
 import { drawScene } from './renderer'
-import { findJoinpointWire, findWireAtLine } from './wireSearch'
+import { findJoinpointWire, findWireAtLine, findWiresAtLine } from './wireSearch'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
@@ -31,7 +31,7 @@ type Drag =
   | { type: 'marquee'; startX: number; startY: number; startWorld: { x: number; y: number } }
   | { type: 'shiftClick'; id: string; startX: number; startY: number; vp: Viewport }
   | { type: 'wire'; from: PinRef; originalId: string | null; originalTo: PinRef | null }
-  | { type: 'cut'; startWorld: { x: number; y: number } }
+  | { type: 'cut'; startWorld: { x: number; y: number }; kind: 'insert' | 'delete' }
 
 const MIN_ZOOM = 0.15
 const MAX_ZOOM = 4
@@ -202,16 +202,16 @@ export function Canvas() {
       // Ctrl/Cmd+drag draws an imaginary cut line; releasing it slices a wire with a
       // new NODE at the crossing point.
       if (e.ctrlKey || e.metaKey) {
-        drag = { type: 'cut', startWorld: { x: w.x, y: w.y } }
-        state.setCutLine({ start: { x: w.x, y: w.y }, end: { x: w.x, y: w.y } })
+        drag = { type: 'cut', startWorld: { x: w.x, y: w.y }, kind: 'insert' }
+        state.setCutLine({ start: { x: w.x, y: w.y }, end: { x: w.x, y: w.y }, kind: 'insert' })
         canvas.style.cursor = 'crosshair'
         canvas.setPointerCapture(e.pointerId)
         return
       }
 
-      // Alt+press grabs a driven input's wire. This is how you grab a join-point's
-      // incoming wire, whose input terminal sits underneath its output terminal.
       if (e.altKey) {
+        // Alt+press on a driven input grabs its wire. This is how you grab a join-point's
+        // incoming wire, whose input terminal sits underneath its output terminal.
         const sink = hitTestPort(widthRoot(), w.x, w.y, instances, def, 'sink')
         const conn = sink && findConnectionTo(currentConnections(), sink.ref)
         if (conn) {
@@ -222,6 +222,13 @@ export function Canvas() {
           state.setHoverPort(sink.ref)
           return
         }
+        // Elsewhere Alt+drag draws a delete-cut line; releasing it removes every wire
+        // (and bus cut through all its lanes) it crosses.
+        drag = { type: 'cut', startWorld: { x: w.x, y: w.y }, kind: 'delete' }
+        state.setCutLine({ start: { x: w.x, y: w.y }, end: { x: w.x, y: w.y }, kind: 'delete' })
+        canvas.style.cursor = 'crosshair'
+        canvas.setPointerCapture(e.pointerId)
+        return
       }
 
       // Pressing an output port always starts a wire — this takes priority over
@@ -340,7 +347,7 @@ export function Canvas() {
         case 'cut': {
           const rect = wrap.getBoundingClientRect()
           const cur = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-          state.setCutLine({ start: d.startWorld, end: { x: cur.x, y: cur.y } })
+          state.setCutLine({ start: d.startWorld, end: { x: cur.x, y: cur.y }, kind: d.kind })
           return
         }
         case 'wire': {
@@ -375,9 +382,16 @@ export function Canvas() {
         state.setCutLine(null)
         const def = currentScope()
         if (def) {
-          const hit = findWireAtLine(widthRoot(), def, d.startWorld, { x: end.x, y: end.y })
-          if (hit) {
-            state.insertJoinPointAt(hit.connection.id, hit.point)
+          if (d.kind === 'delete') {
+            const cut = findWiresAtLine(widthRoot(), def, d.startWorld, { x: end.x, y: end.y })
+            if (cut.length > 0) {
+              state.removeConnections(cut.map((c) => c.id))
+            }
+          } else {
+            const hit = findWireAtLine(widthRoot(), def, d.startWorld, { x: end.x, y: end.y })
+            if (hit) {
+              state.insertJoinPointAt(hit.connection.id, hit.point)
+            }
           }
         }
       }

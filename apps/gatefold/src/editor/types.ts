@@ -30,10 +30,11 @@ export interface PendingWire {
   originalId?: string
 }
 
-/** An imaginary cut line (Ctrl/Cmd+drag) used to slice a wire with a new NODE. */
+/** An imaginary cut line: Ctrl/Cmd+drag inserts a NODE; Alt+drag deletes the cut wires. */
 export interface CutLine {
   start: { x: number; y: number }
   end: { x: number; y: number }
+  kind: 'insert' | 'delete'
 }
 
 /** Simulation view callbacks: resolve a signal color/value for a pin (and bus lane). */

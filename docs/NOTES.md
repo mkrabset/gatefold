@@ -13,6 +13,15 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Alt+drag delete-cut gesture** — a companion to the Ctrl/Cmd+drag cut line. Holding Alt and
+  dragging draws a **red** dashed line (a new `CutLine.kind: 'insert' | 'delete'` discriminator,
+  colored via a new `Palette.cutDelete`); on release it removes **every** wire the line crosses
+  (`findWiresAtLine` in `wireSearch.ts` — no uniqueness/ambiguity check, unlike
+  `findWireAtLine`) and a bus only when the line cuts through all of its lanes, via a new
+  `editorStore.removeConnections(ids)` action (single undo step). Alt+press on a driven input
+  pin still grabs that wire (the existing join-point grab). Tests in `wireSearch.test.ts` and
+  `editorStore.test.ts`; docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
+
 - **Global bidirectional width solver** — fixed the long-standing gap where a component whose
   internal buses are all neutral/derived (e.g. a `compareWithOne` built from an input port,
   a COMPARE, and an internal switch-array constant) stayed undetermined even when its parent

@@ -108,6 +108,10 @@ level.
 - **Draw a wire** — press an **output** pin, drag, and release on an **input** pin.
 - **Re-target / delete a wire** — press an **input** pin that already has a wire, drag, and
   release on a new input (re-target) or on empty space (delete).
+- **Cut wires to delete** — hold **Alt** and drag across the canvas: a red dashed line is
+  drawn, and on release every wire it crosses is removed. A bus is removed only when the line
+  cuts through **all** of its lanes. (Unlike Ctrl/Cmd+drag, this deletes rather than splitting,
+  and it can remove many wires at once.)
 - An input can have **at most one** driver; dropping a second wire onto a driven input is
   rejected with a message.
 

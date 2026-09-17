@@ -81,12 +81,13 @@ double-click to edit its template; *×* deletes it. *Export* / *Import*
 exchange your component library as JSON, and *Apply to scope* / *Apply
 to all* (shown when a template is selected) propagate that template’s
 edits (including its port names) to matching placed instances — in the
-current scope, or across the whole design. The list scrolls if it grows
-tall. A *category dropdown* above the list shows one category at a time;
-the *Move to category* dropdown below the buttons moves the selected
-component to an existing category or *＋ New category…* (type a name and
-press *Enter*). It is always visible but disabled until a component is
-selected, and while you are editing a template.
+current scope, or across the whole design. *Delete* opens a dialog that
+removes whole library _categories_ (see below). The list scrolls if it
+grows tall. A *category dropdown* above the list shows one category at a
+time; the *Move to category* dropdown below the buttons moves the
+selected component to an existing category or *＋ New category…* (type a
+name and press *Enter*). It is always visible but disabled until a
+component is selected, and while you are editing a template.
 
 ==== Dialogs
 
@@ -101,7 +102,15 @@ affects every bus terminal _except_ those on the LED and switch arrays
 (whose indicator rows keep their fixed spacing). The value persists
 across reloads.
 * *Delete dialog* — confirm deleting a library template.
+* *Delete categories dialog* — opened from the library’s *Delete*
+button: it lists every library category (including *Uncategorized*) with
+a checkbox, plus a *Select all* master toggle, so you can delete the
+whole library or just chosen categories. The list scrolls when it grows
+past ~15 categories.
 * *Toast* — transient messages (e.g. "`Input already has a driver`").
+* In every dialog, *Escape* cancels/closes it, and the confirmation
+dialogs pre-focus their primary button so *Enter* completes the action
+immediately.
 
 '''''
 

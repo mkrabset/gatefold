@@ -30,6 +30,27 @@ const fanIn2: ChildDef = {
   ],
 }
 
+const counterBus: ChildDef = {
+  kind: 'fork',
+  primitive: 'counter',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'out:0', name: 'Q', direction: 'output' },
+  ],
+}
+
+const counter2: ChildDef = {
+  kind: 'fork',
+  primitive: 'counter',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input' },
+    { id: 'out:0', name: 'Q0', direction: 'output' },
+    { id: 'out:1', name: 'Q1', direction: 'output' },
+  ],
+}
+
 function jsonOf(root: CompositeDef): string {
   const design: Design = { version: 2, root, library: {} }
   return serializeDesign(design)
@@ -546,5 +567,57 @@ describe('exportVerilog', () => {
     }
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain("assign sw_BUS = 4'b1010;")
+  })
+
+  it('emits a BUS-mode counter with a sync reset and a pulled-down RST', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Q')],
+      instances: [
+        pgOut(),
+        prim('clk', 'clock', { period: 1000 }),
+        fork('cnt', counterBus),
+        prim('b', 'bus', { lanes: 4 }),
+      ],
+      connections: [
+        { id: 'c1', from: iref('clk', 'out:0'), to: iref('cnt', 'in:0') },
+        { id: 'c2', from: iref('cnt', 'out:0'), to: iref('b', 'in:0') },
+        { id: 'c3', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output [3:0] Q')
+    expect(source).toContain('reg [3:0] cnt_cnt;')
+    expect(source).toContain('assign cnt_Q = cnt_cnt;')
+    expect(source).toContain('assign Q = cnt_Q;')
+    expect(source).toContain("always @(posedge clk_CLK) if (cnt_RST) cnt_cnt <= {4{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
+    expect(source).toContain("assign cnt_RST = 1'b0;")
+    expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
+  })
+
+  it('emits a WIRE-mode counter with an async reset and one assign per bit', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'RST'), output('out:0', 'Q0'), output('out:1', 'Q1')],
+      instances: [
+        pgIn(),
+        pgOut(),
+        prim('clk', 'clock', { period: 1000 }),
+        { id: 'cnt', name: 'cnt', def: counter2, pos: { x: 0, y: 0 }, props: { resetStyle: 'async', width: 2 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('clk', 'out:0'), to: iref('cnt', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:0'), to: iref('cnt', 'in:1') },
+        { id: 'c3', from: iref('cnt', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c4', from: iref('cnt', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output Q0')
+    expect(source).toContain('output Q1')
+    expect(source).toContain('reg [1:0] cnt_cnt;')
+    expect(source).toContain('assign Q0 = cnt_cnt[0];')
+    expect(source).toContain('assign Q1 = cnt_cnt[1];')
+    expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) cnt_cnt <= {2{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
   })
 })

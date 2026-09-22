@@ -45,7 +45,7 @@ import {
 import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { applyTemplate, applyTemplateToAll, scopeDefIds } from '../editor/apply'
-import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
+import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, applyCounterPorts, applyCounterTerminalType, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
 import type { CutLine, PendingWire, Rect, Viewport } from '../editor/types'
 import { downloadText } from '../util/download'
 import { encodeDesignLink } from '../util/link'
@@ -613,6 +613,16 @@ export const useEditorStore = create<EditorState>()(
           if (!inst) return
           if (isArrayDef(inst.def) && name === 'terminalType') {
             applyArrayTerminalType(def, inst, value === 'wire' ? 'wire' : 'bus')
+            return
+          }
+          if (childPrimitive(inst.def) === 'counter' && (name === 'terminalType' || name === 'width')) {
+            if (name === 'terminalType') {
+              applyCounterTerminalType(def, inst, value === 'wire' ? 'wire' : 'bus')
+            } else {
+              if (!inst.props) inst.props = {}
+              inst.props.width = value
+              applyCounterPorts(def, inst)
+            }
             return
           }
           if (!inst.props) inst.props = {}

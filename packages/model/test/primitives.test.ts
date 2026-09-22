@@ -6,6 +6,8 @@ import {
   arrayDirection,
   builtinOf,
   CLOCK_DEFAULT_PERIOD,
+  counterPorts,
+  counterWidthOf,
   defaultPropsOf,
   forkOf,
   invertSignal,
@@ -28,8 +30,8 @@ const inP = (kind: Parameters<typeof forkOf>[0]) => inputPorts(def(kind).ports)
 const outP = (kind: Parameters<typeof forkOf>[0]) => outputPorts(def(kind).ports)
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, NODE, PROBE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'join-point', 'probe'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, COUNTER, NODE, PROBE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'counter', 'join-point', 'probe'])
   })
 
   it('recognizes the array primitives and their terminal direction', () => {
@@ -230,6 +232,64 @@ describe('model primitives', () => {
     ])
     expect(defaultPropsOf('dff')).toEqual({ edge: 'posedge', initialValue: false, resetActiveHigh: true })
     expect(portWidth(def('dff'), inP('dff')[0])).toBe(1)
+  })
+
+  it('declares the COUNTER as a sequential primitive with CLK/RST and derived outputs', () => {
+    expect(inP('counter').map((p) => p.name)).toEqual(['CLK', 'RST'])
+    expect(inP('counter').map((p) => p.id)).toEqual(['in:0', 'in:1'])
+    expect(inP('counter')[1].pull).toBe('down')
+    expect(inP('counter')[0].pull).toBeUndefined()
+    // Default: WIRE terminal type, width 4.
+    expect(outP('counter').map((p) => p.name)).toEqual(['Q0', 'Q1', 'Q2', 'Q3'])
+    expect(outP('counter').map((p) => p.id)).toEqual(['out:0', 'out:1', 'out:2', 'out:3'])
+    expect(isArityFixed(def('counter'), 'input')).toBe(true)
+    expect(isArityFixed(def('counter'), 'output')).toBe(true)
+
+    const prim = primitiveOf('counter')
+    expect(prim.isSequential()).toBe(true)
+    expect(prim.clockPortId?.()).toBe('in:0')
+    expect(prim.resetPortId?.()).toBe('in:1')
+    expect(prim.complementPortId?.()).toBeUndefined()
+    expect(prim.properties()).toEqual([
+      { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
+      { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
+      { name: 'width', label: 'Width', type: 'number', default: 4, min: 1, max: 32, tooltip: 'Number of counting bits (and wire outputs). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+    ])
+    expect(defaultPropsOf('counter')).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 4 })
+  })
+
+  it('builds counter ports for wire and bus terminal types', () => {
+    const wire = counterPorts('wire', 3)
+    expect(wire.map((p) => [p.id, p.name, p.direction])).toEqual([
+      ['in:0', 'CLK', 'input'],
+      ['in:1', 'RST', 'input'],
+      ['out:0', 'Q0', 'output'],
+      ['out:1', 'Q1', 'output'],
+      ['out:2', 'Q2', 'output'],
+    ])
+    const bus = counterPorts('bus', 3)
+    expect(bus.map((p) => [p.id, p.name, p.direction])).toEqual([
+      ['in:0', 'CLK', 'input'],
+      ['in:1', 'RST', 'input'],
+      ['out:0', 'Q', 'output'],
+    ])
+    // Width is clamped to [1, 32] and only shapes the WIRE output count.
+    expect(counterWidthOf({ width: 0 })).toBe(1)
+    expect(counterWidthOf({ width: 40 })).toBe(32)
+    expect(counterWidthOf({})).toBe(4)
+    expect(counterPorts('wire', 0)).toHaveLength(3) // CLK + RST + 1 wire
+    expect(counterPorts('wire', 40)).toHaveLength(2 + 32)
+  })
+
+  it('derives counter terminal widths: Q bus neutral, others single-wire', () => {
+    const prim = primitiveOf('counter')
+    const wireOut = outP('counter')[0]
+    expect(prim.intrinsicWidth(def('counter').ports, wireOut)).toBe(1)
+    expect(prim.intrinsicWidth(def('counter').ports, inP('counter')[0])).toBe(1)
+    // The BUS output (named Q) is neutral, adopting the connected width.
+    const bus = counterPorts('bus', 4)
+    expect(prim.intrinsicWidth(bus, bus[2])).toBeNull()
+    expect(portWidth(def('counter'), wireOut)).toBe(1)
   })
 
   it('marks ordinary gates as non-sequential', () => {

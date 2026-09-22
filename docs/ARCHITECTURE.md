@@ -50,7 +50,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'bus' | 'compare' | 'input-port' | 'output-port'
-  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'join-point' | 'probe'
+  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'counter' | 'join-point' | 'probe'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
 // Ownership is structural, so deleting a composite deletes its children for free.
@@ -195,20 +195,25 @@ design.root.instances = [
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
   `bus.ts`, `compare.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
-  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, and the sequential `dff.ts`). Each supplies its
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, and the sequential `dff.ts`/`counter.ts`). Each supplies its
    `label/glyph`, default ports, arity
    constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
    input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
    DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
-   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF is **stateful** instead:
-  it declares `isSequential()`, `clockPortId()` (`in:1`) and `resetPortId()` (`in:2`), and its
-  `transfer` returns `[]` — the engine evaluates it on clock edges (see §6c). The DFF exposes
-  `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
-  no bubble), driven by the engine's
-  sequential path and exported as `assign !Q = ~Q;`. The registry
-  (`index.ts`) maps a
-  `PrimitiveKind` to its behaviour object; `forkOf(kind)` builds an owned primitive fork and
-  `builtinOf(kind)` a shared builtin reference. The port primitives are not listed in the library (their pins are derived
+   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF and COUNTER are **stateful**
+   instead: each declares `isSequential()`, `clockPortId()` and `resetPortId()`, and their
+   `transfer` returns `[]` — the engine evaluates them on clock edges (see §6c). The DFF exposes
+   `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
+   no bubble), driven by the engine's
+   sequential path and exported as `assign !Q = ~Q;`. The **COUNTER** counts up by one per clock
+   edge (wrapping at its width), with `resetStyle` (`sync`/`async`), `terminalType`
+   (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (wire mode only)
+   properties; its `counterPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus
+   a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
+   output. The registry
+   (`index.ts`) maps a
+   `PrimitiveKind` to its behaviour object; `forkOf(kind)` builds an owned primitive fork and
+   `builtinOf(kind)` a shared builtin reference. The port primitives are not listed in the library (their pins are derived
   from the enclosing composite). The `not` gate is a `buffer` whose output port is `inverted`.
   The **PROBE** (`probe`) is a pure sink: a single neutral (adopting) input terminal, no outputs,
   `transfer` → `[]`, inversion disabled. It is recorded by the simulator's **history buffer**
@@ -596,16 +601,23 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     floating net with a **pull** (an input terminal's `pull: 'up'|'down'`, see §2) powers on to
     its pulled level (`1`/`0`) instead of `x`; a pulled net is always floating, so it is never
     re-driven.
-  - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF) is not a
+  - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF or COUNTER) is not a
     combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
-    `resetPortId()`) net, and `evaluateSequential` — on a configured `edge` — samples `D` and
-    schedules every output (`Q` and the internally-complemented `!Q`) at `now + delay`, applying
-    each output's internal complement (`complementPortId()`) and terminal inversion; an asserted
-    `RST` (`resetActiveHigh` selects polarity)
-    forces the outputs to `initialValue` asynchronously, overriding the clock. Q powers on to
-    `initialValue`; `lastClk` is seeded from the settled clock net after power-on.
+    `resetPortId()`) net. A sequential holds a register `state` bit-vector (width 1 for the DFF,
+    the counting width for a counter) and `evaluateSequential` advances it on a configured clock
+    `edge`:
+    - an **async** reset asserts level-sensitively (immediately), and a **sync** reset only on
+      the clock edge while `RST` is held — each clearing the state to its reset value (the DFF's
+      `initialValue`, or all-zero for a counter);
+    - otherwise the DFF samples `D`, and the counter increments its state (`incrementVector`,
+      modulo 2^width, `x` propagating upward).
+    Every output is scheduled at `now + delay`, mapping the state bit(s) onto the ports (the
+    internally-complemented `!Q` for the DFF; the whole vector on a bus counter or one bit per
+    wire output for a wire counter) and applying terminal inversion. Q powers on to
+    `initialValue` (a counter to all-zero); `lastClk` is seeded from the settled clock net after
+    power-on.
 - **`signals.ts`** — `invert` (delegates to the model's `invertSignal`),
-  `invertVector`/`equalVectors`/`clockValue`.
+  `invertVector`/`equalVectors`/`clockValue`/`incrementVector`.
 - **`history.ts`** — `HistoryBuffer`, the bounded record of probe signals backing the simulation
   timeline. One **event** is recorded per probe-lane *signal change*, in chronological order, in a
   fixed-capacity ring buffer; each lane keeps a `base` value (its state at the oldest retained
@@ -687,7 +699,10 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   from the model's width solver); port-group instances are dissolved so a composite's `ports`
   become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
   `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
-  `assign !Q = ~Q;` for its inverted output; buses emit concatenation/slicing; COMPARE emits a
+  `assign !Q = ~Q;` for its inverted output; the COUNTER emits a single internal count register
+  (`reg [N-1:0] <name>_cnt`) with `assign Q = cnt;` (bus) or one `assign Q_i = cnt[i];` per wire,
+  plus `always @(posedge clk …)` counting `cnt <= cnt + 1'b1` with a `sync` (`if (rst)`) or
+  `async` (`posedge rst`) reset to `{N{1'b0}}`; buses emit concatenation/slicing; COMPARE emits a
   `==` equality; child composites emit instantiations.
 - **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
@@ -732,9 +747,11 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
   port-group/composite signal resolution, the DFF (posedge/negedge, async reset, initial value,
-  shift register, composite), and switch-array lane setting (`setSwitchLanes`/`switchLanesOf`).
+  shift register, composite), the COUNTER (count/wrap, sync vs async reset, wire vs bus width),
+  and switch-array lane setting (`setSwitchLanes`/`switchLanesOf`).
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
-  reset, negedge, `initialValue`, active-low reset), fan-in bus concatenation, bus-split slicing,
+  reset, negedge, `initialValue`, active-low reset), the COUNTER (bus internal reg + sync reset,
+  wire per-bit assigns + async reset), fan-in bus concatenation, bus-split slicing,
   nested composite modules, identifier sanitization, floating-net warning, and the nested-switch
   fixed-initial-value constant.
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
@@ -765,16 +782,16 @@ beside the data they operate on.
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
 | `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
-| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, … |
+| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `counterPorts`, … |
 
 ### `packages/sim/src` (`@gatefold/sim`)
 
 | Module | Responsibility |
 |--------|----------------|
 | `netlist.ts` | Flatten hierarchy into leaf primitives + nets (union-find) |
-| `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, power-on) |
+| `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, counter, power-on) |
 | `history.ts` | Bounded probe-signal history (`HistoryBuffer`) for the timeline |
-| `signals.ts` | 3-state helpers (`invert`, `equalVectors`, `clockValue`) |
+| `signals.ts` | 3-state helpers (`invert`, `equalVectors`, `clockValue`, `incrementVector`) |
 | `config.ts` | `SimConfig` + delay lookup |
 
 ### `packages/verilog/src` (`@gatefold/verilog`)
@@ -794,7 +811,7 @@ beside the data they operate on.
 | `editor/draw/shapes.ts` | Canvas shape primitives (grid, boxes, wires, tooltips) |
 | `editor/draw/instances.ts` | Instance/port/port-group/join-point drawing |
 | `editor/draw/probes.ts` | 7-seg + switch/led array bodies |
-| `editor/portEdit.ts` | Port/terminal editing (add/remove/array terminals) |
+| `editor/portEdit.ts` | Port/terminal editing (add/remove/array + counter terminals) |
 | `editor/apply.ts` | Propagate template changes to matching copies |
 | `editor/routing.ts` / `wireSearch.ts` | Bezier routing / wire-crossing search |
 | `editor/viewport.ts` | `w2s` / `s2w` transforms |

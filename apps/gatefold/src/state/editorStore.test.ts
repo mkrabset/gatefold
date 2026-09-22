@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { builtinOf, forkOf, inputPortId, newUuid, outputPortId, UNCATEGORIZED } from '@gatefold/model'
-import type { CompositeDef, Design, Instance } from '@gatefold/model'
+import type { CompositeDef, Design, Instance, Port } from '@gatefold/model'
 import {
   beginMoveTransaction,
   endMoveTransaction,
@@ -107,6 +107,47 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.getState().addInstance('clock', { x: 0, y: 0 })
     const placed = mainInstances()[mainInstances().length - 1]
     expect(placed.props).toEqual({ period: 10_000_000 })
+  })
+
+  it('places a counter with defaults and regenerates its outputs from terminalType/width', () => {
+    reset()
+    useEditorStore.getState().addInstance('counter', { x: 0, y: 0 })
+    const counter = (): Instance => mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'counter')!
+    const portsOf = (): Port[] => {
+      const def = counter().def
+      return def.kind === 'fork' ? def.ports : []
+    }
+    expect(counter().props).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 4 })
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0', 'out:1', 'out:2', 'out:3'])
+
+    // Width change (wire mode) shrinks to two outputs, keeping CLK/RST.
+    useEditorStore.getState().setInstanceProp(counter().id, 'width', 2)
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0', 'out:1'])
+
+    // Switch to BUS: a single neutral Q output; width is ignored.
+    useEditorStore.getState().setInstanceProp(counter().id, 'terminalType', 'bus')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
+    expect(portsOf().map((p) => p.name)).toEqual(['CLK', 'RST', 'Q'])
+
+    // Back to WIRE: the width property (2) still applies.
+    useEditorStore.getState().setInstanceProp(counter().id, 'terminalType', 'wire')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0', 'out:1'])
+  })
+
+  it('keeps a counter\'s CLK/RST wiring while pruning output wires on a terminal-type change', () => {
+    reset()
+    useEditorStore.getState().addInstance('counter', { x: 0, y: 0 })
+    useEditorStore.getState().addInstance('buffer', { x: 120, y: 0 })
+    const cnt = mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'counter')!
+    const buf = mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'buffer')!
+
+    useEditorStore.getState().addConnection({ instanceId: 'clk', portId: 'out:0' }, { instanceId: cnt.id, portId: 'in:0' })
+    useEditorStore.getState().addConnection({ instanceId: cnt.id, portId: 'out:0' }, { instanceId: buf.id, portId: 'in:0' })
+
+    useEditorStore.getState().setInstanceProp(cnt.id, 'terminalType', 'bus')
+    const conns = mainDef().connections
+    expect(conns.some((c) => c.to.instanceId === cnt.id && c.to.portId === 'in:0')).toBe(true)
+    expect(conns.some((c) => c.from.instanceId === cnt.id)).toBe(false)
   })
 
   it('places a join-point as a shared builtin', () => {

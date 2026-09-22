@@ -18,8 +18,9 @@ authoritative — update this when a term's meaning changes.
   display `name` (not enforced unique; logic keys off `id` only), and an inline `def:
   ChildDef` (owned by the parent composite).
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
-  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS (plus the internal INPUT-PORT / OUTPUT-PORT),
-  the probe primitives 7-SEG, SWITCHES, LEDS, PROBE, and the join-point. Not editable as a circuit.
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, DFF, COUNTER (plus the internal
+  INPUT-PORT / OUTPUT-PORT), the probe primitives 7-SEG, SWITCHES, LEDS, PROBE, and the
+  join-point. Not editable as a circuit.
 - **Fork** — an owned primitive child def with its own `ports`. Every *placed* primitive is
   a fork from birth (copy-on-place), because per-instance terminal `inverted` and array
   `terminalType`/wire-count live on the fork's ports. A shared `builtin` cannot carry that.
@@ -45,6 +46,15 @@ authoritative — update this when a term's meaning changes.
   primitive the future Verilog exporter maps 1:1 to `always @(posedge clk) q <= d` (with a reset
   branch), so sequential circuits export as real FPGA registers rather than feedback gate
   structures.
+- **Counter** — a binary counter primitive (`CLK`, `RST` → `Q`/`Q0…`). A *stateful* primitive the
+  simulator evaluates on clock edges: on each rising `CLK` edge the count increments by one
+  (wrapping at its width). `resetStyle` (`sync`/`async`, default `sync`) selects whether an
+  asserted (active-high) `RST` clears to zero on the clock edge or immediately; `terminalType`
+  (`wire`/`bus`, default `wire`) picks one single-wire `Q0…` output per counting bit or one neutral
+  `Q` bus whose width is adopted from the connection; `width` (1–32, default 4) sets the counting
+  width in `wire` mode only. The `RST` input defaults to pull-down. In Verilog export this maps to
+  `always @(posedge clk …)` with an `if (rst)` branch, so it becomes a real synchronous counter
+  rather than a ripple counter built from flip-flops.
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

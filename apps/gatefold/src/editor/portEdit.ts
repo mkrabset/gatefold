@@ -2,6 +2,8 @@ import type { ChildDef, CompositeDef, Instance, Port, PortDirection } from '@gat
 import {
   arrayDirection,
   arrayPorts,
+  counterPorts,
+  counterWidthOf,
   inputPorts,
   isArityFixed,
   isPortGroupDef,
@@ -55,6 +57,38 @@ export function applyArrayPortCount(parentDef: CompositeDef, inst: Instance, cou
       (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
     )
   }
+}
+
+/** Regenerate a counter's output ports from its `terminalType`/`width` props, keeping the
+ *  CLK/RST inputs and pruning only connections to removed output pins (used on width change). */
+export function applyCounterPorts(parentDef: CompositeDef, inst: Instance): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  const type: 'wire' | 'bus' = inst.props?.terminalType === 'bus' ? 'bus' : 'wire'
+  const newPorts = counterPorts(type, counterWidthOf(inst.props))
+  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
+  def.ports = newPorts
+  if (removed.size > 0) {
+    parentDef.connections = parentDef.connections.filter(
+      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
+    )
+  }
+}
+
+/** Change a counter's terminal type, regenerating its output ports and pruning every
+ *  connection touching an output pin (the output topology changes wholesale), while keeping
+ *  the CLK/RST input connections. */
+export function applyCounterTerminalType(parentDef: CompositeDef, inst: Instance, terminalType: 'wire' | 'bus'): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  if (!inst.props) inst.props = {}
+  inst.props.terminalType = terminalType
+  const newPorts = counterPorts(terminalType, counterWidthOf(inst.props))
+  const outputIds = new Set(outputPorts(def.ports).map((p) => p.id))
+  def.ports = newPorts
+  parentDef.connections = parentDef.connections.filter(
+    (c) => !(c.from.instanceId === inst.id && outputIds.has(c.from.portId)) && !(c.to.instanceId === inst.id && outputIds.has(c.to.portId)),
+  )
 }
 
 /** Default placement for a newly-added port group: just outside the component bounds

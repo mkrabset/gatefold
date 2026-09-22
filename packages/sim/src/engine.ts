@@ -2,7 +2,7 @@ import type { Design, Signal } from '@gatefold/model'
 import { primitiveOf, periodOf, switchInitialLanes } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
-import { clockValue, equalVectors, invert, invertVector } from './signals'
+import { clockValue, equalVectors, incrementVector, invert, invertVector } from './signals'
 import type { HistoryBuffer } from './history'
 
 /** Per-net change threshold above which a net is considered oscillating. */
@@ -26,7 +26,7 @@ interface Gate {
   delay: number
 }
 
-/** A stateful, edge-triggered primitive (e.g. a D flip-flop with async reset). */
+/** A stateful, edge-triggered primitive (e.g. a D flip-flop or a binary counter). */
 interface Sequential {
   inst: FlatInstance
   delay: number
@@ -38,6 +38,14 @@ interface Sequential {
   complementId: string | null
   edge: 'posedge' | 'negedge'
   resetActiveHigh: boolean
+  /** 'sync' resets only on the clock edge; 'async' resets level-sensitively. */
+  resetStyle: 'sync' | 'async'
+  /** 'dff' samples D; 'counter' increments its state. */
+  kind: 'dff' | 'counter'
+  /** Register width: 1 for a DFF, the counting width for a counter. */
+  width: number
+  /** Current register state (a bit vector). */
+  state: Signal[]
   resetValue: Signal
   lastClk: Signal
 }
@@ -336,7 +344,7 @@ export class Simulation {
     }
   }
 
-  /** Build the per-instance sequential state for a stateful primitive (e.g. a DFF). */
+  /** Build the per-instance sequential state for a stateful primitive (a DFF or counter). */
   private addSequential(inst: FlatInstance, config: SimConfig): void {
     const prim = primitiveOf(inst.kind)
     const clkInput = inst.inputs.find((ip) => ip.portId === prim.clockPortId?.()) ?? inst.inputs[0]
@@ -346,7 +354,12 @@ export class Simulation {
     const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
     const outputs = inst.outputs
     const complementId = prim.complementPortId?.() ?? null
+    const isCounter = inst.kind === 'counter'
     const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
+    // A counter's width is the number of wire outputs, or the connected bus width; a DFF is 1 bit.
+    const width = isCounter
+      ? (outputs.length === 1 ? this.netWidths[outputs[0].net] || 1 : outputs.length)
+      : 1
 
     const seq: Sequential = {
       inst,
@@ -358,6 +371,10 @@ export class Simulation {
       complementId,
       edge: inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
       resetActiveHigh: inst.props?.resetActiveHigh !== false,
+      resetStyle: inst.kind !== 'counter' ? 'async' : inst.props?.resetStyle === 'async' ? 'async' : 'sync',
+      kind: isCounter ? 'counter' : 'dff',
+      width,
+      state: Array.from({ length: width }, () => resetValue),
       resetValue,
       lastClk: 'x',
     }
@@ -366,17 +383,42 @@ export class Simulation {
     this.seqFanout[clkInput.net].push(seq)
     if (rstInput) this.seqFanout[rstInput.net].push(seq)
 
-    // Power-on output values: apply the internal complement first, then the terminal
-    // inversion (bubble), so `!Q` powers on to the inverse of `Q`.
-    for (const op of outputs) {
-      const internal = op.portId === complementId ? invert(resetValue) : resetValue
-      this.values[op.net] = [op.inverted ? invert(internal) : internal]
+    // Power-on output values: map the register state onto the outputs (applying the
+    // internal complement for `!Q`, then the terminal inversion bubble).
+    for (let i = 0; i < outputs.length; i++) {
+      this.values[outputs[i].net] = this.outputValue(seq, outputs[i], i, seq.state)
     }
   }
 
+  /** The state a sequential resets to: the DFF's reset value, or all-zero for a counter. */
+  private resetState(seq: Sequential): Signal[] {
+    if (seq.kind === 'counter') return Array.from({ length: seq.width }, () => 0 as Signal)
+    return [seq.resetValue]
+  }
+
+  /** The next state on a clock edge with no reset: sample D (DFF) or increment (counter). */
+  private advanceState(seq: Sequential): Signal[] {
+    if (seq.kind === 'counter') return incrementVector(seq.state)
+    const d = seq.dInput.inverted ? invert(this.valueOf(seq.dInput.net)[0]) : this.valueOf(seq.dInput.net)[0]
+    return [d]
+  }
+
+  /** Project the register state onto one output port, applying internal complement then inversion. */
+  private outputValue(seq: Sequential, op: FlatPort, opIndex: number, state: Signal[]): Signal[] {
+    let internal: Signal[]
+    if (seq.kind === 'counter') {
+      internal = seq.outputs.length === 1 ? state : [state[opIndex] ?? 0]
+    } else {
+      const bit = op.portId === seq.complementId ? invert(state[0]) : state[0]
+      internal = [bit]
+    }
+    return op.inverted ? invertVector(internal) : internal
+  }
+
   /**
-   * Evaluate a sequential primitive on a clock/reset net change. Async reset forces the
-   * output to its reset value; otherwise a configured clock edge samples D and schedules
+   * Evaluate a sequential primitive on a clock/reset net change. An asynchronous reset
+   * forces the output immediately; otherwise a configured clock edge samples D (DFF) or
+   * increments (counter), resetting first when a sync/async reset is held, and schedules
    * the new output after the clk-to-q delay.
    */
   private evaluateSequential(seq: Sequential, now: number): void {
@@ -384,24 +426,28 @@ export class Simulation {
     const prev = seq.lastClk
     seq.lastClk = clk
 
-    let next: Signal | null = null
+    let nextState: Signal[] | null = null
     if (seq.rstInput) {
       const rst = seq.rstInput.inverted ? invert(this.valueOf(seq.rstInput.net)[0]) : this.valueOf(seq.rstInput.net)[0]
-      if (rst === (seq.resetActiveHigh ? 1 : 0)) {
-        next = seq.resetValue
+      if (rst === (seq.resetActiveHigh ? 1 : 0) && seq.resetStyle === 'async') {
+        nextState = this.resetState(seq)
       }
     }
-    if (next === null) {
+    if (nextState === null) {
       const edge = seq.edge === 'posedge' ? prev === 0 && clk === 1 : prev === 1 && clk === 0
       if (edge) {
-        next = seq.dInput.inverted ? invert(this.valueOf(seq.dInput.net)[0]) : this.valueOf(seq.dInput.net)[0]
+        let resetHeld = false
+        if (seq.rstInput) {
+          const rst = seq.rstInput.inverted ? invert(this.valueOf(seq.rstInput.net)[0]) : this.valueOf(seq.rstInput.net)[0]
+          resetHeld = rst === (seq.resetActiveHigh ? 1 : 0)
+        }
+        nextState = resetHeld ? this.resetState(seq) : this.advanceState(seq)
       }
     }
-    if (next !== null) {
-      for (const op of seq.outputs) {
-        const internal = op.portId === seq.complementId ? invert(next) : next
-        const out = op.inverted ? invert(internal) : internal
-        this.schedule(now + seq.delay, op.net, [out], this.currentEdgeTime)
+    if (nextState !== null) {
+      seq.state = nextState
+      for (let i = 0; i < seq.outputs.length; i++) {
+        this.schedule(now + seq.delay, seq.outputs[i].net, this.outputValue(seq, seq.outputs[i], i, nextState), this.currentEdgeTime)
       }
     }
   }

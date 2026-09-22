@@ -481,6 +481,46 @@ class Generator {
         return
       }
 
+      if (kind === 'counter') {
+        const prim = primitiveOf('counter')
+        const clkId = prim.clockPortId?.() ?? 'in:0'
+        const rstId = prim.resetPortId?.() ?? 'in:1'
+        const clkPort = ports.find((p) => p.id === clkId)
+        const rstPort = ports.find((p) => p.id === rstId)
+        const outs = outputPorts(ports)
+        const busMode = outs.length === 1
+        const width = busMode ? (netWidthByName.get(net(outs[0].id)) ?? 1) : outs.length
+        const clk = net(clkId)
+        const rst = net(rstId)
+        const clkInverted = clkPort?.inverted === true
+        const rstInverted = rstPort?.inverted === true
+        const resetStyle = inst.props?.resetStyle === 'async' ? 'async' : 'sync'
+        const effEdge = clkInverted ? 'negedge' : 'posedge'
+        const effActiveHigh = !rstInverted
+        const rstCond = effActiveHigh ? rst : `!${rst}`
+        const zero = `{${width}{1'b0}}`
+
+        // A single internal count register drives every output pin (the whole bus, or one
+        // wire each), so a WIRE-mode counter and terminal inversion both stay continuous
+        // assignments from one reg.
+        const cnt = uniqueName(`${inst.name || 'u'}_cnt`, used)
+        decls.push(width > 1 ? `reg [${width - 1}:0] ${cnt};` : `reg ${cnt};`)
+        for (let i = 0; i < outs.length; i++) {
+          const raw = busMode ? cnt : `${cnt}[${i}]`
+          const rhs = outs[i].inverted ? `~(${raw})` : raw
+          stmts.push(`assign ${net(outs[i].id)} = ${rhs};`)
+        }
+
+        const inc = `${cnt} + 1'b1`
+        if (resetStyle === 'async') {
+          const rstKw = effActiveHigh ? 'posedge' : 'negedge'
+          stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
+        } else {
+          stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
+        }
+        return
+      }
+
       // Probes (clock/switch/led/7-seg) are handled in the statement loop.
     }
 

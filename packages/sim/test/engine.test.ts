@@ -133,6 +133,25 @@ const bus2: ChildDef = {
     { id: 'out:0', name: 'Y', direction: 'output' },
   ],
 }
+const counter2: ChildDef = {
+  kind: 'fork',
+  primitive: 'counter',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'out:0', name: 'Q0', direction: 'output' },
+    { id: 'out:1', name: 'Q1', direction: 'output' },
+  ],
+}
+const counterBus: ChildDef = {
+  kind: 'fork',
+  primitive: 'counter',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'out:0', name: 'Q', direction: 'output' },
+  ],
+}
 
 describe('Simulation engine', () => {
   it('propagates combinational logic from switches', () => {
@@ -948,6 +967,117 @@ describe('Simulation engine', () => {
     sim.step()
     expect(sim.signal('f1', 'out:0')).toBe(0)
     expect(sim.signal('f2', 'out:0')).toBe(1)
+  })
+
+  it('counter counts up on each clock edge and wraps at its width', () => {
+    const sim = new Simulation(
+      mkDesign([inst('clk', 'switch-array'), inst('cnt', counter2)], [conn('c1', iref('clk', 'out:0'), iref('cnt', 'in:0'))]),
+    )
+    const q = () => [sim.signal('cnt', 'out:0'), sim.signal('cnt', 'out:1')]
+    expect(q()).toEqual([0, 0])
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([0, 1])
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 1])
+    // Wrap back to 0.
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([0, 0])
+  })
+
+  it('counter sync reset applies only on the clock edge while RST is held', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('cnt', counter2, { resetStyle: 'sync' })],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('cnt', 'in:0')),
+          conn('c2', iref('rst', 'out:0'), iref('cnt', 'in:1')),
+        ],
+      ),
+    )
+    const q = () => [sim.signal('cnt', 'out:0'), sim.signal('cnt', 'out:1')]
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+    // Asserting RST alone does nothing until the next clock edge.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([0, 0])
+    // Deassert RST and count resumes.
+    sim.setSwitch('rst', 0)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+  })
+
+  it('counter async reset resets immediately on RST high', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('cnt', counter2, { resetStyle: 'async' })],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('cnt', 'in:0')),
+          conn('c2', iref('rst', 'out:0'), iref('cnt', 'in:1')),
+        ],
+      ),
+    )
+    const q = () => [sim.signal('cnt', 'out:0'), sim.signal('cnt', 'out:1')]
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+    // RST high resets without any clock edge.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(q()).toEqual([0, 0])
+    sim.setSwitch('rst', 0)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+  })
+
+  it('counter in BUS mode adopts the connected width and counts on it', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('cnt', counterBus), inst('fo', fanOut4)],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('cnt', 'in:0')),
+          conn('c2', iref('cnt', 'out:0'), iref('fo', 'in:0')),
+        ],
+      ),
+    )
+    expect(sim.signalOf('cnt', 'out:0')).toEqual([0, 0, 0, 0])
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signalOf('cnt', 'out:0')).toEqual([1, 0, 0, 0])
+    expect(sim.signal('fo', 'out:0')).toBe(1)
+    expect(sim.signal('fo', 'out:3')).toBe(0)
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signalOf('cnt', 'out:0')).toEqual([0, 1, 0, 0])
+    expect(sim.signal('fo', 'out:1')).toBe(1)
   })
 
   it('resolves DFF pins through a composite boundary', () => {

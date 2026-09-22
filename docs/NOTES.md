@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-17 (timeline probe reorder + viewport clamping).
+Last updated: 2026-09-22 (COUNTER primitive).
 
 ## Where we are
 
@@ -12,6 +12,38 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **COUNTER primitive** — a new sequential primitive (`CLK`, `RST` → `Q`/`Q0…`) so counters can
+  be built as a single component instead of a flip-flop ripple counter (which is bad practice in
+  FPGA designs). On each rising `CLK` edge the count increments by one, wrapping at its width; an
+  asserted (active-high) `RST` clears it to zero — **synchronously** (on the clock edge) or
+  **asynchronously** (immediately), per `resetStyle`. `terminalType` picks one neutral `Q` bus
+  (`bus`) or one single-wire `Q0…` output per bit (`wire`); `width` (1–32, default 4) sets the
+  counting width in wire mode only (bus mode adopts the connected width). `RST` defaults to
+  pull-down.
+  - **Model** (`primitives/counter.ts`) — `Counter extends Gate` with `isSequential()`,
+    `clockPortId()`/`resetPortId()`, the `resetStyle`/`terminalType`/`width` properties, and
+    `counterPorts(terminalType, width)`/`counterWidthOf` (CLK/RST inputs + a neutral `Q` bus or
+    `width` `Q0…` wires). `intrinsicWidth` is neutral only on the bus output. Registered in
+    `LIBRARY_KINDS` (after `dff`); `'counter'` added to `PrimitiveKind`.
+  - **App** — `portEdit.ts` gains `applyCounterPorts` (width change: prune removed output pins
+    only) and `applyCounterTerminalType` (terminal-type change: prune all output wires but keep
+    CLK/RST wiring); `editorStore.setInstanceProp` dispatches counter `terminalType`/`width`
+    through them. A generated `counter.png` library icon (rounded box + `+` glyph).
+  - **Sim** (`engine.ts`) — the `Sequential` interface is generalized with a
+    `kind: 'dff' | 'counter'` discriminator, a register `state` bit-vector, and `resetStyle`
+    (`sync`/`async`); `evaluateSequential` now advances either by sampling `D` (DFF) or by
+    `incrementVector` (counter, new in `signals.ts`), resetting to zero/reset-value on an async
+    reset or a held sync reset at the clock edge. DFF behavior is unchanged.
+  - **Verilog** (`verilog.ts`) — `'counter'` emits a single internal count register
+    (`reg [N-1:0] <name>_cnt`) driven by `always @(posedge clk …)` (`if (rst) cnt <= 0; else cnt
+    <= cnt + 1'b1`, with `or posedge rst` for async), plus `assign Q = cnt;` (bus) or
+    `assign Q_i = cnt[i];` per wire — so the FPGA gets real synchronous counting logic.
+  - Tests: model `primitives.test.ts` (counter ports/properties/width), sim `engine.test.ts`
+    (count/wrap, sync vs async reset, bus-width adoption), verilog `verilog.test.ts` (bus internal
+    reg + sync reset, wire per-bit assigns + async reset), app `editorStore.test.ts` (defaults,
+    port regeneration, CLK/RST wiring preserved). Docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`,
+    `USER_GUIDE.md`, `README.md`).
 
 - **Timeline probe reorder + viewport clamping** — the simulation timeline gained grouped
   rendering and drag-to-reorder, plus pan/zoom clamping and a cursor guide line:

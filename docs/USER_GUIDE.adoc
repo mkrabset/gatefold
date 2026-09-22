@@ -357,6 +357,30 @@ the clock. On power-on `Q` starts at the *Initial value*.
 * `RST` is pulled *down* by default, so leaving it unconnected reads as
 inactive (no reset) rather than floating.
 
+==== COUNTER
+
+* *Inputs:* `CLK`, `RST` · *Outputs:* `Q` bus, or `Q0…` single wires ·
+Properties *Reset* (`sync` / `async`, default `sync`), *Terminal type*
+(`wire` / `bus`, default `wire`), *Width* (1–32, default 4, wire mode
+only)
+* A binary counter. On each rising edge of `CLK` the count increments by
+one, wrapping at its width. `Q0` is the least-significant bit.
+* *Reset* selects when an asserted `RST` (active-high) clears the count
+to zero:
+** *sync* — on the clock edge while `RST` is held high;
+** *async* — immediately when `RST` goes high.
+* *Terminal type* picks the output shape: `wire` gives one single-wire
+output per counting bit (`Q0…Q(n-1)`), with the count set by *Width*;
+`bus` gives one `Q` bus whose width is adopted from the connected bus
+(the *Width* property is ignored). Changing the terminal type keeps
+`CLK`/`RST` wiring but disconnects the output wires.
+* `RST` is pulled *down* by default, so an unconnected reset reads
+inactive.
+* In Verilog export this becomes an `always @(posedge clk …)` counter
+(with `if (rst)` for the chosen reset style) — the FPGA gets real
+synchronous counting logic rather than a ripple counter built from
+flip-flops.
+
 ==== FAN-IN
 
 * *Inputs:* 2{plus} (single-wire), default 4 · *Outputs:* 1 (`BUS`) ·

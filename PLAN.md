@@ -89,11 +89,16 @@ The palette of primitives, initially:
 - **BUS-SPLIT** (1 bus input of width n, 2 bus outputs of width n/2)
 - **BUS-MERGE** (2 bus inputs of width m, 1 bus output of width 2m)
 - **COMPARE** (2 bus inputs of equal derived width, 1 single-wire output: 1 when they match)
+- **DFF** (D flip-flop: `D`/`CLK`/`RST` → `Q`, `!Q`)
+- **COUNTER** (binary counter: `CLK`/`RST` → `Q` bus or `Q0…` wires; sync/async reset, wire/bus
+  terminal type, configurable width)
 
 Notes:
 
 - **CLOCK** is a special source: it has no behavioral inputs and produces a periodic square
   wave. It carries a configurable period/frequency.
+- **COUNTER** avoids flip-flop ripple counters (bad in FPGA designs): the Verilog exporter emits
+  a synchronous `always @(posedge clk)` counter with an `if (rst)` branch.
 - Primitives carry a *behavior* (truth table / clock generator) used by the simulator.
 - User-defined **composite** components appear in the library once created, for placement
   and reuse.

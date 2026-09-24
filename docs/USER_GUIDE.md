@@ -138,7 +138,7 @@ Wire several nearby components at once instead of drawing each wire by hand:
 - With one or more components **selected** (or while dragging them), each unconnected
   terminal that sits near a matching terminal on another component is shown as a **dashed
   orange preview wire**. Inputs look for the nearest nearby output, outputs for the nearest
-  nearby unconnected input — the closest within about one gate-width wins, and only
+  nearby unconnected input — the closest within a short distance (about 20 world units) wins, and only
   width-compatible pairs are matched. The composite's own input/output port groups are valid
   targets too.
 - Press **`c`** to wire every previewed match at once (a single undo step). Clear the

@@ -55,6 +55,10 @@ export function Canvas() {
     const canvas = canvasRef.current!
     const ctx = canvas.getContext('2d')!
 
+    // True once a toast hint has been shown for the current set of auto-connect matches,
+    // so the "Press c to connect" message appears only when matches are (re)discovered.
+    let autoConnectHintShown = false
+
     const draw = () => {
       const state = useEditorStore.getState()
       const ui = useUiStore.getState()
@@ -73,6 +77,12 @@ export function Canvas() {
       const autoConnect = sim || def.kind !== 'composite'
         ? []
         : computeAutoConnectMatches(currentWidthRoot(state), def, state.selectedIds)
+      if (autoConnect.length > 0 && !autoConnectHintShown) {
+        autoConnectHintShown = true
+        state.setNotice('Press "c" to connect')
+      } else if (autoConnect.length === 0) {
+        autoConnectHintShown = false
+      }
       drawScene(ctx, cw, ch, def, currentWidthRoot(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, autoConnect, palette, sim)
     }
 

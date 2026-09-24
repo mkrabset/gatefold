@@ -20,7 +20,7 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
   - **Helper** (`apps/gatefold/src/editor/autoconnect.ts`, new) — pure
     `computeAutoConnectMatches(root, parentDef, selectedIds)`: for each selected instance (skipping
     port groups and join-points) it pairs each undriven input with the nearest compatible source
-    and each output with the nearest compatible undriven input, within `AUTO_CONNECT_RADIUS` (50
+    and     each output with the nearest compatible undriven input, within `AUTO_CONNECT_RADIUS` (20
     world units), then dedupes by sink (closest wins, preserving the single-driver invariant).
     Compatibility reuses `findConnectionTo` (already-driven) + `connectionError` (width). Port
     groups are valid candidates (targets), never selected *sources*.

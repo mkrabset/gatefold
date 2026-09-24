@@ -234,7 +234,7 @@ authoritative — update this when a term's meaning changes.
 - **Proximity auto-connect (magnetic wiring)** — while components are selected (or being
   dragged), each of their unconnected terminals is paired with the nearest compatible terminal
   on a nearby component (inputs find the closest output, outputs the closest unconnected input),
-  within a fixed radius (`AUTO_CONNECT_RADIUS`, 50 world units). Matches render as dashed
+  within a fixed radius (`AUTO_CONNECT_RADIUS`, 20 world units). Matches render as dashed
   saturated-orange preview wires (drawn by `computeAutoConnectMatches` in
   `apps/gatefold/src/editor/autoconnect.ts`); pressing the **`c`** hotkey wires them all in one
   undo step via `editorStore.connectAutoMatches`. Width compatibility reuses the width solver's

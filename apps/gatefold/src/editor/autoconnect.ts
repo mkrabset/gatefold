@@ -17,8 +17,7 @@ export interface AutoMatch {
 }
 
 /** Maximum distance (world units) between two pin centers that still qualifies as a
- *  match. Roughly one gate-width of clearance, so adjacent components snap while distant
- *  ones are ignored. */
+ *  match. Small enough that only closely-adjacent terminals snap together. */
 export const AUTO_CONNECT_RADIUS = 20
 
 /** A terminal of an instance: its pin reference and its world-space position. */

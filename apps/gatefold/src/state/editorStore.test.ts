@@ -582,7 +582,7 @@ function makeAutoConnectDesign(): Design {
     ports: [],
     instances: [
       gate('a', 'and', 'a', 0, 0),
-      gate('b', 'buffer', 'b', 80, 0),
+      gate('b', 'buffer', 'b', 40, 0),
     ],
     connections: [],
   }

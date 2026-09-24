@@ -179,9 +179,9 @@ hand:
 unconnected terminal that sits near a matching terminal on another
 component is shown as a *dashed orange preview wire*. Inputs look for
 the nearest nearby output, outputs for the nearest nearby unconnected
-input — the closest within about one gate-width wins, and only
-width-compatible pairs are matched. The composite’s own input/output
-port groups are valid targets too.
+input — the closest within a short distance (about 20 world units) wins,
+and only width-compatible pairs are matched. The composite’s own
+input/output port groups are valid targets too.
 * Press *`c`* to wire every previewed match at once (a single undo
 step). Clear the selection (or press Escape) to dismiss the previews
 without connecting.

@@ -545,7 +545,49 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(restored.some((c) => c.id === 'c2')).toBe(true)
     expect(restored.length).toBe(before)
   })
+
+  it('connects the proximity auto-connect matches in one undoable step', () => {
+    reset()
+    useEditorStore.setState({ design: makeAutoConnectDesign(), navStack: [{ kind: 'root' }], selectedIds: ['b'] })
+    useEditorStore.temporal.getState().clear()
+
+    useEditorStore.getState().connectAutoMatches()
+
+    const conns = mainDef().connections
+    expect(conns).toHaveLength(1)
+    expect(conns[0].from).toEqual({ instanceId: 'a', portId: 'out:0' })
+    expect(conns[0].to).toEqual({ instanceId: 'b', portId: 'in:0' })
+
+    useEditorStore.temporal.getState().undo()
+    expect(mainDef().connections).toHaveLength(0)
+  })
+
+  it('leaves the design unchanged when there are no auto-connect matches', () => {
+    reset()
+    useEditorStore.setState({ design: makeAutoConnectDesign(), navStack: [{ kind: 'root' }], selectedIds: [] })
+    useEditorStore.temporal.getState().clear()
+
+    useEditorStore.getState().connectAutoMatches()
+    expect(mainDef().connections).toHaveLength(0)
+  })
 })
+
+// An AND gate and a buffer placed close enough for their terminals to auto-connect.
+function makeAutoConnectDesign(): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    uuid: newUuid(),
+    ports: [],
+    instances: [
+      gate('a', 'and', 'a', 0, 0),
+      gate('b', 'buffer', 'b', 80, 0),
+    ],
+    connections: [],
+  }
+  return { version: 2, root: main, library: {} }
+}
 
 // A design with a 5-input fan-in and an unconnected bus-split.
 function makeSplitterDesign(): Design {

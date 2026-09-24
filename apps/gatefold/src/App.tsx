@@ -79,6 +79,11 @@ export default function App() {
         e.preventDefault()
         if (sim.running) sim.stop()
         else sim.run()
+      } else if (!mod && key === 'c') {
+        // Proximity auto-connect: wire up the currently previewed (orange) matches.
+        if (useSimStore.getState().mode !== 'design') return
+        e.preventDefault()
+        useEditorStore.getState().connectAutoMatches()
       }
     }
     window.addEventListener('keydown', onKeyDown)

@@ -11,6 +11,7 @@ import { wirePath } from './routing'
 import { w2s } from './viewport'
 import { HALO_MARGIN, WIRE_WIDTH, drawGrid, drawRoundedBox, drawTooltip, strokeWire } from './draw/shapes'
 import { drawInstance, drawJoinpointHalo, drawJoinpointNode, drawPortGroup, drawPortGroupBox } from './draw/instances'
+import type { AutoMatch } from './autoconnect'
 import type { CutLine, PendingWire, Rect, SimView, Viewport } from './types'
 
 /**
@@ -35,6 +36,7 @@ export function drawScene(
   pendingWire: PendingWire | null,
   cutLine: CutLine | null,
   hoverPort: PinRef | null,
+  autoConnect: AutoMatch[],
   p: Palette,
   sim?: SimView,
 ) {
@@ -244,6 +246,33 @@ export function drawScene(
       drawPortGroup(ctx, root, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, sim)
     } else {
       drawInstance(ctx, root, def, inst, instDef, cw, ch, vp, selectedIds.includes(inst.id), p, bg, hoverPort, atRoot, sim)
+    }
+  }
+
+  // Proximity auto-connect previews: each proposed wire drawn as a dashed saturated-orange
+  // bezier between its pins, with a small orange dot on each endpoint.
+  for (const m of autoConnect) {
+    const a = resolveEndpoint(m.from)
+    const b = resolveEndpoint(m.to)
+    if (!a || !b) continue
+    const path = wirePath(a, b, { fromJoin: isJoin(m.from), toJoin: isJoin(m.to) })
+    const s = w2s(path.start.x, path.start.y, cw, ch, vp)
+    const c1 = w2s(path.c1.x, path.c1.y, cw, ch, vp)
+    const c2 = w2s(path.c2.x, path.c2.y, cw, ch, vp)
+    const e = w2s(path.end.x, path.end.y, cw, ch, vp)
+    ctx.strokeStyle = p.autoConnect
+    ctx.lineWidth = WIRE_WIDTH * vp.zoom
+    ctx.setLineDash([6, 4])
+    ctx.beginPath()
+    ctx.moveTo(s.x, s.y)
+    ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = p.autoConnect
+    for (const pt of [s, e]) {
+      ctx.beginPath()
+      ctx.arc(pt.x, pt.y, 4 * vp.zoom, 0, Math.PI * 2)
+      ctx.fill()
     }
   }
 

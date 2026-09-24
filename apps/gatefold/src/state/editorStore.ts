@@ -45,6 +45,7 @@ import {
 import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { applyTemplate, applyTemplateToAll, scopeDefIds } from '../editor/apply'
+import { computeAutoConnectMatches } from '../editor/autoconnect'
 import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, applyCounterPorts, applyCounterTerminalType, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
 import type { CutLine, PendingWire, Rect, Viewport } from '../editor/types'
 import { downloadText } from '../util/download'
@@ -183,6 +184,7 @@ interface EditorState {
   setPortOrder: (direction: PortDirection, ids: string[], instanceId?: string) => void
   addInstance: (kindOrId: string, pos: { x: number; y: number }) => void
   addConnection: (from: PinRef, to: PinRef) => void
+  connectAutoMatches: () => void
   insertJoinPointAt: (connectionId: string, pos: { x: number; y: number }) => void
   retargetConnection: (id: string, to: PinRef) => void
   removeConnection: (id: string) => void
@@ -723,6 +725,24 @@ export const useEditorStore = create<EditorState>()(
             return
           }
           def.connections.push({ id: nextConnectionId(def.connections), from, to })
+        }),
+      connectAutoMatches: () =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const matches = computeAutoConnectMatches(currentWidthRoot(s), def, s.selectedIds)
+          if (matches.length === 0) return
+          const conns = def.connections
+          let added = 0
+          for (const m of matches) {
+            // Re-guard the single-driver invariant and width compatibility (the design
+            // may have changed since the preview was computed).
+            if (findConnectionTo(conns, m.to)) continue
+            if (connectionError(currentWidthRoot(s), def, m.from, m.to)) continue
+            conns.push({ id: nextConnectionId(conns), from: m.from, to: m.to })
+            added += 1
+          }
+          if (added > 0) s.notice = `Connected ${added} terminal(s)`
         }),
       insertJoinPointAt: (connectionId, pos) =>
         set((s) => {

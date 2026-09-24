@@ -6,6 +6,7 @@ import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simSt
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, setLaneDistance } from './geometry'
 import { drawScene } from './renderer'
 import { findJoinpointWire, findWireAtLine, findWiresAtLine } from './wireSearch'
+import { computeAutoConnectMatches } from './autoconnect'
 import { s2w } from './viewport'
 import { darkPalette, lightPalette } from './palette'
 import { formatSpeed } from '../util/format'
@@ -68,7 +69,11 @@ export function Canvas() {
       const sim = simState.mode === 'simulate' && simState.engine
         ? { colorOf: simColorOf, valueOf: simValueOf, signalOf: simSignalOf, speedLabel: formatSpeed(simState.timeScale) }
         : undefined
-      drawScene(ctx, cw, ch, currentDef(state), currentWidthRoot(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, palette, sim)
+      const def = currentDef(state)
+      const autoConnect = sim || def.kind !== 'composite'
+        ? []
+        : computeAutoConnectMatches(currentWidthRoot(state), def, state.selectedIds)
+      drawScene(ctx, cw, ch, def, currentWidthRoot(state), state.viewport, state.selectedIds, editingTemplate, atRoot, state.marquee, state.pendingWire, state.cutLine, state.hoverPort, autoConnect, palette, sim)
     }
 
     const resize = () => {

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-22 (COUNTER primitive).
+Last updated: 2026-09-24 (proximity auto-connect).
 
 ## Where we are
 
@@ -12,6 +12,28 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Proximity auto-connect ("magnetic wiring")** — while components are selected (or being
+  dragged), each unconnected terminal is paired with the nearest compatible terminal on a nearby
+  component, rendered as a dashed saturated-orange preview wire; pressing **`c`** wires every
+  match at once in a single undo step:
+  - **Helper** (`apps/gatefold/src/editor/autoconnect.ts`, new) — pure
+    `computeAutoConnectMatches(root, parentDef, selectedIds)`: for each selected instance (skipping
+    port groups and join-points) it pairs each undriven input with the nearest compatible source
+    and each output with the nearest compatible undriven input, within `AUTO_CONNECT_RADIUS` (50
+    world units), then dedupes by sink (closest wins, preserving the single-driver invariant).
+    Compatibility reuses `findConnectionTo` (already-driven) + `connectionError` (width). Port
+    groups are valid candidates (targets), never selected *sources*.
+  - **Store** (`editorStore.connectAutoMatches`) — computes the matches and pushes all valid
+    connections in one undoable action (re-guarding driven/width), with a "Connected N terminal(s)"
+    notice.
+  - **Renderer** — `drawScene` gains an `autoConnect` param; matches draw as dashed orange beziers
+    (`p.autoConnect`, added to the `Palette` type and both themes) plus small endpoint dots. The
+    canvas computes the matches in `draw()` (so they refresh on every selection/move) and passes
+    them through; `c` is a global, design-mode-only, non-text-input hotkey in `App.tsx`.
+  - Tests: `autoconnect.test.ts` (closest-wins, radius cutoff, driven-input skip, width mismatch,
+    self-exclusion, port-group target, sink dedupe) + `editorStore.test.ts` (single undo step, no-op
+    with no matches). Docs updated (`USER_GUIDE.md`, `GLOSSARY.md`).
 
 - **COUNTER primitive** — a new sequential primitive (`CLK`, `RST` → `Q`/`Q0…`) so counters can
   be built as a single component instead of a flip-flop ripple counter (which is bad practice in

@@ -231,6 +231,15 @@ authoritative — update this when a term's meaning changes.
 - **Delete-cut** — a transient dashed line drawn while holding Alt and dragging; on release it
   removes **every** wire it crosses (no uniqueness constraint), and a bus only when the line cuts
   through all of its lanes. Rendered red (vs. the insert cut line's selection color).
+- **Proximity auto-connect (magnetic wiring)** — while components are selected (or being
+  dragged), each of their unconnected terminals is paired with the nearest compatible terminal
+  on a nearby component (inputs find the closest output, outputs the closest unconnected input),
+  within a fixed radius (`AUTO_CONNECT_RADIUS`, 50 world units). Matches render as dashed
+  saturated-orange preview wires (drawn by `computeAutoConnectMatches` in
+  `apps/gatefold/src/editor/autoconnect.ts`); pressing the **`c`** hotkey wires them all in one
+  undo step via `editorStore.connectAutoMatches`. Width compatibility reuses the width solver's
+  `connectionError`, so a bus never matches a single-wire input; the composite's own port groups
+  are valid targets, and join-points are excluded.
 
 ## Simulation
 

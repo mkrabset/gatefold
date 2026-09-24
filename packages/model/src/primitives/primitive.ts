@@ -16,6 +16,8 @@ export interface Palette {
   selection: string
   /** Dashed delete-cut line (Alt+drag). */
   cutDelete: string
+  /** Saturated orange used for proximity auto-connect (magnetic wiring) previews. */
+  autoConnect: string
   text: string
   /** Canvas background while editing a composite template. */
   templateBg: string

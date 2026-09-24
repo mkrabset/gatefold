@@ -131,6 +131,19 @@ level.
 - An input can have **at most one** driver; dropping a second wire onto a driven input is
   rejected with a message.
 
+### Proximity auto-connect
+
+Wire several nearby components at once instead of drawing each wire by hand:
+
+- With one or more components **selected** (or while dragging them), each unconnected
+  terminal that sits near a matching terminal on another component is shown as a **dashed
+  orange preview wire**. Inputs look for the nearest nearby output, outputs for the nearest
+  nearby unconnected input — the closest within about one gate-width wins, and only
+  width-compatible pairs are matched. The composite's own input/output port groups are valid
+  targets too.
+- Press **`c`** to wire every previewed match at once (a single undo step). Clear the
+  selection (or press Escape) to dismiss the previews without connecting.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
@@ -142,6 +155,7 @@ level.
 | Ctrl/Cmd + Shift + Z / Ctrl/Cmd + Y | Redo |
 | Escape | Go up one level (or leave simulate mode at the top level) |
 | Space | Toggle run/pause (in simulate mode) |
+| `c` | Connect the proximity auto-connect (orange) matches |
 | `i` | Toggle inversion on the hovered terminal |
 | `1` / `0` | Set (or remove) a pull-up / pull-down on the hovered input terminal (see §3) |
 

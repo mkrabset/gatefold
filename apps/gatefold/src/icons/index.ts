@@ -18,6 +18,7 @@ import dff from './dff.png'
 import counter from './counter.png'
 import joinPoint from './join-point.png'
 import probe from './probe.png'
+import rom from './rom.png'
 
 /** PNG icon per primitive kind (port groups are internal and have no icon). */
 export const PRIMITIVE_ICONS: Record<PrimitiveKind, string | undefined> = {
@@ -38,7 +39,7 @@ export const PRIMITIVE_ICONS: Record<PrimitiveKind, string | undefined> = {
   'led-array': leds,
   dff,
   counter,
-  rom: undefined,
+  rom: rom,
   'join-point': joinPoint,
   probe: probe,
   'input-port': undefined,

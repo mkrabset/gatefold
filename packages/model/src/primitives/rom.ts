@@ -96,7 +96,9 @@ export class Rom extends Gate {
   }
 
   bodySize(): { w: number; h: number } {
-    return { w: 56, h: 48 }
+    // Wide enough for the ADDR/DATA terminal labels (drawn inside, beside the pins)
+    // to sit on the same line without overlapping.
+    return { w: 76, h: 48 }
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {

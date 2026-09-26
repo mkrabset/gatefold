@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addrCharCount, applyDigit, formatAddress, formatValue, parseRomText, valueCharCount, valuesPerLineFor } from './romEditor'
+import { addrCharCount, applyDigit, formatAddress, formatRomText, formatValue, parseRomText, valueCharCount, valuesPerLineFor } from './romEditor'
 
 /** A `width`-bit word (LSB-first) from a hex literal. */
 function word(hex: string, width: number): (0 | 1)[] {
@@ -81,6 +81,38 @@ describe('applyDigit', () => {
     expect(formatValue(applyDigit(word('0A', 8), 'HEX', 8, 0, 'G'), 'HEX', 8)).toBe('0A')
     expect(formatValue(applyDigit(word('5', 8), 'BINARY', 8, 0, '2'), 'BINARY', 8)).toBe('00000101')
     expect(formatValue(applyDigit(word('FA', 8), 'DEC', 8, 0, 'x'), 'DEC', 8)).toBe('250')
+  })
+})
+
+describe('formatRomText', () => {
+  it('emits ADDR:-prefixed, zero-padded lines', () => {
+    expect(formatRomText([word('01', 8), word('02', 8), word('03', 8), word('04', 8)], 'HEX', 8, 12)).toBe(
+      '000: 01 02 03 04',
+    )
+  })
+
+  it('leaves the final line partial', () => {
+    expect(
+      formatRomText([word('01', 8), word('02', 8), word('03', 8), word('04', 8)], 'HEX', 8, 12, 3),
+    ).toBe('000: 01 02 03\n003: 04')
+  })
+
+  it('formats BINARY addresses and values', () => {
+    expect(
+      formatRomText([word('A', 4), word('5', 4), word('0', 4), word('F', 4)], 'BINARY', 4, 4, 2),
+    ).toBe('0000: 1010 0101\n0010: 0000 1111')
+  })
+
+  it('round-trips through parseRomText', () => {
+    const mem = [word('00', 8), word('0A', 8), word('FF', 8), word('12', 8), word('34', 8)]
+    const text = formatRomText(mem, 'HEX', 8, 12, 2)
+    expect(parseRomText(text, 'HEX', 8, mem.length)).toEqual(mem)
+  })
+
+  it('round-trips DEC padded values', () => {
+    const mem = [word('05', 8), word('FF', 8)]
+    expect(formatRomText(mem, 'DEC', 8, 8, 2)).toBe('000: 005 255')
+    expect(parseRomText(formatRomText(mem, 'DEC', 8, 8, 2), 'DEC', 8, 2)).toEqual(mem)
   })
 })
 

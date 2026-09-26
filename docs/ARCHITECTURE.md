@@ -775,7 +775,7 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - `apps/gatefold/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
 - `apps/gatefold/src/editor/romEditor.test.ts` — address/value digit counts and zero-padding per
-  radix,   `applyDigit` (hex nibble / binary bit / decimal clamp), `valuesPerLineFor`, and
+  radix,   `applyDigit` (hex nibble / binary bit / decimal clamp), `valuesPerLineFor`, `formatRomText`, and
   `parseRomText` (data-only by default; `ADDR:` colon-prefixed lines for explicit addresses).
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
   multi-step), copy/paste, and the single-driver + re-target rejection rules.

@@ -13,6 +13,15 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **ROM contents editor: clipboard copy/paste** — the dialog gains **Copy**/**Paste** buttons and
+  **Ctrl/Cmd+C**/**Ctrl/Cmd+V** shortcuts (the latter stop propagation so the app's global component
+  copy/paste doesn't fire while the editor is focused):
+  - `formatRomText(mem, format, dataWidth, busWidth, valuesPerLine = 8)` (new, in `romEditor.ts`)
+    serializes the memory as address-prefixed `ADDR: value value …` lines in the current radix — the
+    inverse of `parseRomText`. Copy writes it via `navigator.clipboard.writeText`; paste reads via
+    `readText` and parses with `parseRomText` (exactly like file load), with try/catch error notices.
+  - Tests: `editor/romEditor.test.ts` (`formatRomText` formatting + round-trips); docs updated.
+
 - **ROM contents editor redesign** — the ROM dialog went from a free-form textarea to a structured,
   address-prefixed, per-digit editor:
   - **Pure logic** (`apps/gatefold/src/editor/romEditor.ts`, new) — `addrCharCount`/`valueCharCount`

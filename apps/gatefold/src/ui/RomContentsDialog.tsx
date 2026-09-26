@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Instance, Signal, ValueFormat } from '@gatefold/model'
 import { formatMemoryContents, parseMemoryContents, romAddressWidthOf, romContentsOf, romDataWidthOf, valueFormatOf } from '@gatefold/model'
 import { resolveNav, useEditorStore } from '../state/editorStore'
-import { addrCharCount, applyDigit, formatAddress, formatValue, parseRomText, valueCharCount, valuesPerLineFor } from '../editor/romEditor'
+import { addrCharCount, applyDigit, formatAddress, formatRomText, formatValue, parseRomText, valueCharCount, valuesPerLineFor } from '../editor/romEditor'
 import { useEscapeToClose } from './useDialog'
 
 const FORMATS: ValueFormat[] = ['HEX', 'DEC', 'BINARY']
@@ -108,6 +108,22 @@ function RomContentsForm({ instanceId }: { instanceId: string }) {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase()
+      if (k === 'c') {
+        e.preventDefault()
+        e.stopPropagation()
+        void copy()
+        return
+      }
+      if (k === 'v') {
+        e.preventDefault()
+        e.stopPropagation()
+        void paste()
+        return
+      }
+      return
+    }
     const { word, digit } = cursor
     if (e.key === 'ArrowLeft') {
       e.preventDefault()
@@ -159,6 +175,31 @@ function RomContentsForm({ instanceId }: { instanceId: string }) {
     setFormat(next)
     setCursor((c) => ({ word: c.word, digit: 0 }))
     setError(null)
+  }
+
+  const copy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(formatRomText(mem, format, dw, aw))
+      setError(null)
+    } catch {
+      setError('Could not copy to clipboard')
+    }
+  }
+
+  const paste = async (): Promise<void> => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const parsed = parseRomText(text, format, dw, depth)
+      if (!parsed) {
+        setError(`Not a valid ${dw}-bit memory clipboard`)
+        return
+      }
+      setMem(parsed)
+      setCursor({ word: 0, digit: 0 })
+      setError(null)
+    } catch {
+      setError('Could not read from clipboard')
+    }
   }
 
   const loadFile = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
@@ -239,6 +280,12 @@ function RomContentsForm({ instanceId }: { instanceId: string }) {
         </div>
         {error && <div className="dialog-error">{error}</div>}
         <div className="dialog-actions">
+          <button type="button" className="dialog-btn" onClick={() => void copy()} title="Copy the memory to the clipboard (Ctrl/Cmd+C)">
+            Copy
+          </button>
+          <button type="button" className="dialog-btn" onClick={() => void paste()} title="Paste memory from the clipboard (Ctrl/Cmd+V)">
+            Paste
+          </button>
           <button type="button" className="dialog-btn" style={{ marginRight: 'auto' }} onClick={() => fileRef.current?.click()}>
             Load file…
           </button>

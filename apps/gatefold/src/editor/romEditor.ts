@@ -132,6 +132,30 @@ function parseAddress(text: string, format: ValueFormat, depth: number): number 
 }
 
 /**
+ * Serialize a memory as address-prefixed `ADDR: value value …` text (the inverse of
+ * `parseRomText`), in `format` with zero-padded addresses/values. `valuesPerLine` words
+ * are grouped per line; the final line may be partial. The result round-trips through
+ * `parseRomText`.
+ */
+export function formatRomText(
+  mem: Signal[][],
+  format: ValueFormat,
+  dataWidth: number,
+  busWidth: number,
+  valuesPerLine = 8,
+): string {
+  const n = Math.max(1, Math.floor(valuesPerLine))
+  const lines: string[] = []
+  for (let start = 0; start < mem.length; start += n) {
+    const words = mem.slice(start, Math.min(mem.length, start + n))
+    const addr = formatAddress(start, format, busWidth)
+    const values = words.map((w) => formatValue(w, format, dataWidth)).join(' ')
+    lines.push(`${addr}: ${values}`)
+  }
+  return lines.join('\n')
+}
+
+/**
  * Parse a loaded file into a `depth`-word memory. The first non-empty line determines
  * the format: if its first token ends with `:`, the file is read as address-prefixed
  * `ADDR: val val …` lines (the `ADDR:` token carries the address); otherwise the file is

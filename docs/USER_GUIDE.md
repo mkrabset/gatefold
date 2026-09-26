@@ -325,6 +325,9 @@ its properties, and what it does.
     a value, placed consecutively from the start of memory. To place values at specific addresses,
     prefix each line with an address followed by a colon: `ADDR: value value …`. The **first line**
     decides which format the whole file uses.
+  - **Copy** / **Paste** (and **Ctrl/Cmd+C** / **Ctrl/Cmd+V**) move the memory through the clipboard.
+    Copy writes address-prefixed `ADDR: value value …` text in the current **Value format**; paste
+    parses it exactly like a loaded file (same current-format, data-only-or-`ADDR:` rules).
   - **Value format** only sets the editor's entry/display radix — the stored contents are kept
     radix-independent, so switching radices never corrupts the memory.
 - In Verilog export the ROM is emitted as an inferred memory (`reg mem[]` + an `initial` block +

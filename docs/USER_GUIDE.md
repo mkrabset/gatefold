@@ -304,6 +304,24 @@ its properties, and what it does.
   chosen reset style) — the FPGA gets real synchronous counting logic rather than a
   ripple counter built from flip-flops.
 
+### ROM
+- **Inputs:** 1 (`ADDR`) · **Outputs:** 1 (`DATA`) · Properties **Address width** (`busWidth`,
+  default 8, 1–16), **Data width** (`dataWidth`, default 8, 1–64), **Value format** (`HEX` / `DEC` /
+  `BINARY`, default `HEX`)
+- A read-only memory: put an address on the `ADDR` bus and, after the gate's propagation delay,
+  the stored word appears on the `DATA` bus. The read is **asynchronous** — there is no clock and
+  no address latching, so `DATA` follows `ADDR` like any combinational gate. Any unknown (`x`)
+  address bit drives all-`x` data; addresses past the stored contents read `0`.
+- The memory holds `2^AddressWidth` words of `DataWidth` bits each (so an 8-bit address is
+  256 × 8-bit). Click **Edit contents…** in the properties panel to open the contents dialog: a
+  text list of one value per address (ascending from address 0), entered in the chosen **Value
+  format**, with a **Load file…** button to paste in a memory dump. Missing words read `0`; extra
+  words are ignored. **Value format** only sets the dialog's entry/display radix — the stored
+  contents are kept radix-independent, so switching radices never corrupts the memory.
+- In Verilog export the ROM is emitted as an inferred memory (`reg mem[]` + an `initial` block +
+  `assign DATA = mem[ADDR]`), leaving the FPGA toolchain to implement it as block RAM or
+  distributed LUTs as it sees fit.
+
 ### FAN-IN
 - **Inputs:** 2+ (single-wire), default 4 · **Outputs:** 1 (`BUS`) · *inputs variable*
 - Bundles its `n` single-wire inputs into one `n`-wide bus output.
@@ -504,6 +522,8 @@ What the generator produces:
 - **DFF** as `always @(posedge clk …)`, with the async reset (when connected) and `INIT` from the
   *Initial value* property.
 - **Buses** as `[n-1:0]` vectors — FAN-IN/BUS-MERGE concatenate, FAN-OUT/BUS-SPLIT slice.
+- **ROM** as an inferred memory (`reg mem[]` + an `initial` block + `assign DATA = mem[ADDR]`),
+  so the synthesis toolchain picks block RAM vs LUTs.
 - **Hierarchy** as nested module instantiations; composite ports become module ports.
 
 The top module's inputs and outputs are only the port terminals of the main scope, plus a top-level

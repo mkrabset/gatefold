@@ -620,4 +620,31 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Q1 = cnt_cnt[1];')
     expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) cnt_cnt <= {2{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
   })
+
+  it('emits a ROM as an inferred memory (array + initial + assign)', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'DATA')],
+      instances: [
+        pgOut(),
+        prim('sw', 'switch-array', { initialValue: '1' }),
+        prim('rom', 'rom', { busWidth: 2, dataWidth: 4, contents: '0 1 A F' }),
+      ],
+      connections: [
+        { id: 'c1', from: iref('sw', 'out:0'), to: iref('rom', 'in:0') },
+        { id: 'c2', from: iref('rom', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output [3:0] DATA')
+    expect(source).toContain('reg [3:0] rom_mem [0:3];')
+    expect(source).toContain('integer rom_i;')
+    expect(source).toContain('initial begin')
+    expect(source).toContain('assign DATA = rom_mem[sw_BUS];')
+    expect(source).toContain("rom_mem[1] = 4'h1;")
+    expect(source).toContain("rom_mem[2] = 4'hA;")
+    expect(source).toContain("rom_mem[3] = 4'hF;")
+    // Zero words are covered by the zero-fill loop, not emitted individually.
+    expect(source).not.toContain('rom_mem[0] =')
+  })
 })

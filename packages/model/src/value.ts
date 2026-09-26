@@ -1,18 +1,18 @@
 import type { PropertyValue, Signal } from './types'
 
 /**
- * Radix for entering/displaying a bus value: hexadecimal, unsigned decimal, or
- * two's-complement decimal. Shared by the 7-seg display (`mode`) and the switch-array
- * (`valueFormat`).
+ * Radix for entering/displaying a bus value: hexadecimal, unsigned decimal,
+ * two's-complement decimal, or binary. Shared by the 7-seg display (`mode`), the
+ * switch-array (`valueFormat`), and the ROM (`valueFormat`).
  */
-export type ValueFormat = 'HEX' | 'DEC' | 'SIGNED DEC'
+export type ValueFormat = 'HEX' | 'DEC' | 'SIGNED DEC' | 'BINARY'
 
 /** Bit order of a bus: `asc` = lane 0 is the least-significant bit, `desc` = lane 0 is the most-significant. */
 export type ValueOrder = 'asc' | 'desc'
 
 /** Narrow any value to a `ValueFormat`, defaulting to HEX. */
 export function toValueFormat(v: unknown): ValueFormat {
-  return v === 'DEC' || v === 'SIGNED DEC' ? v : 'HEX'
+  return v === 'DEC' || v === 'SIGNED DEC' || v === 'BINARY' ? v : 'HEX'
 }
 
 /** Resolve an instance's `valueFormat` property (absent/unknown → HEX). */
@@ -54,12 +54,12 @@ export function parseSwitchValue(text: string, format: ValueFormat, width: numbe
       value = mag
     }
   } else {
-    const radix = format === 'HEX' ? 16 : 10
-    const re = format === 'HEX' ? /^[0-9a-fA-F]+$/ : /^[0-9]+$/
+    const radix = format === 'HEX' ? 16 : format === 'BINARY' ? 2 : 10
+    const re = format === 'HEX' ? /^[0-9a-fA-F]+$/ : format === 'BINARY' ? /^[01]+$/ : /^[0-9]+$/
     const t = text.trim()
     if (!re.test(t)) return null
     try {
-      value = radix === 16 ? BigInt(`0x${t}`) : BigInt(t)
+      value = radix === 16 ? BigInt(`0x${t}`) : radix === 2 ? BigInt(`0b${t}`) : BigInt(t)
     } catch {
       return null
     }
@@ -89,6 +89,8 @@ export function formatSwitchValue(bits: Signal[], format: ValueFormat): string {
     return `${negative ? '-' : ''}${magnitude.toString(10)}`
   }
 
+  if (format === 'BINARY') return width > 0 ? u.toString(2).padStart(width, '0') : '0'
+
   const digits = Math.max(1, Math.ceil(width / 4))
   return u.toString(16).toUpperCase().padStart(digits, '0')
 }
@@ -105,6 +107,7 @@ export function maxSwitchValueText(width: number, format: ValueFormat): string {
   const W = BigInt(width)
   if (format === 'HEX') return 'F'.repeat(Math.max(1, Math.ceil(width / 4)))
   if (format === 'DEC') return ((1n << W) - 1n).toString(10)
+  if (format === 'BINARY') return '1'.repeat(width)
   return '-' + (1n << (W - 1n)).toString(10)
 }
 
@@ -126,4 +129,40 @@ export function switchInitialLanes(
   const bits = parseSwitchValue(String(raw ?? ''), valueFormatOf(props), width)
   if (!bits) return Array.from({ length: width }, () => 0 as Signal)
   return applyValueOrder(bits, valueOrderOf(props))
+}
+
+/**
+ * Parse a ROM's memory contents: a whitespace/comma/newline-separated list of values in
+ * `format` (one word per address, ascending from address 0), each a `dataWidth`-bit
+ * unsigned value. Returns the memory as `count` vectors (LSB-first), padding missing
+ * addresses with all-zero and ignoring trailing extras, or `null` when any token is
+ * invalid for the format or out of range for `dataWidth`.
+ */
+export function parseMemoryContents(
+  text: string,
+  format: ValueFormat,
+  dataWidth: number,
+  count: number,
+): Signal[][] | null {
+  const w = Math.max(1, Math.floor(dataWidth))
+  const n = Math.max(0, Math.floor(count))
+  const zero = (): Signal[] => Array.from({ length: w }, () => 0 as Signal)
+  const tokens = text.split(/[\s,;]+/).filter((t) => t.length > 0)
+  const mem: Signal[][] = []
+  for (const token of tokens) {
+    if (mem.length >= n) break
+    const bits = parseSwitchValue(token, format, w)
+    if (!bits) return null
+    mem.push(bits)
+  }
+  while (mem.length < n) mem.push(zero())
+  return mem
+}
+
+/**
+ * Render a ROM's memory (an array of `dataWidth`-bit vectors, LSB-first) as text in
+ * `format`, one word per address, separated by newlines.
+ */
+export function formatMemoryContents(mem: Signal[][], format: ValueFormat): string {
+  return mem.map((word) => formatSwitchValue(word, format)).join('\n')
 }

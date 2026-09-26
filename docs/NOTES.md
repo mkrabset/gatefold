@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-24 (proximity auto-connect).
+Last updated: 2026-09-26 (ROM primitive).
 
 ## Where we are
 
@@ -12,6 +12,22 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **ROM primitive** — a read-only memory (`ADDR` bus in → `DATA` bus out), purely combinational and
+  asynchronous (no clock/latch). Widths fixed by `busWidth`/`dataWidth` properties; stored memory is
+  the `contents` property (a canonical HEX word list) edited via a new dialog with radix selection and
+  file load, while `valueFormat` (`HEX`/`DEC`/`BINARY`) is entry/display only.
+  - **Model** — `PrimitiveKind` gains `'rom'`; new `primitives/rom.ts` (`Rom`, `romAddressWidthOf`,
+    `romDataWidthOf`, `romContentsOf`). `ValueFormat` gains `'BINARY'` (parse/format/`maxSwitchValueText`),
+    plus `parseMemoryContents`/`formatMemoryContents` in `value.ts`. `Primitive.transfer` now takes an
+    optional `props` argument so property-driven behaviour (ROM contents) reaches the engine.
+  - **Sim** — `engine.ts` passes each gate's `props` to `transfer` (`evaluateGate` + `powerOnSettle`).
+  - **Verilog** — ROM emits an inferred memory (`reg [DW-1:0] mem [0:DEPTH-1]` + zero-fill `initial`
+    loop + non-zero word overrides + `assign DATA = mem[ADDR]`), leaving RAM-vs-LUT to the toolchain.
+  - **App** — `editorStore.romDialog` state, a `RomContentsDialog` (textarea + radix + file load),
+    a "Memory / Edit contents…" field in the sidebar, `.field-button`/`.rom-dialog`/`.dialog-textarea`
+    styles, and a `rom` icon key (text glyph fallback).
+  - Tests in `primitives.test.ts`, `value.test.ts`, `engine.test.ts`, `verilog.test.ts`; docs updated.
 
 - **Proximity auto-connect ("magnetic wiring")** — while components are selected (or being
   dragged), each unconnected terminal is paired with the nearest compatible terminal on a nearby

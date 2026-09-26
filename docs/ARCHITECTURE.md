@@ -50,7 +50,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'bus' | 'compare' | 'input-port' | 'output-port'
-  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'counter' | 'join-point' | 'probe'
+  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'counter' | 'rom' | 'join-point' | 'probe'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
 // Ownership is structural, so deleting a composite deletes its children for free.
@@ -195,12 +195,14 @@ design.root.instances = [
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
   `bus.ts`, `compare.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
-  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, and the sequential `dff.ts`/`counter.ts`). Each supplies its
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, the sequential `dff.ts`/`counter.ts`, and the
+  `rom.ts` read-only memory). Each supplies its
    `label/glyph`, default ports, arity
    constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
    input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
-   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs)`** combinational
-   function (3-state `0`/`1`/`x`; sources/sinks return `[]`). The DFF and COUNTER are **stateful**
+   DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs, props?)`** combinational
+   function (3-state `0`/`1`/`x`; sources/sinks return `[]`; `props` carries per-instance values
+   for property-driven behaviour). The DFF and COUNTER are **stateful**
    instead: each declares `isSequential()`, `clockPortId()` and `resetPortId()`, and their
    `transfer` returns `[]` — the engine evaluates them on clock edges (see §6c). The DFF exposes
    `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
@@ -209,8 +211,14 @@ design.root.instances = [
    edge (wrapping at its width), with `resetStyle` (`sync`/`async`), `terminalType`
    (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (wire mode only)
    properties; its `counterPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus
-   a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
-   output. The registry
+    a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
+    output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
+    output whose widths are fixed by the `busWidth`/`dataWidth` properties. It is a purely
+    combinational, asynchronous read — `transfer` returns `mem[ADDR]` (any `x` address bit → all-`x`
+    data, addresses past the stored contents read `0`) after the engine's configured gate delay, with
+    no address latching or clock. Its stored memory is the `contents` property (a canonical HEX word
+    list, one per address, parsed by `value.ts`'s `parseMemoryContents`); `valueFormat`
+    (`HEX`/`DEC`/`BINARY`) is only the entry/display radix for the contents-editing dialog. The registry
    (`index.ts`) maps a
    `PrimitiveKind` to its behaviour object; `forkOf(kind)` builds an owned primitive fork and
    `builtinOf(kind)` a shared builtin reference. The port primitives are not listed in the library (their pins are derived
@@ -633,9 +641,12 @@ state; every net write flows through a `setNet` helper that records a probe-lane
 actually changes (in `drainEvents` — covering clock toggles and gate/DFF events — and in
 `driveSource` — covering switch toggles).
 
-`Primitive.transfer(inputs: Signal[][]): Signal[][]` is the per-kind combinational function
+`Primitive.transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][]` is the
+per-kind combinational function
 (3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
-splits, split/merge reshape). `Port.inverted` is applied by the engine at pin boundaries, so
+splits, split/merge reshape; the ROM indexes its stored memory by the address vector). The
+engine passes each gate's instance `props`, so property-driven behaviour (the ROM's `contents`)
+is available. `Port.inverted` is applied by the engine at pin boundaries, so
 NOT = buffer with an inverted output. Sources (CLOCK/SWITCH-ARRAY) and sinks
 (LED-ARRAY/7-SEG) are driven/read by the engine rather than via `transfer`; sequential
 primitives (DFF) are driven by the sequential path above.
@@ -702,7 +713,10 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   `assign !Q = ~Q;` for its inverted output; the COUNTER emits a single internal count register
   (`reg [N-1:0] <name>_cnt`) with `assign Q = cnt;` (bus) or one `assign Q_i = cnt[i];` per wire,
   plus `always @(posedge clk …)` counting `cnt <= cnt + 1'b1` with a `sync` (`if (rst)`) or
-  `async` (`posedge rst`) reset to `{N{1'b0}}`; buses emit concatenation/slicing; COMPARE emits a
+  `async` (`posedge rst`) reset to `{N{1'b0}}`; the ROM emits an inferred memory (`reg [DW-1:0]
+  <name>_mem [0:DEPTH-1]` + an `initial` block that zero-fills then writes the stored non-zero
+  words, plus `assign DATA = mem[ADDR];`) so the synthesis toolchain decides block RAM vs
+  distributed LUTs; buses emit concatenation/slicing; COMPARE emits a
   `==` equality; child composites emit instantiations.
 - **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
@@ -725,12 +739,14 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 ## 9. Testing
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
-  property defaults (clock `period`, bus `lanes`, 7-seg `order`), `widthError` cases, plus
-  `isArrayDef`/`arrayDirection`, `sevenSegModeOf`, and `periodOf`.
+  property defaults (clock `period`, bus `lanes`, 7-seg `order`, ROM `busWidth`/`dataWidth`/
+  `valueFormat`), `widthError` cases, the ROM's ADDR/DATA terminals and `transfer` lookup
+  (`x` address, zero-padding), plus `isArrayDef`/`arrayDirection`, `sevenSegModeOf`, and `periodOf`.
 - `packages/model/test/util.test.ts` — `uniqueId`, `walkComposites`, `allCompositeIds`,
   `findComposite`.
 - `packages/model/test/value.test.ts` — `toValueFormat`/`valueFormatOf`/`valueOrderOf`,
-  `parseSwitchValue` (HEX/DEC/signed ranges, invalid input), `formatSwitchValue`, `applyValueOrder`.
+  `parseSwitchValue` (HEX/DEC/signed/binary ranges, invalid input), `formatSwitchValue`,
+  `applyValueOrder`, and `parseMemoryContents`/`formatMemoryContents`.
 - `packages/model/test/array.test.ts` — `arrayPorts`, array WIRE/BUS defaults (incl. the new
   `valueFormat`/`order` props), and width constraints via `connectionError` (BUS fixes width;
   7-seg multiple-of-4 / ≤64).
@@ -748,10 +764,12 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
   port-group/composite signal resolution, the DFF (posedge/negedge, async reset, initial value,
   shift register, composite), the COUNTER (count/wrap, sync vs async reset, wire vs bus width),
-  and switch-array lane setting (`setSwitchLanes`/`switchLanesOf`).
+  the ROM (asynchronous bus read, `x` propagation on a floating address), and switch-array lane
+  setting (`setSwitchLanes`/`switchLanesOf`).
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
   reset, negedge, `initialValue`, active-low reset), the COUNTER (bus internal reg + sync reset,
-  wire per-bit assigns + async reset), fan-in bus concatenation, bus-split slicing,
+  wire per-bit assigns + async reset), the ROM (inferred memory array + `initial` + `assign`),
+  fan-in bus concatenation, bus-split slicing,
   nested composite modules, identifier sanitization, floating-net warning, and the nested-switch
   fixed-initial-value constant.
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
@@ -776,13 +794,13 @@ beside the data they operate on.
 | `connections.ts` | Pin/connection helpers | `pinRefEquals`, `pinKey`, `findConnectionTo`, `nextConnectionId` |
 | `composite.ts` | Composite tree walks + template queries | `walkComposites`, `allCompositeIds`, `findComposite`, `isTemplateDef`, `templateNames`, `templateCategory` |
 | `util.ts` | Generic helpers | `newUuid`, `uniqueId`, `UnionFind` |
-| `value.ts` | Value entry/formatting (radix, order) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `maxSwitchValueText` |
+| `value.ts` | Value entry/formatting (radix, order, ROM memory) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `maxSwitchValueText`, `parseMemoryContents`, `formatMemoryContents` |
 | `widths.ts` | Bus-width fixpoint solver (global, bidirectional) | `pinWidth`, `isNeutralPin`, `resolvedPinWidth`, `connectionError` |
 | `group.ts` | Grouping into composites + deep-clone | `inferGroup`, `applyGroup`, `cloneComposite`, `cloneDesign`, `cloneChildDef` |
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
 | `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
-| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `counterPorts`, … |
+| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `counterPorts`, `romAddressWidthOf`, … |
 
 ### `packages/sim/src` (`@gatefold/sim`)
 

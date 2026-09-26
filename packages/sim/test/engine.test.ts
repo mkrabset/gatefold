@@ -152,6 +152,14 @@ const counterBus: ChildDef = {
     { id: 'out:0', name: 'Q', direction: 'output' },
   ],
 }
+const rom2x4: ChildDef = {
+  kind: 'fork',
+  primitive: 'rom',
+  ports: [
+    { id: 'in:0', name: 'ADDR', direction: 'input' },
+    { id: 'out:0', name: 'DATA', direction: 'output' },
+  ],
+}
 
 describe('Simulation engine', () => {
   it('propagates combinational logic from switches', () => {
@@ -796,6 +804,29 @@ describe('Simulation engine', () => {
     sim.toggleSwitch('sa', 5)
     sim.step()
     expect(sim.signalOf('seg', 'in:0')).toEqual([0, 0, 0, 0, 0, 1, 0, 0])
+  })
+
+  it('reads ROM memory asynchronously from a bus address', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('addr', switchBus), inst('rom', rom2x4, { busWidth: 2, dataWidth: 4, contents: '0 1 2 3' })],
+        [conn('c1', iref('addr', 'out:0'), iref('rom', 'in:0'))],
+      ),
+    )
+    expect(sim.signalOf('rom', 'out:0')).toEqual([0, 0, 0, 0])
+    sim.setSwitchLanes('addr', [0, 1]) // address 2 → 0x2
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual([0, 1, 0, 0])
+    sim.setSwitchLanes('addr', [1, 1]) // address 3 → 0x3
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual([1, 1, 0, 0])
+  })
+
+  it('reads all-x from a ROM with a floating address bus', () => {
+    const sim = new Simulation(
+      mkDesign([inst('rom', rom2x4, { busWidth: 2, dataWidth: 4, contents: '0 1 2 3' })], []),
+    )
+    expect(sim.signalOf('rom', 'out:0')).toEqual(['x', 'x', 'x', 'x'])
   })
 
   it('inverts a switch-array output when its terminal is inverted', () => {

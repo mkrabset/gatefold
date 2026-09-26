@@ -19,6 +19,11 @@ import {
   periodOf,
   portWidth,
   primitiveOf,
+  romAddressWidthOf,
+  romDataWidthOf,
+  romContentsOf,
+  ROM_DEFAULT_ADDRESS_WIDTH,
+  ROM_DEFAULT_DATA_WIDTH,
   sevenSegDigit,
   sevenSegDigits,
   sevenSegModeOf,
@@ -30,8 +35,8 @@ const inP = (kind: Parameters<typeof forkOf>[0]) => inputPorts(def(kind).ports)
 const outP = (kind: Parameters<typeof forkOf>[0]) => outputPorts(def(kind).ports)
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, COUNTER, NODE, PROBE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'counter', 'join-point', 'probe'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, COUNTER, ROM, NODE, PROBE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'counter', 'rom', 'join-point', 'probe'])
   })
 
   it('recognizes the array primitives and their terminal direction', () => {
@@ -377,5 +382,50 @@ describe('model primitives', () => {
     expect(derive(out0, new Map())).toBe(1)
     expect(primitiveOf('compare').undeterminedHint!(in0)).toBe('?')
     expect(primitiveOf('compare').undeterminedHint!(out0)).toBeNull()
+  })
+
+  it('declares the ROM with ADDR/DATA terminals and configurable widths', () => {
+    expect(inP('rom').map((p) => p.id)).toEqual(['in:0'])
+    expect(inP('rom').map((p) => p.name)).toEqual(['ADDR'])
+    expect(outP('rom').map((p) => p.id)).toEqual(['out:0'])
+    expect(outP('rom').map((p) => p.name)).toEqual(['DATA'])
+    expect(isArityFixed(def('rom'), 'input')).toBe(true)
+    expect(isArityFixed(def('rom'), 'output')).toBe(true)
+    expect(primitiveOf('rom').isSequential()).toBe(false)
+
+    expect(primitiveOf('rom').properties()).toEqual([
+      { name: 'busWidth', label: 'Address width', type: 'number', default: 8, min: 1, max: 16, tooltip: 'Number of address bits (the memory holds 2^width words).' },
+      { name: 'dataWidth', label: 'Data width', type: 'number', default: 8, min: 1, max: 64, tooltip: 'Number of data bits per word.' },
+      { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'BINARY'], tooltip: 'Radix used to enter/display the memory contents in the editor dialog.' },
+    ])
+    expect(defaultPropsOf('rom')).toEqual({ busWidth: 8, dataWidth: 8, valueFormat: 'HEX' })
+
+    const prim = primitiveOf('rom')
+    const addr = inP('rom')[0]
+    const data = outP('rom')[0]
+    expect(prim.intrinsicWidth(def('rom').ports, addr, { busWidth: 4 })).toBe(4)
+    expect(prim.intrinsicWidth(def('rom').ports, data, { dataWidth: 12 })).toBe(12)
+    expect(romAddressWidthOf({})).toBe(ROM_DEFAULT_ADDRESS_WIDTH)
+    expect(romAddressWidthOf({ busWidth: 40 })).toBe(16)
+    expect(romDataWidthOf({})).toBe(ROM_DEFAULT_DATA_WIDTH)
+    expect(romDataWidthOf({ dataWidth: 0 })).toBe(1)
+    expect(romContentsOf(undefined)).toBe('')
+    expect(romContentsOf({ contents: '0 1' })).toBe('0 1')
+  })
+
+  it('reads ROM memory asynchronously by address, propagating x and padding zeros', () => {
+    const prim = primitiveOf('rom')
+    const props = { busWidth: 2, dataWidth: 4, contents: '0 1 2 3' }
+    // Address 0..3 → stored words (LSB-first vectors of 0x0, 0x1, 0x2, 0x3).
+    expect(prim.transfer([[0, 0]], props)).toEqual([[0, 0, 0, 0]])
+    expect(prim.transfer([[1, 0]], props)).toEqual([[1, 0, 0, 0]])
+    expect(prim.transfer([[0, 1]], props)).toEqual([[0, 1, 0, 0]])
+    expect(prim.transfer([[1, 1]], props)).toEqual([[1, 1, 0, 0]])
+    // Any x address bit yields all-x data.
+    expect(prim.transfer([['x', 0]], props)).toEqual([['x', 'x', 'x', 'x']])
+    // Missing contents read zero (only two words stored, address 3 falls past them).
+    expect(prim.transfer([[1, 1]], { busWidth: 2, dataWidth: 4, contents: 'A B' })).toEqual([[0, 0, 0, 0]])
+    // Empty contents reads all zero.
+    expect(prim.transfer([[0, 0]], { busWidth: 2, dataWidth: 4 })).toEqual([[0, 0, 0, 0]])
   })
 })

@@ -38,6 +38,7 @@ export const PRIMITIVE_ICONS: Record<PrimitiveKind, string | undefined> = {
   'led-array': leds,
   dff,
   counter,
+  rom: undefined,
   'join-point': joinPoint,
   probe: probe,
   'input-port': undefined,

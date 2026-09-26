@@ -3,12 +3,15 @@ import {
   childPorts,
   childPrimitive,
   findConnectionTo,
+  formatSwitchValue,
   inputPorts,
   outputPorts,
   parseDesign,
+  parseMemoryContents,
   pinKey,
   pinWidth,
   primitiveOf,
+  romContentsOf,
   sanitizeDesign,
   switchInitialLanes,
   UnionFind,
@@ -518,6 +521,34 @@ class Generator {
         } else {
           stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
         }
+        return
+      }
+
+      if (kind === 'rom') {
+        const input = inputPorts(ports)[0]
+        const output = outputPorts(ports)[0]
+        const addr = inv(input, net(input.id))
+        const data = net(output.id)
+        const AW = netWidthByName.get(net(input.id)) ?? 1
+        const DW = netWidthByName.get(data) ?? 1
+        const depth = 1 << AW
+        const memName = uniqueName(`${inst.name || 'u'}_mem`, used)
+        const idxName = uniqueName(`${inst.name || 'u'}_i`, used)
+        decls.push(`reg [${DW - 1}:0] ${memName} [0:${depth - 1}];`)
+        decls.push(`integer ${idxName};`)
+        // Infer a ROM/RAM: an `initial`-filled memory read combinational-by-assign, so the
+        // synthesis toolchain decides block RAM vs distributed LUTs. The array is zero-filled,
+        // then non-zero words are overridden from the stored contents.
+        const mem = parseMemoryContents(romContentsOf(inst.props), 'HEX', DW, depth) ?? []
+        stmts.push(`initial begin`)
+        stmts.push(`  for (${idxName} = 0; ${idxName} < ${depth}; ${idxName} = ${idxName} + 1) ${memName}[${idxName}] = {${DW}{1'b0}};`)
+        for (let i = 0; i < mem.length; i++) {
+          const word = mem[i]
+          if (!word.some((b) => b === 1)) continue
+          stmts.push(`  ${memName}[${i}] = ${DW}'h${formatSwitchValue(word, 'HEX')};`)
+        }
+        stmts.push(`end`)
+        stmts.push(`assign ${data} = ${inv(output, `${memName}[${addr}]`)};`)
         return
       }
 

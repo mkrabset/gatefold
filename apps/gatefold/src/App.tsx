@@ -11,6 +11,7 @@ import { DeleteCategoriesDialog } from './ui/DeleteCategoriesDialog'
 import { SimSettingsDialog } from './ui/SimSettingsDialog'
 import { SettingsDialog } from './ui/SettingsDialog'
 import { SwitchValueDialog } from './ui/SwitchValueDialog'
+import { RomContentsDialog } from './ui/RomContentsDialog'
 import { TimelineView } from './ui/TimelineView'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
@@ -131,6 +132,7 @@ export default function App() {
       <SimSettingsDialog />
       <SettingsDialog />
       <SwitchValueDialog />
+      <RomContentsDialog />
       <Toast />
     </div>
   )

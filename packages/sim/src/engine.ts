@@ -307,7 +307,7 @@ export class Simulation {
           const v = this.valueOf(ip.net)
           return ip.inverted ? invertVector(v) : v
         })
-        const outputs = primitiveOf(gate.inst.kind).transfer(inputs)
+        const outputs = primitiveOf(gate.inst.kind).transfer(inputs, gate.inst.props)
         for (let j = 0; j < gate.inst.outputs.length; j++) {
           const op = gate.inst.outputs[j]
           let v = outputs[j] ?? []
@@ -334,7 +334,7 @@ export class Simulation {
       const v = this.valueOf(ip.net)
       return ip.inverted ? invertVector(v) : v
     })
-    const outputs = primitiveOf(gate.inst.kind).transfer(inputs)
+    const outputs = primitiveOf(gate.inst.kind).transfer(inputs, gate.inst.props)
     for (let j = 0; j < gate.inst.outputs.length; j++) {
       const op = gate.inst.outputs[j]
       let v = outputs[j] ?? []

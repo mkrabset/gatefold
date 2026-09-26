@@ -3,7 +3,7 @@ import { currentWidthRoot, resolveNav, useEditorStore } from '../state/editorSto
 import { useSimStore } from '../state/simStore'
 import type { ChildDef, CompositeDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
-import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, parseSwitchValue, primitiveOf, valueFormatOf } from '@gatefold/model'
+import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, parseSwitchValue, primitiveOf, romAddressWidthOf, romDataWidthOf, valueFormatOf } from '@gatefold/model'
 import { PRIMITIVE_ICONS } from '../icons'
 import { CommitInput } from './CommitInput'
 import { SortablePortList } from './SortablePortList'
@@ -221,6 +221,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
             </label>
           ))}
       {!isPortGroupDef(def) && <PortsGroups instanceId={inst.id} />}
+      {childPrimitive(def) === 'rom' && <RomContentsField instanceId={inst.id} instance={inst} />}
     </div>
   )
 }
@@ -361,6 +362,25 @@ function SwitchInitialValueField({
       }}
       onBlur={(e) => commit(e.currentTarget.value)}
     />
+  )
+}
+
+/**
+ * The ROM memory-contents entry: shows the memory's shape and opens the edit dialog.
+ */
+function RomContentsField({ instanceId, instance }: { instanceId: string; instance: Instance }) {
+  const openRomDialog = useEditorStore((s) => s.openRomDialog)
+  const words = 1 << romAddressWidthOf(instance.props)
+  return (
+    <label className="field">
+      <span>Memory</span>
+      <button type="button" className="field-button" onClick={() => openRomDialog(instanceId)} title="Edit the ROM's memory contents">
+        Edit contents…
+      </button>
+      <span className="side-note">
+        {words} × {romDataWidthOf(instance.props)} bits
+      </span>
+    </label>
   )
 }
 

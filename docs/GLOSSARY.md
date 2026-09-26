@@ -18,7 +18,7 @@ authoritative — update this when a term's meaning changes.
   display `name` (not enforced unique; logic keys off `id` only), and an inline `def:
   ChildDef` (owned by the parent composite).
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
-  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, DFF, COUNTER (plus the internal
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, DFF, COUNTER, ROM (plus the internal
   INPUT-PORT / OUTPUT-PORT), the probe primitives 7-SEG, SWITCHES, LEDS, PROBE, and the
   join-point. Not editable as a circuit.
 - **Fork** — an owned primitive child def with its own `ports`. Every *placed* primitive is
@@ -55,6 +55,14 @@ authoritative — update this when a term's meaning changes.
   width in `wire` mode only. The `RST` input defaults to pull-down. In Verilog export this maps to
   `always @(posedge clk …)` with an `if (rst)` branch, so it becomes a real synchronous counter
   rather than a ripple counter built from flip-flops.
+- **ROM** — a read-only-memory primitive: an `ADDR` address-bus input and a `DATA` data-bus output,
+  both fixed by the `busWidth`/`dataWidth` properties. A purely combinational, asynchronous read —
+  `DATA = mem[ADDR]` after the gate's propagation delay, with no address latching or clock; any `x`
+  address bit yields all-`x` data, and addresses past the stored contents read `0`. The stored memory
+  is the `contents` property (a canonical HEX word list, one per address, edited in a dialog that
+  loads files and re-radixes); `valueFormat` (`HEX`/`DEC`/`BINARY`) is only the entry/display radix.
+  Verilog export emits an inferred memory (`reg mem[]` + `initial` + `assign DATA = mem[ADDR]`),
+  leaving the RAM-vs-LUT choice to the synthesis toolchain.
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

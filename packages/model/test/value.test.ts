@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import type { Signal } from '../src/types'
 import {
   applyValueOrder,
+  formatMemoryContents,
   formatSwitchValue,
   maxSwitchValueText,
+  parseMemoryContents,
   parseSwitchValue,
   switchInitialLanes,
   toValueFormat,
@@ -15,6 +18,7 @@ describe('value format/order resolution', () => {
     expect(toValueFormat(undefined)).toBe('HEX')
     expect(toValueFormat('DEC')).toBe('DEC')
     expect(toValueFormat('SIGNED DEC')).toBe('SIGNED DEC')
+    expect(toValueFormat('BINARY')).toBe('BINARY')
     expect(toValueFormat('garbage')).toBe('HEX')
   })
 
@@ -78,6 +82,20 @@ describe('parseSwitchValue', () => {
     expect(parseSwitchValue('8', 'SIGNED DEC', 4)).toBeNull() // > 7
     expect(parseSwitchValue('-9', 'SIGNED DEC', 4)).toBeNull() // < -8
   })
+
+  it('parses BINARY, least-significant bit first', () => {
+    expect(parseSwitchValue('0', 'BINARY', 4)).toEqual([0, 0, 0, 0])
+    expect(parseSwitchValue('1010', 'BINARY', 4)).toEqual([0, 1, 0, 1])
+    expect(parseSwitchValue('11111111', 'BINARY', 8)).toEqual([1, 1, 1, 1, 1, 1, 1, 1])
+    expect(parseSwitchValue('0101', 'BINARY', 8)).toEqual([1, 0, 1, 0, 0, 0, 0, 0])
+  })
+
+  it('rejects invalid or out-of-range BINARY', () => {
+    expect(parseSwitchValue('', 'BINARY', 4)).toBeNull()
+    expect(parseSwitchValue('2', 'BINARY', 4)).toBeNull()
+    expect(parseSwitchValue('101a', 'BINARY', 4)).toBeNull()
+    expect(parseSwitchValue('10000', 'BINARY', 4)).toBeNull() // 16 > 15
+  })
 })
 
 describe('formatSwitchValue', () => {
@@ -97,6 +115,55 @@ describe('formatSwitchValue', () => {
     expect(formatSwitchValue([1, 1, 1, 0], 'SIGNED DEC')).toBe('7')
     expect(formatSwitchValue([1, 1, 1, 1], 'SIGNED DEC')).toBe('-1')
     expect(formatSwitchValue([1, 0, 0, 0, 0, 0, 0, 0], 'SIGNED DEC')).toBe('1')
+  })
+
+  it('formats BINARY zero-padded to the full width', () => {
+    expect(formatSwitchValue([0, 1, 0, 1], 'BINARY')).toBe('1010')
+    expect(formatSwitchValue([0, 0, 0, 0], 'BINARY')).toBe('0000')
+    expect(formatSwitchValue([1, 1, 1, 1, 1, 1, 1, 1], 'BINARY')).toBe('11111111')
+  })
+})
+
+describe('parseMemoryContents / formatMemoryContents', () => {
+  it('parses a whitespace/comma/newline list into fixed-width words, padding zeros', () => {
+    expect(parseMemoryContents('0 1 2 3', 'HEX', 4, 4)).toEqual([
+      [0, 0, 0, 0],
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+      [1, 1, 0, 0],
+    ])
+    expect(parseMemoryContents('A, B\nC; D', 'HEX', 4, 4)).toEqual([
+      [0, 1, 0, 1],
+      [1, 1, 0, 1],
+      [0, 0, 1, 1],
+      [1, 0, 1, 1],
+    ])
+    // Fewer words than the depth are zero-padded; extras are ignored.
+    expect(parseMemoryContents('F', 'HEX', 4, 3)).toEqual([
+      [1, 1, 1, 1],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ])
+    expect(parseMemoryContents('1 2 3 4 5', 'HEX', 4, 2)).toEqual([
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+    ])
+  })
+
+  it('returns null on any invalid token', () => {
+    expect(parseMemoryContents('0 G 2', 'HEX', 4, 4)).toBeNull()
+    expect(parseMemoryContents('0 12', 'BINARY', 4, 4)).toBeNull()
+  })
+
+  it('round-trips words through the given radix', () => {
+    const mem: Signal[][] = [
+      [0, 0, 0, 0],
+      [1, 1, 1, 1],
+      [0, 1, 0, 1],
+    ]
+    expect(formatMemoryContents(mem, 'HEX')).toBe('0\nF\nA')
+    expect(formatMemoryContents(mem, 'DEC')).toBe('0\n15\n10')
+    expect(formatMemoryContents(mem, 'BINARY')).toBe('0000\n1111\n1010')
   })
 })
 
@@ -154,6 +221,11 @@ describe('maxSwitchValueText', () => {
     expect(maxSwitchValueText(1, 'SIGNED DEC')).toBe('-1')
     expect(maxSwitchValueText(8, 'SIGNED DEC')).toBe('-128')
     expect(maxSwitchValueText(32, 'SIGNED DEC')).toBe('-2147483648')
+  })
+
+  it('uses all-ones for BINARY', () => {
+    expect(maxSwitchValueText(4, 'BINARY')).toBe('1111')
+    expect(maxSwitchValueText(1, 'BINARY')).toBe('1')
   })
 
   it('returns a placeholder for invalid widths', () => {

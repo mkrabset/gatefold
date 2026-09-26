@@ -42,8 +42,8 @@ export {
 // Generic helpers.
 export { newUuid, uniqueId, UnionFind } from './util'
 
-// Value entry / formatting (switch-array and 7-seg).
-export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, switchInitialLanes, maxSwitchValueText } from './value'
+// Value entry / formatting (switch-array, 7-seg, and ROM memory).
+export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, switchInitialLanes, maxSwitchValueText, parseMemoryContents, formatMemoryContents } from './value'
 export type { ValueFormat, ValueOrder } from './value'
 
 // Bus-width resolution.

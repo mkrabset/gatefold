@@ -57,6 +57,7 @@ export type PrimitiveKind =
   | 'led-array'
   | 'dff'
   | 'counter'
+  | 'rom'
   | 'join-point'
   | 'probe'
 

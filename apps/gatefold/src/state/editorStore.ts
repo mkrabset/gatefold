@@ -143,6 +143,8 @@ interface EditorState {
   pendingClearAll: boolean
   /** True while the "delete library categories" confirmation dialog is open. */
   pendingCategoryDelete: boolean
+  /** The ROM whose memory contents are being edited, or null when the dialog is closed. */
+  romDialog: { instanceId: string } | null
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
   toggleSelected: (id: string) => void
@@ -171,6 +173,8 @@ interface EditorState {
   requestCategoryDelete: () => void
   confirmCategoryDelete: (categoryNames: string[]) => void
   cancelCategoryDelete: () => void
+  openRomDialog: (instanceId: string) => void
+  closeRomDialog: () => void
   renamePort: (portId: string, name: string, instanceId?: string) => void
   setPortInverted: (portId: string, inverted: boolean, instanceId?: string) => void
   togglePinInversion: (ref: PinRef) => void
@@ -283,6 +287,7 @@ export const useEditorStore = create<EditorState>()(
       pendingDelete: null,
       pendingClearAll: false,
       pendingCategoryDelete: false,
+      romDialog: null,
       setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
       setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
       toggleSelected: (id) =>
@@ -502,6 +507,8 @@ export const useEditorStore = create<EditorState>()(
       },
       requestCategoryDelete: () => set((s) => void (s.pendingCategoryDelete = true)),
       cancelCategoryDelete: () => set((s) => void (s.pendingCategoryDelete = false)),
+      openRomDialog: (instanceId) => set((s) => void (s.romDialog = { instanceId })),
+      closeRomDialog: () => set((s) => void (s.romDialog = null)),
       confirmCategoryDelete: (categoryNames) => {
         set((s) => {
           s.pendingCategoryDelete = false

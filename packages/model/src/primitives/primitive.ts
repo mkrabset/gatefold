@@ -120,9 +120,11 @@ export interface Primitive {
    * Combinational behaviour: given each input port's bit-vector (ordered, after
    * input-terminal inversion is applied), return each output port's bit-vector (before
    * output-terminal inversion is applied). Sources (no inputs) and sinks (no outputs)
-   * are driven/consumed by the simulator and return `[]`.
+   * are driven/consumed by the simulator and return `[]`. `props` is the instance's
+   * property record, for primitives whose behaviour depends on per-instance values
+   * (e.g. the ROM's stored memory).
    */
-  transfer(inputs: Signal[][]): Signal[][]
+  transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][]
 
   /** Custom properties declared by this primitive (schema + defaults). */
   properties(): PropertySpec[]

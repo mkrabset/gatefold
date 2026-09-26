@@ -747,29 +747,47 @@ body {
 }
 
 .rom-dialog {
-  width: 480px;
+  width: 640px;
   max-width: calc(100vw - 32px);
 }
 
-.dialog-textarea {
-  display: block;
-  width: 100%;
+.rom-editor {
   height: 260px;
-  resize: vertical;
+  overflow: auto;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 6px 8px;
-  color: var(--text);
-  font-size: 12px;
+  padding: 8px;
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  line-height: 1.5;
-  white-space: pre;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text);
+  cursor: text;
+  outline: none;
+  white-space: nowrap;
 }
 
-.dialog-textarea:focus {
-  outline: none;
+.rom-editor:focus {
   border-color: var(--accent);
+}
+
+.rom-row {
+  white-space: nowrap;
+}
+
+.rom-addr {
+  color: var(--text-faint);
+  user-select: none;
+}
+
+.rom-digit {
+  cursor: pointer;
+}
+
+.rom-digit.cursor {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 1px;
 }
 
 .dialog-check {

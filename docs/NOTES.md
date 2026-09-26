@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-26 (ROM primitive).
+Last updated: 2026-09-26 (ROM contents editor).
 
 ## Where we are
 
@@ -12,6 +12,21 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **ROM contents editor redesign** — the ROM dialog went from a free-form textarea to a structured,
+  address-prefixed, per-digit editor:
+  - **Pure logic** (`apps/gatefold/src/editor/romEditor.ts`, new) — `addrCharCount`/`valueCharCount`
+    (HEX nibbles / BINARY bits / DEC digit count), `formatAddress`/`formatValue` (zero-padded, uppercase
+    hex), `parseValue`, `applyDigit` (HEX nibble, BINARY bit, DEC re-parse + clamp), `valuesPerLineFor`
+    (snaps to 1/2/4/8), and `parseRomText` (data-only by default; `ADDR:` colon-prefixed lines for
+    explicit addresses — the first line decides the format).
+  - **Component** (`ui/RomContentsDialog.tsx`, rewritten) — a focusable, windowed (virtualized) row
+    grid: read-only dimmed address column + per-digit spans, a single-digit cursor (arrow/Home/End/
+    type/backspace/delete), values-per-line auto-fit via a ResizeObserver + monospace char measurement,
+    cursor scroll-into-view, radix switch that keeps the word index, and commit via
+    `formatMemoryContents(mem, 'HEX')`. `.rom-dialog` widened; `.rom-editor`/`.rom-row`/`.rom-addr`/
+    `.rom-digit`/`.rom-cursor` styles replace `.dialog-textarea`.
+  - Tests: `editor/romEditor.test.ts`; docs updated (`USER_GUIDE.md`, `GLOSSARY.md`, `ARCHITECTURE.md`).
 
 - **ROM primitive** — a read-only memory (`ADDR` bus in → `DATA` bus out), purely combinational and
   asynchronous (no clock/latch). Widths fixed by `busWidth`/`dataWidth` properties; stored memory is

@@ -774,6 +774,9 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   fixed-initial-value constant.
 - `apps/gatefold/src/editor/routing.test.ts` — bezier control-point math and tangents.
 - `apps/gatefold/src/editor/geometry.test.ts` — `pinWidth` / `isNeutralPin`.
+- `apps/gatefold/src/editor/romEditor.test.ts` — address/value digit counts and zero-padding per
+  radix,   `applyDigit` (hex nibble / binary bit / decimal clamp), `valuesPerLineFor`, and
+  `parseRomText` (data-only by default; `ADDR:` colon-prefixed lines for explicit addresses).
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
   multi-step), copy/paste, and the single-driver + re-target rejection rules.
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.
@@ -830,6 +833,7 @@ beside the data they operate on.
 | `editor/draw/instances.ts` | Instance/port/port-group/join-point drawing |
 | `editor/draw/probes.ts` | 7-seg + switch/led array bodies |
 | `editor/portEdit.ts` | Port/terminal editing (add/remove/array + counter terminals) |
+| `editor/romEditor.ts` | ROM contents editor logic (address-prefixed formatting, per-digit edit, file parse) |
 | `editor/apply.ts` | Propagate template changes to matching copies |
 | `editor/routing.ts` / `wireSearch.ts` | Bezier routing / wire-crossing search |
 | `editor/viewport.ts` | `w2s` / `s2w` transforms |

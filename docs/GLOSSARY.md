@@ -59,10 +59,11 @@ authoritative — update this when a term's meaning changes.
   both fixed by the `busWidth`/`dataWidth` properties. A purely combinational, asynchronous read —
   `DATA = mem[ADDR]` after the gate's propagation delay, with no address latching or clock; any `x`
   address bit yields all-`x` data, and addresses past the stored contents read `0`. The stored memory
-  is the `contents` property (a canonical HEX word list, one per address, edited in a dialog that
-  loads files and re-radixes); `valueFormat` (`HEX`/`DEC`/`BINARY`) is only the entry/display radix.
-  Verilog export emits an inferred memory (`reg mem[]` + `initial` + `assign DATA = mem[ADDR]`),
-  leaving the RAM-vs-LUT choice to the synthesis toolchain.
+  is the `contents` property (a canonical HEX word list, one per address, edited in an
+  address-prefixed dialog where each line is `ADDR value value …`, addresses are read-only, and a
+  single-digit cursor overwrites on typing); `valueFormat` (`HEX`/`DEC`/`BINARY`) is only the
+  entry/display radix. Verilog export emits an inferred memory (`reg mem[]` + `initial` +
+  `assign DATA = mem[ADDR]`), leaving the RAM-vs-LUT choice to the synthesis toolchain.
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

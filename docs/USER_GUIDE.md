@@ -322,9 +322,9 @@ its properties, and what it does.
     values, and typing overwrites that digit and advances (arrow keys move it; hex/binary digits map
     to nibbles/bits, and a decimal digit re-parses the word, clamping to the value range).
   - **Load file…** fills the memory from a file. By default a file is **data-only** — every token is
-    a value placed consecutively from address 0. To place values at specific addresses, prefix each
-    line with an address followed by a colon: `ADDR: value value …`. The **first line** decides which
-    format the whole file uses.
+    a value, placed consecutively from the start of memory. To place values at specific addresses,
+    prefix each line with an address followed by a colon: `ADDR: value value …`. The **first line**
+    decides which format the whole file uses.
   - **Value format** only sets the editor's entry/display radix — the stored contents are kept
     radix-independent, so switching radices never corrupts the memory.
 - In Verilog export the ROM is emitted as an inferred memory (`reg mem[]` + an `initial` block +

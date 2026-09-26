@@ -399,6 +399,43 @@ inactive.
 synchronous counting logic rather than a ripple counter built from
 flip-flops.
 
+==== ROM
+
+* *Inputs:* 1 (`ADDR`) · *Outputs:* 1 (`DATA`) · Properties *Address
+width* (`busWidth`, default 8, 1–16), *Data width* (`dataWidth`, default
+8, 1–64), *Value format* (`HEX` / `DEC` / `BINARY`, default `HEX`)
+* A read-only memory: put an address on the `ADDR` bus and, after the
+gate’s propagation delay, the stored word appears on the `DATA` bus. The
+read is *asynchronous* — there is no clock and no address latching, so
+`DATA` follows `ADDR` like any combinational gate. Any unknown (`x`)
+address bit drives all-`x` data; addresses past the stored contents read
+`0`.
+* The memory holds `2^AddressWidth` words of `DataWidth` bits each (so
+an 8-bit address is 256 × 8-bit). Click *Edit contents…* in the
+properties panel to open the contents editor:
+** Each line is `ADDR value value …` — an address followed by one or
+more values, all shown in the selected *Value format* and zero-padded to
+a fixed width (hex is padded to whole 4-bit nibbles, binary to the full
+bit width). The number of values per line (1, 2, 4, or 8) is chosen
+automatically to fit the editor’s width.
+** *Addresses are read-only*; you edit only the values. A cursor
+highlights a single digit of the values, and typing overwrites that
+digit and advances (arrow keys move it; hex/binary digits map to
+nibbles/bits, and a decimal digit re-parses the word, clamping to the
+value range).
+** *Load file…* fills the memory from a file. By default a file is
+*data-only* — every token is a value, placed consecutively from the
+start of memory. To place values at specific addresses, prefix each line
+with an address followed by a colon: `ADDR: value value …`. The *first
+line* decides which format the whole file uses.
+** *Value format* only sets the editor’s entry/display radix — the
+stored contents are kept radix-independent, so switching radices never
+corrupts the memory.
+* In Verilog export the ROM is emitted as an inferred memory
+(`reg mem++[]++` {plus} an `initial` block {plus}
+`assign DATA = mem++[++ADDR++]++`), leaving the FPGA toolchain to
+implement it as block RAM or distributed LUTs as it sees fit.
+
 ==== FAN-IN
 
 * *Inputs:* 2{plus} (single-wire), default 4 · *Outputs:* 1 (`BUS`) ·
@@ -659,6 +696,9 @@ inversion becomes a `~`.
 connected) and `INIT` from the _Initial value_ property.
 * *Buses* as `++[++n-1:0++]++` vectors — FAN-IN/BUS-MERGE concatenate,
 FAN-OUT/BUS-SPLIT slice.
+* *ROM* as an inferred memory (`reg mem++[]++` {plus} an `initial` block
+{plus} `assign DATA = mem++[++ADDR++]++`), so the synthesis toolchain
+picks block RAM vs LUTs.
 * *Hierarchy* as nested module instantiations; composite ports become
 module ports.
 

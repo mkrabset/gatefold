@@ -150,6 +150,49 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(conns.some((c) => c.from.instanceId === cnt.id)).toBe(false)
   })
 
+  it('places a register with defaults and regenerates its ports from terminalType/width', () => {
+    reset()
+    useEditorStore.getState().addInstance('register', { x: 0, y: 0 })
+    const register = (): Instance => mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'register')!
+    const portsOf = (): Port[] => {
+      const def = register().def
+      return def.kind === 'fork' ? def.ports : []
+    }
+    expect(register().props).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 8 })
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'out:0'])
+    expect(portsOf().map((p) => p.name)).toEqual(['CLK', 'RST', 'DATA', 'Q'])
+
+    // Switch to WIRE: 8 data inputs + 8 outputs, keeping CLK/RST.
+    useEditorStore.getState().setInstanceProp(register().id, 'terminalType', 'wire')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'in:3', 'in:4', 'in:5', 'in:6', 'in:7', 'in:8', 'in:9', 'out:0', 'out:1', 'out:2', 'out:3', 'out:4', 'out:5', 'out:6', 'out:7'])
+
+    // Width change (wire mode) shrinks to two data inputs/outputs.
+    useEditorStore.getState().setInstanceProp(register().id, 'width', 2)
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'in:3', 'out:0', 'out:1'])
+
+    // Back to BUS: a single DATA input + Q output.
+    useEditorStore.getState().setInstanceProp(register().id, 'terminalType', 'bus')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'out:0'])
+  })
+
+  it('keeps a register\'s CLK/RST wiring while pruning DATA/output wires on a terminal-type change', () => {
+    reset()
+    useEditorStore.getState().addInstance('register', { x: 0, y: 0 })
+    useEditorStore.getState().addInstance('buffer', { x: 120, y: 0 })
+    const reg = mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'register')!
+    const buf = mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'buffer')!
+
+    useEditorStore.getState().addConnection({ instanceId: 'clk', portId: 'out:0' }, { instanceId: reg.id, portId: 'in:0' })
+    useEditorStore.getState().addConnection({ instanceId: 'inv1', portId: 'out:0' }, { instanceId: reg.id, portId: 'in:2' })
+    useEditorStore.getState().addConnection({ instanceId: reg.id, portId: 'out:0' }, { instanceId: buf.id, portId: 'in:0' })
+
+    useEditorStore.getState().setInstanceProp(reg.id, 'terminalType', 'wire')
+    const conns = mainDef().connections
+    expect(conns.some((c) => c.to.instanceId === reg.id && c.to.portId === 'in:0')).toBe(true)
+    expect(conns.some((c) => c.to.instanceId === reg.id && c.to.portId === 'in:2')).toBe(false)
+    expect(conns.some((c) => c.from.instanceId === reg.id)).toBe(false)
+  })
+
   it('places a join-point as a shared builtin', () => {
     reset()
     useEditorStore.getState().addInstance('join-point', { x: 0, y: 0 })

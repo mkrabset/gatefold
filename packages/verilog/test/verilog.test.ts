@@ -51,6 +51,30 @@ const counter2: ChildDef = {
   ],
 }
 
+const registerBus: ChildDef = {
+  kind: 'fork',
+  primitive: 'register',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'in:2', name: 'DATA', direction: 'input' },
+    { id: 'out:0', name: 'Q', direction: 'output' },
+  ],
+}
+
+const register2: ChildDef = {
+  kind: 'fork',
+  primitive: 'register',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input' },
+    { id: 'in:2', name: 'D0', direction: 'input' },
+    { id: 'in:3', name: 'D1', direction: 'input' },
+    { id: 'out:0', name: 'Q0', direction: 'output' },
+    { id: 'out:1', name: 'Q1', direction: 'output' },
+  ],
+}
+
 function jsonOf(root: CompositeDef): string {
   const design: Design = { version: 2, root, library: {} }
   return serializeDesign(design)
@@ -619,6 +643,62 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Q0 = cnt_cnt[0];')
     expect(source).toContain('assign Q1 = cnt_cnt[1];')
     expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) cnt_cnt <= {2{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
+  })
+
+  it('emits a BUS-mode register sampling DATA with a sync reset and a pulled-down RST', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Q')],
+      instances: [
+        pgOut(),
+        prim('clk', 'clock', { period: 1000 }),
+        prim('sw', 'switch-array', { initialValue: '5' }),
+        fork('reg', registerBus),
+        prim('b', 'bus', { lanes: 4 }),
+      ],
+      connections: [
+        { id: 'c1', from: iref('clk', 'out:0'), to: iref('reg', 'in:0') },
+        { id: 'c2', from: iref('sw', 'out:0'), to: iref('reg', 'in:2') },
+        { id: 'c3', from: iref('reg', 'out:0'), to: iref('b', 'in:0') },
+        { id: 'c4', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output [3:0] Q')
+    expect(source).toContain('reg [3:0] reg_reg;')
+    expect(source).toContain('assign reg_Q = reg_reg;')
+    expect(source).toContain('assign Q = reg_Q;')
+    expect(source).toContain("always @(posedge clk_CLK) if (reg_RST) reg_reg <= {4{1'b0}}; else reg_reg <= sw_BUS;")
+    expect(source).toContain("assign reg_RST = 1'b0;")
+    expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
+  })
+
+  it('emits a WIRE-mode register with an async reset and one assign per bit', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'RST'), input('in:1', 'D0'), input('in:2', 'D1'), output('out:0', 'Q0'), output('out:1', 'Q1')],
+      instances: [
+        pgIn(),
+        pgOut(),
+        prim('clk', 'clock', { period: 1000 }),
+        { id: 'reg', name: 'reg', def: register2, pos: { x: 0, y: 0 }, props: { resetStyle: 'async', width: 2 } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('clk', 'out:0'), to: iref('reg', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:0'), to: iref('reg', 'in:1') },
+        { id: 'c3', from: iref('pi', 'in:1'), to: iref('reg', 'in:2') },
+        { id: 'c4', from: iref('pi', 'in:2'), to: iref('reg', 'in:3') },
+        { id: 'c5', from: iref('reg', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c6', from: iref('reg', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output Q0')
+    expect(source).toContain('output Q1')
+    expect(source).toContain('reg [1:0] reg_reg;')
+    expect(source).toContain('assign Q0 = reg_reg[0];')
+    expect(source).toContain('assign Q1 = reg_reg[1];')
+    expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) reg_reg <= {2{1'b0}}; else reg_reg <= {D1, D0};")
   })
 
   it('emits a ROM as an inferred memory (array + initial + assign)', () => {

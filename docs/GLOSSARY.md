@@ -18,7 +18,7 @@ authoritative — update this when a term's meaning changes.
   display `name` (not enforced unique; logic keys off `id` only), and an inline `def:
   ChildDef` (owned by the parent composite).
 - **Primitive** — a built-in component with hard-coded behavior: AND, OR, XOR, NOT, BUFFER,
-  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, DFF, COUNTER, ROM (plus the internal
+  CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, DFF, REGISTER, COUNTER, ROM (plus the internal
   INPUT-PORT / OUTPUT-PORT), the probe primitives 7-SEG, SWITCHES, LEDS, PROBE, and the
   join-point. Not editable as a circuit.
 - **Fork** — an owned primitive child def with its own `ports`. Every *placed* primitive is
@@ -55,6 +55,15 @@ authoritative — update this when a term's meaning changes.
   width in `wire` mode only. The `RST` input defaults to pull-down. In Verilog export this maps to
   `always @(posedge clk …)` with an `if (rst)` branch, so it becomes a real synchronous counter
   rather than a ripple counter built from flip-flops.
+- **Register** — an n-bit register primitive (`CLK`, `RST`, `DATA`/`D0…` → `Q`/`Q0…`): an array of
+  1-bit memory cells. A *stateful* primitive the simulator evaluates on clock edges: on each rising
+  `CLK` edge the register samples its data input(s) into `Q`. `resetStyle` (`sync`/`async`, default
+  `sync`) selects whether an asserted (active-high) `RST` clears to zero on the clock edge or
+  immediately; `terminalType` (`wire`/`bus`, default `bus`) picks one `DATA` bus in + one `Q` bus out
+  whose widths are adopted from the connection (and always agree, coupled by the width solver) or one
+  single-wire `D0…`/`Q0…` per bit; `width` (1–32, default 8) sets the bit count in `wire` mode only.
+  The `RST` input defaults to pull-down. In Verilog export this maps to `always @(posedge clk …)` with
+  an `if (rst)` branch, so it becomes a real synchronous register of FPGA flip-flops.
 - **ROM** — a read-only-memory primitive: an `ADDR` address-bus input and a `DATA` data-bus output,
   both fixed by the `busWidth`/`dataWidth` properties. A purely combinational, asynchronous read —
   `DATA = mem[ADDR]` after the gate's propagation delay, with no address latching or clock; any `x`

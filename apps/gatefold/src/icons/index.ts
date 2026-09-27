@@ -15,6 +15,7 @@ import sevenSeg from './7-seg.png'
 import switches from './switches.png'
 import leds from './leds.png'
 import dff from './dff.png'
+import register from './register.png'
 import counter from './counter.png'
 import joinPoint from './join-point.png'
 import probe from './probe.png'
@@ -38,6 +39,7 @@ export const PRIMITIVE_ICONS: Record<PrimitiveKind, string | undefined> = {
   'switch-array': switches,
   'led-array': leds,
   dff,
+  register,
   counter,
   rom: rom,
   'join-point': joinPoint,

@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-26 (ROM contents editor).
+Last updated: 2026-09-27 (REGISTER primitive).
 
 ## Where we are
 
@@ -12,6 +12,42 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **REGISTER primitive** — a new sequential primitive (`CLK`, `RST`, `DATA`/`D0…` → `Q`/`Q0…`): an
+  n-bit register (an array of 1-bit memory cells) so a multi-bit register can be built as a single
+  component instead of a row of DFFs. On each rising `CLK` edge the register samples its data input(s)
+  into `Q`; an asserted (active-high) `RST` clears it to zero — **synchronously** (on the clock edge)
+  or **asynchronously** (immediately), per `resetStyle`. `terminalType` picks one `DATA` bus in + one
+  `Q` bus out (`bus`) or one single-wire `D0…`/`Q0…` per bit (`wire`); `width` (1–32, default 8) sets
+  the bit count in wire mode only (bus mode adopts the connected width, and `DATA`/`Q` always agree).
+  `RST` defaults to pull-down.
+  - **Model** (`primitives/register.ts`) — `Register extends Gate` with `isSequential()`,
+    `clockPortId()`/`resetPortId()`, the `resetStyle`/`terminalType`/`width` properties, and
+    `registerPorts(terminalType, width)`/`registerWidthOf`. Unlike the counter's neutral-`Q`
+    `intrinsicWidth`, the register uses `deriveWidth` to couple the `DATA` and `Q` buses (adopting the
+    same width, mirroring COMPARE's A/B relation) so a register's data-in and data-out never disagree;
+    CLK/RST and the wire terminals are width 1. Registered in `LIBRARY_KINDS` (after `dff`);
+    `'register'` added to `PrimitiveKind`.
+  - **App** — `portEdit.ts` gains `applyRegisterPorts` (width change: prune removed pins only) and
+    `applyRegisterTerminalType` (terminal-type change: prune every DATA/output connection but keep
+    CLK/RST wiring); `editorStore.setInstanceProp` dispatches register `terminalType`/`width` through
+    them. A generated `register.png` library icon (rounded box + two-bar glyph).
+  - **Sim** (`engine.ts`) — the `Sequential` interface is generalized with a
+    `kind: 'dff' | 'register' | 'counter'` discriminator and `dataInputs: FlatPort[]` (the DFF's single
+    `D`, a register's `DATA` bus or `D0…` wires, empty for a counter); `advanceState` now samples the
+    data vector for a register (whole bus vector, or one bit per wire input), and `resetState`/
+    `outputValue` treat register and counter alike (all-zero reset, bus/wire state projection). DFF and
+    counter behavior are unchanged.
+  - **Verilog** (`verilog.ts`) — `'register'` emits a single internal register
+    (`reg [N-1:0] <name>_reg`) driven by `always @(posedge clk …)` sampling `DATA` (bus) or
+    `{D(n-1), …, D0}` (wire), resetting to `{N{1'b0}}` (`if (rst)` for sync, `or posedge rst` for
+    async), plus `assign Q = reg;` (bus) or `assign Q_i = reg[i];` per wire — a real synchronous
+    register the FPGA maps to flip-flops.
+  - Tests: model `primitives.test.ts` (register ports/properties/`deriveWidth`/width), sim
+    `engine.test.ts` (wire/bus sampling, sync vs async reset, bus-width adoption), verilog
+    `verilog.test.ts` (bus internal reg + sync reset, wire concat + async reset), app
+    `editorStore.test.ts` (defaults, port regeneration, CLK/RST wiring preserved). Docs updated
+    (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`, `README.md`).
 
 - **ROM contents editor: clipboard copy/paste** — the dialog gains **Copy**/**Paste** buttons and
   **Ctrl/Cmd+C**/**Ctrl/Cmd+V** shortcuts (the latter stop propagation so the app's global component

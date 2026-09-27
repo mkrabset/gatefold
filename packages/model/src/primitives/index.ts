@@ -18,6 +18,7 @@ import { SevenSeg } from './seven-seg'
 import { SwitchArray } from './switch-array'
 import { LedArray } from './led-array'
 import { Dff } from './dff'
+import { Register } from './register'
 import { Counter } from './counter'
 import { Rom } from './rom'
 import { JoinPoint } from './join-point'
@@ -27,6 +28,7 @@ export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'
 export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits, sevenSegModeOf } from './seven-seg'
 export { arrayPorts, isArrayDef, arrayDirection } from './array'
+export { registerPorts, registerWidthOf, REGISTER_DEFAULT_WIDTH, REGISTER_MAX_WIDTH } from './register'
 export { counterPorts, counterWidthOf, COUNTER_DEFAULT_WIDTH, COUNTER_MAX_WIDTH } from './counter'
 export { romAddressWidthOf, romDataWidthOf, romContentsOf, ROM_DEFAULT_ADDRESS_WIDTH, ROM_DEFAULT_DATA_WIDTH, ROM_MAX_ADDRESS_WIDTH, ROM_MAX_DATA_WIDTH } from './rom'
 export { CLOCK_DEFAULT_PERIOD, periodOf } from './clock'
@@ -51,6 +53,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
   'switch-array': new SwitchArray(),
   'led-array': new LedArray(),
   dff: new Dff(),
+  register: new Register(),
   counter: new Counter(),
   rom: new Rom(),
   'join-point': new JoinPoint(),
@@ -58,7 +61,7 @@ const PRIMITIVES: Record<PrimitiveKind, Primitive> = {
 }
 
 /** The kinds shown in the library palette (port groups are internal only). */
-export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'counter', 'rom', 'join-point', 'probe']
+export const LIBRARY_KINDS: PrimitiveKind[] = ['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'register', 'counter', 'rom', 'join-point', 'probe']
 
 /** The behaviour object for a primitive kind. */
 export function primitiveOf(kind: PrimitiveKind): Primitive {

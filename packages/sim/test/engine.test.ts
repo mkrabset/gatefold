@@ -152,6 +152,28 @@ const counterBus: ChildDef = {
     { id: 'out:0', name: 'Q', direction: 'output' },
   ],
 }
+const register2: ChildDef = {
+  kind: 'fork',
+  primitive: 'register',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'in:2', name: 'D0', direction: 'input' },
+    { id: 'in:3', name: 'D1', direction: 'input' },
+    { id: 'out:0', name: 'Q0', direction: 'output' },
+    { id: 'out:1', name: 'Q1', direction: 'output' },
+  ],
+}
+const registerBus: ChildDef = {
+  kind: 'fork',
+  primitive: 'register',
+  ports: [
+    { id: 'in:0', name: 'CLK', direction: 'input' },
+    { id: 'in:1', name: 'RST', direction: 'input', pull: 'down' },
+    { id: 'in:2', name: 'DATA', direction: 'input' },
+    { id: 'out:0', name: 'Q', direction: 'output' },
+  ],
+}
 const rom2x4: ChildDef = {
   kind: 'fork',
   primitive: 'rom',
@@ -1109,6 +1131,125 @@ describe('Simulation engine', () => {
     sim.step()
     expect(sim.signalOf('cnt', 'out:0')).toEqual([0, 1, 0, 0])
     expect(sim.signal('fo', 'out:1')).toBe(1)
+  })
+
+  it('register samples DATA on each rising clock edge (wire mode)', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('d0', 'switch-array'), inst('d1', 'switch-array'), inst('reg', register2)],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('reg', 'in:0')),
+          conn('c2', iref('d0', 'out:0'), iref('reg', 'in:2')),
+          conn('c3', iref('d1', 'out:0'), iref('reg', 'in:3')),
+        ],
+      ),
+    )
+    const q = () => [sim.signal('reg', 'out:0'), sim.signal('reg', 'out:1')]
+    expect(q()).toEqual([0, 0])
+    // Set DATA without a clock edge: Q holds.
+    sim.setSwitch('d0', 1)
+    sim.step()
+    expect(q()).toEqual([0, 0])
+    // Rising edge samples D0=1, D1=0.
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 0])
+    sim.setSwitch('d1', 1)
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([1, 1])
+    // Falling DATA is ignored between edges.
+    sim.setSwitch('d0', 0)
+    sim.setSwitch('d1', 0)
+    sim.step()
+    expect(q()).toEqual([1, 1])
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q()).toEqual([0, 0])
+  })
+
+  it('register sync reset applies only on the clock edge while RST is held', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('d0', 'switch-array'), inst('reg', register2, { resetStyle: 'sync' })],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('reg', 'in:0')),
+          conn('c2', iref('rst', 'out:0'), iref('reg', 'in:1')),
+          conn('c3', iref('d0', 'out:0'), iref('reg', 'in:2')),
+        ],
+      ),
+    )
+    const q0 = () => sim.signal('reg', 'out:0')
+    sim.setSwitch('d0', 1)
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q0()).toBe(1)
+    // Asserting RST alone does nothing until the next clock edge.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(q0()).toBe(1)
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q0()).toBe(0)
+  })
+
+  it('register async reset resets immediately on RST high', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('rst', 'switch-array'), inst('d0', 'switch-array'), inst('reg', register2, { resetStyle: 'async' })],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('reg', 'in:0')),
+          conn('c2', iref('rst', 'out:0'), iref('reg', 'in:1')),
+          conn('c3', iref('d0', 'out:0'), iref('reg', 'in:2')),
+        ],
+      ),
+    )
+    const q0 = () => sim.signal('reg', 'out:0')
+    sim.setSwitch('d0', 1)
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q0()).toBe(1)
+    // RST high resets without any clock edge.
+    sim.setSwitch('rst', 1)
+    sim.step()
+    expect(q0()).toBe(0)
+    sim.setSwitch('rst', 0)
+    sim.step()
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(q0()).toBe(1)
+  })
+
+  it('register in BUS mode adopts the connected width and samples the DATA vector', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('clk', 'switch-array'), inst('data', switchBus), inst('reg', registerBus), inst('fo', fanOut4)],
+        [
+          conn('c1', iref('clk', 'out:0'), iref('reg', 'in:0')),
+          conn('c2', iref('data', 'out:0'), iref('reg', 'in:2')),
+          conn('c3', iref('reg', 'out:0'), iref('fo', 'in:0')),
+        ],
+      ),
+    )
+    // Width adopted from the fan-out (4 lanes); powers on to zero.
+    expect(sim.signalOf('reg', 'out:0')).toEqual([0, 0, 0, 0])
+    sim.setSwitchLanes('data', [1, 0, 1, 0])
+    sim.step()
+    expect(sim.signalOf('reg', 'out:0')).toEqual([0, 0, 0, 0])
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signalOf('reg', 'out:0')).toEqual([1, 0, 1, 0])
+    expect(sim.signal('fo', 'out:0')).toBe(1)
+    expect(sim.signal('fo', 'out:2')).toBe(1)
+    expect(sim.signal('fo', 'out:3')).toBe(0)
   })
 
   it('resolves DFF pins through a composite boundary', () => {

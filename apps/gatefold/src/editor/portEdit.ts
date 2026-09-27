@@ -10,6 +10,8 @@ import {
   nextPortId,
   nextPrimitiveInputName,
   outputPorts,
+  registerPorts,
+  registerWidthOf,
   uniqueId,
 } from '@gatefold/model'
 import { instanceBounds } from './geometry'
@@ -88,6 +90,38 @@ export function applyCounterTerminalType(parentDef: CompositeDef, inst: Instance
   def.ports = newPorts
   parentDef.connections = parentDef.connections.filter(
     (c) => !(c.from.instanceId === inst.id && outputIds.has(c.from.portId)) && !(c.to.instanceId === inst.id && outputIds.has(c.to.portId)),
+  )
+}
+
+/** Regenerate a register's ports from its `terminalType`/`width` props, keeping the CLK/RST
+ *  inputs and pruning only connections to removed pins (used on width change). */
+export function applyRegisterPorts(parentDef: CompositeDef, inst: Instance): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  const type: 'wire' | 'bus' = inst.props?.terminalType === 'wire' ? 'wire' : 'bus'
+  const newPorts = registerPorts(type, registerWidthOf(inst.props))
+  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
+  def.ports = newPorts
+  if (removed.size > 0) {
+    parentDef.connections = parentDef.connections.filter(
+      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
+    )
+  }
+}
+
+/** Change a register's terminal type, regenerating its DATA/Q ports and pruning every
+ *  connection touching a data input or output pin (their topology changes wholesale), while
+ *  keeping the CLK/RST input connections. */
+export function applyRegisterTerminalType(parentDef: CompositeDef, inst: Instance, terminalType: 'wire' | 'bus'): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  if (!inst.props) inst.props = {}
+  inst.props.terminalType = terminalType
+  def.ports = registerPorts(terminalType, registerWidthOf(inst.props))
+  parentDef.connections = parentDef.connections.filter(
+    (c) =>
+      !(c.from.instanceId === inst.id && c.from.portId !== 'in:0' && c.from.portId !== 'in:1') &&
+      !(c.to.instanceId === inst.id && c.to.portId !== 'in:0' && c.to.portId !== 'in:1'),
   )
 }
 

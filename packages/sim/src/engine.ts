@@ -31,7 +31,9 @@ interface Sequential {
   inst: FlatInstance
   delay: number
   clkInput: FlatPort
-  dInput: FlatPort
+  /** The data inputs (in order): a DFF's single `D`, a register's `DATA` bus or
+   *  `D0…` wires, and empty for a counter (which has no data path). */
+  dataInputs: FlatPort[]
   rstInput: FlatPort | null
   outputs: FlatPort[]
   /** Output port id whose value is the complement of the register state, or null. */
@@ -40,9 +42,9 @@ interface Sequential {
   resetActiveHigh: boolean
   /** 'sync' resets only on the clock edge; 'async' resets level-sensitively. */
   resetStyle: 'sync' | 'async'
-  /** 'dff' samples D; 'counter' increments its state. */
-  kind: 'dff' | 'counter'
-  /** Register width: 1 for a DFF, the counting width for a counter. */
+  /** 'dff' samples D; 'register' samples its data vector; 'counter' increments its state. */
+  kind: 'dff' | 'register' | 'counter'
+  /** Register width: 1 for a DFF, the sampled/counting width for a register/counter. */
   width: number
   /** Current register state (a bit vector). */
   state: Signal[]
@@ -344,35 +346,34 @@ export class Simulation {
     }
   }
 
-  /** Build the per-instance sequential state for a stateful primitive (a DFF or counter). */
+  /** Build the per-instance sequential state for a stateful primitive (a DFF, register, or counter). */
   private addSequential(inst: FlatInstance, config: SimConfig): void {
     const prim = primitiveOf(inst.kind)
     const clkInput = inst.inputs.find((ip) => ip.portId === prim.clockPortId?.()) ?? inst.inputs[0]
     const rstInput = inst.inputs.find((ip) => ip.portId === prim.resetPortId?.()) ?? null
-    // `D` is the input that is neither the clock nor the reset (a DFF's only remaining
-    // input), falling back to the first input for primitives without dedicated ids.
-    const dInput = inst.inputs.find((ip) => ip !== clkInput && ip !== rstInput) ?? inst.inputs[0]
+    // The data inputs are every input that is neither the clock nor the reset: a DFF's
+    // single `D`, a register's `DATA` bus or `D0…` wires, and none for a counter.
+    const dataInputs = inst.inputs.filter((ip) => ip !== clkInput && ip !== rstInput)
     const outputs = inst.outputs
     const complementId = prim.complementPortId?.() ?? null
-    const isCounter = inst.kind === 'counter'
+    const isVector = inst.kind === 'register' || inst.kind === 'counter'
     const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
-    // A counter's width is the number of wire outputs, or the connected bus width; a DFF is 1 bit.
-    const width = isCounter
-      ? (outputs.length === 1 ? this.netWidths[outputs[0].net] || 1 : outputs.length)
-      : 1
+    // A register/counter's width is the number of wire outputs, or the connected bus
+    // width; a DFF is 1 bit.
+    const width = isVector ? (outputs.length === 1 ? this.netWidths[outputs[0].net] || 1 : outputs.length) : 1
 
     const seq: Sequential = {
       inst,
       delay: delayOf(config, inst.kind),
       clkInput,
-      dInput,
+      dataInputs,
       rstInput,
       outputs,
       complementId,
-      edge: inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
+      edge: inst.kind === 'dff' && inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
       resetActiveHigh: inst.props?.resetActiveHigh !== false,
-      resetStyle: inst.kind !== 'counter' ? 'async' : inst.props?.resetStyle === 'async' ? 'async' : 'sync',
-      kind: isCounter ? 'counter' : 'dff',
+      resetStyle: inst.kind === 'dff' ? 'async' : inst.props?.resetStyle === 'async' ? 'async' : 'sync',
+      kind: inst.kind === 'counter' ? 'counter' : inst.kind === 'register' ? 'register' : 'dff',
       width,
       state: Array.from({ length: width }, () => resetValue),
       resetValue,
@@ -390,23 +391,34 @@ export class Simulation {
     }
   }
 
-  /** The state a sequential resets to: the DFF's reset value, or all-zero for a counter. */
+  /** The state a sequential resets to: the DFF's reset value, or all-zero otherwise. */
   private resetState(seq: Sequential): Signal[] {
-    if (seq.kind === 'counter') return Array.from({ length: seq.width }, () => 0 as Signal)
+    if (seq.kind !== 'dff') return Array.from({ length: seq.width }, () => 0 as Signal)
     return [seq.resetValue]
   }
 
-  /** The next state on a clock edge with no reset: sample D (DFF) or increment (counter). */
+  /** The next state on a clock edge with no reset: sample data or increment. */
   private advanceState(seq: Sequential): Signal[] {
     if (seq.kind === 'counter') return incrementVector(seq.state)
-    const d = seq.dInput.inverted ? invert(this.valueOf(seq.dInput.net)[0]) : this.valueOf(seq.dInput.net)[0]
-    return [d]
+    if (seq.kind === 'register') {
+      // A bus-mode register reads the whole DATA vector; a wire-mode register reads one
+      // bit per single-wire data input (each with terminal inversion applied).
+      if (seq.dataInputs.length === 1) {
+        const di = seq.dataInputs[0]
+        const v = this.valueOf(di.net)
+        return di.inverted ? invertVector(v) : v
+      }
+      return seq.dataInputs.map((di) => (di.inverted ? invert(this.valueOf(di.net)[0]) : this.valueOf(di.net)[0]))
+    }
+    const d = seq.dataInputs[0]
+    const bit = d.inverted ? invert(this.valueOf(d.net)[0]) : this.valueOf(d.net)[0]
+    return [bit]
   }
 
   /** Project the register state onto one output port, applying internal complement then inversion. */
   private outputValue(seq: Sequential, op: FlatPort, opIndex: number, state: Signal[]): Signal[] {
     let internal: Signal[]
-    if (seq.kind === 'counter') {
+    if (seq.kind === 'counter' || seq.kind === 'register') {
       internal = seq.outputs.length === 1 ? state : [state[opIndex] ?? 0]
     } else {
       const bit = op.portId === seq.complementId ? invert(state[0]) : state[0]

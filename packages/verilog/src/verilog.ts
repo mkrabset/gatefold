@@ -524,6 +524,51 @@ class Generator {
         return
       }
 
+      if (kind === 'register') {
+        const prim = primitiveOf('register')
+        const clkId = prim.clockPortId?.() ?? 'in:0'
+        const rstId = prim.resetPortId?.() ?? 'in:1'
+        const clkPort = ports.find((p) => p.id === clkId)
+        const rstPort = ports.find((p) => p.id === rstId)
+        const outs = outputPorts(ports)
+        const busMode = outs.length === 1
+        const width = busMode ? (netWidthByName.get(net(outs[0].id)) ?? 1) : outs.length
+        const dataPorts = inputPorts(ports).filter((p) => p.id !== clkId && p.id !== rstId)
+        const clk = net(clkId)
+        const rst = net(rstId)
+        const clkInverted = clkPort?.inverted === true
+        const rstInverted = rstPort?.inverted === true
+        const resetStyle = inst.props?.resetStyle === 'async' ? 'async' : 'sync'
+        const effEdge = clkInverted ? 'negedge' : 'posedge'
+        const effActiveHigh = !rstInverted
+        const rstCond = effActiveHigh ? rst : `!${rst}`
+        const zero = `{${width}{1'b0}}`
+
+        // A single internal register drives every output pin (the whole bus, or one wire
+        // each), so a WIRE-mode register and terminal inversion both stay continuous
+        // assignments from one reg.
+        const reg = uniqueName(`${inst.name || 'u'}_reg`, used)
+        decls.push(width > 1 ? `reg [${width - 1}:0] ${reg};` : `reg ${reg};`)
+        for (let i = 0; i < outs.length; i++) {
+          const raw = busMode ? reg : `${reg}[${i}]`
+          const rhs = outs[i].inverted ? `~(${raw})` : raw
+          stmts.push(`assign ${net(outs[i].id)} = ${rhs};`)
+        }
+
+        // The sampled data expression: the DATA bus (BUS mode) or the D(n-1)..D0 wires
+        // concatenated LSB-first (WIRE mode), each with terminal inversion.
+        const dExpr = busMode
+          ? (dataPorts[0].inverted ? `~(${net(dataPorts[0].id)})` : net(dataPorts[0].id))
+          : `{${dataPorts.map((p) => (p.inverted ? `~(${net(p.id)})` : net(p.id))).reverse().join(', ')}}`
+        if (resetStyle === 'async') {
+          const rstKw = effActiveHigh ? 'posedge' : 'negedge'
+          stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${reg} <= ${zero}; else ${reg} <= ${dExpr};`)
+        } else {
+          stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${reg} <= ${zero}; else ${reg} <= ${dExpr};`)
+        }
+        return
+      }
+
       if (kind === 'rom') {
         const input = inputPorts(ports)[0]
         const output = outputPorts(ports)[0]

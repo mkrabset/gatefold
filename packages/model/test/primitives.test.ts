@@ -19,6 +19,8 @@ import {
   periodOf,
   portWidth,
   primitiveOf,
+  registerPorts,
+  registerWidthOf,
   romAddressWidthOf,
   romDataWidthOf,
   romContentsOf,
@@ -35,8 +37,8 @@ const inP = (kind: Parameters<typeof forkOf>[0]) => inputPorts(def(kind).ports)
 const outP = (kind: Parameters<typeof forkOf>[0]) => outputPorts(def(kind).ports)
 
 describe('model primitives', () => {
-  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, COUNTER, ROM, NODE, PROBE', () => {
-    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'counter', 'rom', 'join-point', 'probe'])
+  it('exposes the initial library of AND, OR, XOR, NOT, BUFFER, CLOCK, FAN-IN, FAN-OUT, BUS-SPLIT, BUS-MERGE, BUS, COMPARE, 7-SEG, SWITCHES, LEDS, DFF, REGISTER, COUNTER, ROM, NODE, PROBE', () => {
+    expect(libraryPrimitives().map((p) => p.kind)).toEqual(['and', 'or', 'xor', 'not', 'buffer', 'clock', 'fan-in', 'fan-out', 'bus-split', 'bus-merge', 'bus', 'compare', 'seven-seg', 'switch-array', 'led-array', 'dff', 'register', 'counter', 'rom', 'join-point', 'probe'])
   })
 
   it('recognizes the array primitives and their terminal direction', () => {
@@ -295,6 +297,69 @@ describe('model primitives', () => {
     const bus = counterPorts('bus', 4)
     expect(prim.intrinsicWidth(bus, bus[2])).toBeNull()
     expect(portWidth(def('counter'), wireOut)).toBe(1)
+  })
+
+  it('declares the REGISTER as a sequential primitive with CLK/RST/DATA/Q', () => {
+    expect(inP('register').map((p) => p.name)).toEqual(['CLK', 'RST', 'DATA'])
+    expect(inP('register').map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2'])
+    expect(inP('register')[1].pull).toBe('down')
+    expect(inP('register')[0].pull).toBeUndefined()
+    // Default: BUS terminal type (a single DATA bus in, a single Q bus out).
+    expect(outP('register').map((p) => p.name)).toEqual(['Q'])
+    expect(outP('register').map((p) => p.id)).toEqual(['out:0'])
+    expect(isArityFixed(def('register'), 'input')).toBe(true)
+    expect(isArityFixed(def('register'), 'output')).toBe(true)
+
+    const prim = primitiveOf('register')
+    expect(prim.isSequential()).toBe(true)
+    expect(prim.clockPortId?.()).toBe('in:0')
+    expect(prim.resetPortId?.()).toBe('in:1')
+    expect(prim.complementPortId?.()).toBeUndefined()
+    expect(prim.properties()).toEqual([
+      { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
+      { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'bus', options: ['wire', 'bus'] },
+      { name: 'width', label: 'Width', type: 'number', default: 8, min: 1, max: 32, tooltip: 'Number of register bits (and wire data/output terminals). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+    ])
+    expect(defaultPropsOf('register')).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 8 })
+  })
+
+  it('builds register ports for wire and bus terminal types', () => {
+    const wire = registerPorts('wire', 2)
+    expect(wire.map((p) => [p.id, p.name, p.direction])).toEqual([
+      ['in:0', 'CLK', 'input'],
+      ['in:1', 'RST', 'input'],
+      ['in:2', 'D0', 'input'],
+      ['in:3', 'D1', 'input'],
+      ['out:0', 'Q0', 'output'],
+      ['out:1', 'Q1', 'output'],
+    ])
+    const bus = registerPorts('bus', 2)
+    expect(bus.map((p) => [p.id, p.name, p.direction])).toEqual([
+      ['in:0', 'CLK', 'input'],
+      ['in:1', 'RST', 'input'],
+      ['in:2', 'DATA', 'input'],
+      ['out:0', 'Q', 'output'],
+    ])
+    expect(registerWidthOf({ width: 0 })).toBe(1)
+    expect(registerWidthOf({ width: 40 })).toBe(32)
+    expect(registerWidthOf({})).toBe(8)
+    expect(registerPorts('wire', 0)).toHaveLength(4) // CLK + RST + 1 data wire + 1 output wire
+    expect(registerPorts('wire', 40)).toHaveLength(2 + 32 + 32)
+  })
+
+  it('couples register DATA and Q widths via deriveWidth, others single-wire', () => {
+    const derive = primitiveOf('register').deriveWidth!
+    const bus = registerPorts('bus', 4)
+    const data = bus.find((p) => p.name === 'DATA')!
+    const q = bus.find((p) => p.name === 'Q')!
+    const clk = bus.find((p) => p.name === 'CLK')!
+    expect(derive(q, new Map([['in:2', 5]]))).toBe(5)
+    expect(derive(data, new Map([['out:0', 3]]))).toBe(3)
+    expect(derive(q, new Map())).toBeNull()
+    expect(derive(data, new Map())).toBeNull()
+    expect(derive(clk, new Map())).toBe(1)
+    expect(primitiveOf('register').undeterminedHint!(data)).toBe('?')
+    expect(primitiveOf('register').undeterminedHint!(clk)).toBeNull()
   })
 
   it('marks ordinary gates as non-sequential', () => {

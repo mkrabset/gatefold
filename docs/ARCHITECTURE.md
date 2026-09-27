@@ -50,7 +50,7 @@ interface Port {
 type PrimitiveKind =
   | 'and' | 'or' | 'xor' | 'not' | 'buffer' | 'clock' | 'fan-in' | 'fan-out'
   | 'bus-split' | 'bus-merge' | 'bus' | 'compare' | 'input-port' | 'output-port'
-  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'counter' | 'rom' | 'join-point' | 'probe'
+  | 'seven-seg' | 'switch-array' | 'led-array' | 'dff' | 'register' | 'counter' | 'rom' | 'join-point' | 'probe'
 
 // The model is a nested tree: a composite OWNS its children as inline objects.
 // Ownership is structural, so deleting a composite deletes its children for free.
@@ -195,24 +195,30 @@ design.root.instances = [
   `Primitive` class per kind in its own source file (`and.ts`, `or.ts`, `xor.ts`, `not.ts`,
   `buffer.ts`, `clock.ts`, `fan-in.ts`, `fan-out.ts`, `bus-split.ts`, `bus-merge.ts`,
   `bus.ts`, `compare.ts`, the internal `input-port.ts`/`output-port.ts`, the probe primitives
-  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, the sequential `dff.ts`/`counter.ts`, and the
+  `seven-seg.ts`/`switch-array.ts`/`led-array.ts`/`probe.ts`, the sequential `dff.ts`/`register.ts`/`counter.ts`, and the
   `rom.ts` read-only memory). Each supplies its
    `label/glyph`, default ports, arity
    constraints (`fixedInputs` / `fixedOutputs`), terminal renaming (`allowRenameTerminals`),
    input-name suggestion, intrinsic bus width, body size, its own `draw(ctx, opts)` via a
    DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs, props?)`** combinational
    function (3-state `0`/`1`/`x`; sources/sinks return `[]`; `props` carries per-instance values
-   for property-driven behaviour). The DFF and COUNTER are **stateful**
+   for property-driven behaviour). The DFF, REGISTER, and COUNTER are **stateful**
    instead: each declares `isSequential()`, `clockPortId()` and `resetPortId()`, and their
    `transfer` returns `[]` — the engine evaluates them on clock edges (see §6c). The DFF exposes
    `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
    no bubble), driven by the engine's
-   sequential path and exported as `assign !Q = ~Q;`. The **COUNTER** counts up by one per clock
+   sequential path and exported as `assign !Q = ~Q;`. The **REGISTER** is an n-bit D-type register
+   (`CLK`, `RST`, `DATA`/`D0…` → `Q`/`Q0…`) that samples its data input(s) on the rising `CLK` edge,
+   with `resetStyle` (`sync`/`async`), `terminalType` (`wire`/`bus`), and `width` (wire mode only)
+   properties; `registerPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus a
+   `DATA` bus in / `Q` bus out, or `width` `D0…`/`Q0…` wires, and its `deriveWidth` couples the
+   `DATA` and `Q` buses (adopting the same width, like COMPARE's inputs) so a register's data-in
+   and data-out never disagree. The **COUNTER** counts up by one per clock
    edge (wrapping at its width), with `resetStyle` (`sync`/`async`), `terminalType`
    (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (wire mode only)
    properties; its `counterPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus
-    a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
-    output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
+     a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
+     output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
     output whose widths are fixed by the `busWidth`/`dataWidth` properties. It is a purely
     combinational, asynchronous read — `transfer` returns `mem[ADDR]` (any `x` address bit → all-`x`
     data, addresses past the stored contents read `0`) after the engine's configured gate delay, with
@@ -609,21 +615,22 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     floating net with a **pull** (an input terminal's `pull: 'up'|'down'`, see §2) powers on to
     its pulled level (`1`/`0`) instead of `x`; a pulled net is always floating, so it is never
     re-driven.
-  - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF or COUNTER) is not a
-    combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
+  - **Sequential path**: a leaf whose primitive `isSequential()` (the DFF, REGISTER, or COUNTER)
+    is not a combinational gate. It is wired into `seqFanout` on its `clockPortId()` (and
     `resetPortId()`) net. A sequential holds a register `state` bit-vector (width 1 for the DFF,
-    the counting width for a counter) and `evaluateSequential` advances it on a configured clock
-    `edge`:
+    the sampled/counting width for a register/counter) and `evaluateSequential` advances it on a
+    configured clock `edge`:
     - an **async** reset asserts level-sensitively (immediately), and a **sync** reset only on
       the clock edge while `RST` is held — each clearing the state to its reset value (the DFF's
-      `initialValue`, or all-zero for a counter);
-    - otherwise the DFF samples `D`, and the counter increments its state (`incrementVector`,
+      `initialValue`, or all-zero for a register/counter);
+    - otherwise the DFF samples `D`, the register samples its data vector (`DATA` bus, or one bit
+      per `D0…` wire), and the counter increments its state (`incrementVector`,
       modulo 2^width, `x` propagating upward).
     Every output is scheduled at `now + delay`, mapping the state bit(s) onto the ports (the
-    internally-complemented `!Q` for the DFF; the whole vector on a bus counter or one bit per
-    wire output for a wire counter) and applying terminal inversion. Q powers on to
-    `initialValue` (a counter to all-zero); `lastClk` is seeded from the settled clock net after
-    power-on.
+    internally-complemented `!Q` for the DFF; the whole vector on a bus register/counter or one
+    bit per wire output for a wire register/counter) and applying terminal inversion. Q powers on
+    to `initialValue` (a register/counter to all-zero); `lastClk` is seeded from the settled clock
+    net after power-on.
 - **`signals.ts`** — `invert` (delegates to the model's `invertSignal`),
   `invertVector`/`equalVectors`/`clockValue`/`incrementVector`.
 - **`history.ts`** — `HistoryBuffer`, the bounded record of probe signals backing the simulation
@@ -710,7 +717,10 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   from the model's width solver); port-group instances are dissolved so a composite's `ports`
   become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
   `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
-  `assign !Q = ~Q;` for its inverted output; the COUNTER emits a single internal count register
+  `assign !Q = ~Q;` for its inverted output; the REGISTER emits a single internal register
+  (`reg [N-1:0] <name>_reg`) with `assign Q = reg;` (bus) or one `assign Q_i = reg[i];` per wire,
+  plus `always @(posedge clk …)` sampling `DATA` (bus) or `{D(n-1), …, D0}` (wire) with a `sync`
+  (`if (rst)`) or `async` (`posedge rst`) reset to `{N{1'b0}}`; the COUNTER emits a single internal count register
   (`reg [N-1:0] <name>_cnt`) with `assign Q = cnt;` (bus) or one `assign Q_i = cnt[i];` per wire,
   plus `always @(posedge clk …)` counting `cnt <= cnt + 1'b1` with a `sync` (`if (rst)`) or
   `async` (`posedge rst`) reset to `{N{1'b0}}`; the ROM emits an inferred memory (`reg [DW-1:0]
@@ -763,11 +773,13 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
   JK edge-triggering, oscillator → `x`, buses, clock square wave, clock-edge stepping,
   port-group/composite signal resolution, the DFF (posedge/negedge, async reset, initial value,
-  shift register, composite), the COUNTER (count/wrap, sync vs async reset, wire vs bus width),
+  shift register, composite), the REGISTER (wire/bus sampling on the clock edge, sync vs async
+  reset, bus-width adoption), the COUNTER (count/wrap, sync vs async reset, wire vs bus width),
   the ROM (asynchronous bus read, `x` propagation on a floating address), and switch-array lane
   setting (`setSwitchLanes`/`switchLanesOf`).
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
-  reset, negedge, `initialValue`, active-low reset), the COUNTER (bus internal reg + sync reset,
+  reset, negedge, `initialValue`, active-low reset), the REGISTER (bus internal reg + sync reset,
+  wire concat + async reset), the COUNTER (bus internal reg + sync reset,
   wire per-bit assigns + async reset), the ROM (inferred memory array + `initial` + `assign`),
   fan-in bus concatenation, bus-split slicing,
   nested composite modules, identifier sanitization, floating-net warning, and the nested-switch
@@ -803,14 +815,14 @@ beside the data they operate on.
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
 | `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
-| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `counterPorts`, `romAddressWidthOf`, … |
+| `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `registerPorts`, `counterPorts`, `romAddressWidthOf`, … |
 
 ### `packages/sim/src` (`@gatefold/sim`)
 
 | Module | Responsibility |
 |--------|----------------|
 | `netlist.ts` | Flatten hierarchy into leaf primitives + nets (union-find) |
-| `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, counter, power-on) |
+| `engine.ts` | Event-driven `Simulation` (inertial delays, clock, DFF, register, counter, power-on) |
 | `history.ts` | Bounded probe-signal history (`HistoryBuffer`) for the timeline |
 | `signals.ts` | 3-state helpers (`invert`, `equalVectors`, `clockValue`, `incrementVector`) |
 | `config.ts` | `SimConfig` + delay lookup |

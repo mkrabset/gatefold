@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { currentWidthRoot, resolveNav, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
 import type { ChildDef, CompositeDef, Instance, PropertyValue } from '@gatefold/model'
@@ -334,6 +334,8 @@ function SwitchInitialValueField({
   const setNotice = useEditorStore((s) => s.setNotice)
   const [text, setText] = useState(() => (typeof value === 'string' ? value : ''))
   const lastValid = useRef(typeof value === 'string' ? value : '')
+  const textRef = useRef(text)
+  textRef.current = text
 
   const commit = (raw: string) => {
     const t = raw.trim()
@@ -346,6 +348,17 @@ function SwitchInitialValueField({
     lastValid.current = t
     setInstanceProp(instanceId, 'initialValue', t)
   }
+
+  const commitRef = useRef(commit)
+  commitRef.current = commit
+
+  // Flush a pending edit on unmount (e.g. a canvas click clears the selection before the
+  // field blurs), so a typed value is never silently lost.
+  useEffect(() => {
+    return () => {
+      if (textRef.current !== lastValid.current) commitRef.current(textRef.current)
+    }
+  }, [])
 
   return (
     <input

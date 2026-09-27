@@ -24,6 +24,8 @@ import {
   romAddressWidthOf,
   romDataWidthOf,
   romContentsOf,
+  romPorts,
+  romAccessOf,
   ROM_DEFAULT_ADDRESS_WIDTH,
   ROM_DEFAULT_DATA_WIDTH,
   sevenSegDigit,
@@ -457,19 +459,31 @@ describe('model primitives', () => {
     expect(isArityFixed(def('rom'), 'input')).toBe(true)
     expect(isArityFixed(def('rom'), 'output')).toBe(true)
     expect(primitiveOf('rom').isSequential()).toBe(false)
+    expect(primitiveOf('rom').isSequential({ access: 'sync' })).toBe(true)
+    expect(primitiveOf('rom').clockPortId?.()).toBe('in:1')
 
     expect(primitiveOf('rom').properties()).toEqual([
       { name: 'busWidth', label: 'Address width', type: 'number', default: 8, min: 1, max: 16, tooltip: 'Number of address bits (the memory holds 2^width words).' },
       { name: 'dataWidth', label: 'Data width', type: 'number', default: 8, min: 1, max: 64, tooltip: 'Number of data bits per word.' },
+      { name: 'access', label: 'Access', type: 'select', default: 'async', options: ['async', 'sync'], tooltip: 'ASYNC reads combinationally (no clock); SYNC latches the address on a CLK edge and registers the data output.' },
       { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'BINARY'], tooltip: 'Radix used to enter/display the memory contents in the editor dialog.' },
     ])
-    expect(defaultPropsOf('rom')).toEqual({ busWidth: 8, dataWidth: 8, valueFormat: 'HEX' })
+    expect(defaultPropsOf('rom')).toEqual({ busWidth: 8, dataWidth: 8, access: 'async', valueFormat: 'HEX' })
+
+    // Async ports are ADDR/DATA only; sync adds a CLK input (ADDR/DATA ids are stable).
+    expect(romPorts('async').map((p) => p.id)).toEqual(['in:0', 'out:0'])
+    expect(romPorts('sync').map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
+    expect(romAccessOf(undefined)).toBe('async')
+    expect(romAccessOf({ access: 'sync' })).toBe('sync')
+    expect(romAccessOf({ access: 'async' })).toBe('async')
 
     const prim = primitiveOf('rom')
     const addr = inP('rom')[0]
     const data = outP('rom')[0]
     expect(prim.intrinsicWidth(def('rom').ports, addr, { busWidth: 4 })).toBe(4)
     expect(prim.intrinsicWidth(def('rom').ports, data, { dataWidth: 12 })).toBe(12)
+    // The sync CLK input is a single wire.
+    expect(prim.intrinsicWidth(romPorts('sync'), { id: inputPortId(1), name: 'CLK', direction: 'input' }, {})).toBe(1)
     expect(romAddressWidthOf({})).toBe(ROM_DEFAULT_ADDRESS_WIDTH)
     expect(romAddressWidthOf({ busWidth: 40 })).toBe(16)
     expect(romDataWidthOf({})).toBe(ROM_DEFAULT_DATA_WIDTH)

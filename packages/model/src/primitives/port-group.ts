@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import type { Primitive, PropertySpec } from './primitive'
 
 /**
@@ -32,7 +32,7 @@ export abstract class PortGroup implements Primitive {
     return false
   }
 
-  isSequential(): boolean {
+  isSequential(_props?: Record<string, PropertyValue>): boolean {
     return false
   }
 

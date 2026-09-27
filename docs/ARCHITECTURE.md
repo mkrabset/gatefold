@@ -203,8 +203,9 @@ design.root.instances = [
    DOM-free `VectorContext`, and — for simulation — a **`transfer(inputs, props?)`** combinational
    function (3-state `0`/`1`/`x`; sources/sinks return `[]`; `props` carries per-instance values
    for property-driven behaviour). The DFF, REGISTER, and COUNTER are **stateful**
-   instead: each declares `isSequential()`, `clockPortId()` and `resetPortId()`, and their
-   `transfer` returns `[]` — the engine evaluates them on clock edges (see §6c). The DFF exposes
+   instead: each declares `isSequential(props?)`, `clockPortId()` and `resetPortId()`, and their
+   `transfer` returns `[]` — the engine evaluates them on clock edges (see §6c); a synchronous ROM is
+   likewise stateful (`isSequential` true only when `access === 'sync'`). The DFF exposes
    `Q` plus a complemented `!Q` output (`out:1`, inverted internally via `complementPortId()` —
    no bubble), driven by the engine's
    sequential path and exported as `assign !Q = ~Q;`. The **REGISTER** is an n-bit D-type register
@@ -218,13 +219,16 @@ design.root.instances = [
    (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (wire mode only)
    properties; its `counterPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus
      a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
-     output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
-    output whose widths are fixed by the `busWidth`/`dataWidth` properties. It is a purely
-    combinational, asynchronous read — `transfer` returns `mem[ADDR]` (any `x` address bit → all-`x`
-    data, addresses past the stored contents read `0`) after the engine's configured gate delay, with
-    no address latching or clock. Its stored memory is the `contents` property (a canonical HEX word
-    list, one per address, parsed by `value.ts`'s `parseMemoryContents`); `valueFormat`
-    (`HEX`/`DEC`/`BINARY`) is only the entry/display radix for the contents-editing dialog. The registry
+      output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
+     output whose widths are fixed by the `busWidth`/`dataWidth` properties. Its `access` property
+     picks the read timing: `async` (default) reads combinationally — `transfer` returns `mem[ADDR]`
+     (any `x` address bit → all-`x` data, addresses past the stored contents read `0`) after the
+     engine's configured gate delay, with no address latching or clock; `sync` adds a `CLK` input
+     (`romPorts(access)`) and, being `isSequential(props)`, latches the address and registers the data
+     on a clock edge (one-cycle latency, powering to `x`). Its stored memory is the `contents` property
+     (a canonical HEX word list, one per address, parsed by `value.ts`'s `parseMemoryContents`);
+     `valueFormat` (`HEX`/`DEC`/`BINARY`) is only the entry/display radix for the contents-editing
+     dialog. The registry
    (`index.ts`) maps a
    `PrimitiveKind` to its behaviour object; `forkOf(kind)` builds an owned primitive fork and
    `builtinOf(kind)` a shared builtin reference. The port primitives are not listed in the library (their pins are derived
@@ -723,11 +727,15 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   (`if (rst)`) or `async` (`posedge rst`) reset to `{N{1'b0}}`; the COUNTER emits a single internal count register
   (`reg [N-1:0] <name>_cnt`) with `assign Q = cnt;` (bus) or one `assign Q_i = cnt[i];` per wire,
   plus `always @(posedge clk …)` counting `cnt <= cnt + 1'b1` with a `sync` (`if (rst)`) or
-  `async` (`posedge rst`) reset to `{N{1'b0}}`; the ROM emits an inferred memory (`reg [DW-1:0]
-  <name>_mem [0:DEPTH-1]` + an `initial` block that zero-fills then writes the stored non-zero
-  words, plus `assign DATA = mem[ADDR];`) so the synthesis toolchain decides block RAM vs
-  distributed LUTs; buses emit concatenation/slicing; COMPARE emits a
-  `==` equality; child composites emit instantiations.
+   `async` (`posedge rst`) reset to `{N{1'b0}}`; the ROM's `access` picks the read style: `async`
+   emits a purely combinational `always @* case (ADDR) … default: 0` lookup (`assign DATA = …`) so
+   the toolchain infers distributed LUTs and `DATA` resolves before any clock edge, while `sync`
+   emits an inferred memory (`reg [DW-1:0] <name>_mem [0:DEPTH-1]` + an `initial` block that
+   zero-fills then writes the stored non-zero words) read via `always @(posedge CLK) <data> <=
+   mem[ADDR];` so the toolchain can infer block RAM; buses emit concatenation/slicing; COMPARE emits a
+   `==` equality; child composites emit instantiations. Each sequential primitive (DFF, REGISTER,
+   COUNTER) also emits a power-on `initial` block (`initial q = <initialValue>` / `initial <reg> =
+   {N{1'b0}}`) so it powers up deterministically instead of relying on the device's power-on state.
 - **Probes** — the main module's I/O is only the composite's own port terminals, plus a top-level
   **CLOCK** (a real FPGA clock pin) and a **main-scope SWITCHES whose `exported` property is true**
   (an external input). Every other switch is a constant fixed at its `initialValue` (emitted as a
@@ -750,8 +758,9 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
   property defaults (clock `period`, bus `lanes`, 7-seg `order`, ROM `busWidth`/`dataWidth`/
-  `valueFormat`), `widthError` cases, the ROM's ADDR/DATA terminals and `transfer` lookup
-  (`x` address, zero-padding), plus `isArrayDef`/`arrayDirection`, `sevenSegModeOf`, and `periodOf`.
+  `access`/`valueFormat`), `widthError` cases, the ROM's ADDR/DATA/CLK terminals, `romPorts`/
+  `romAccessOf`, and `transfer` lookup (`x` address, zero-padding), plus `isArrayDef`/
+  `arrayDirection`, `sevenSegModeOf`, and `periodOf`.
 - `packages/model/test/util.test.ts` — `uniqueId`, `walkComposites`, `allCompositeIds`,
   `findComposite`.
 - `packages/model/test/value.test.ts` — `toValueFormat`/`valueFormatOf`/`valueOrderOf`,
@@ -775,12 +784,14 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   port-group/composite signal resolution, the DFF (posedge/negedge, async reset, initial value,
   shift register, composite), the REGISTER (wire/bus sampling on the clock edge, sync vs async
   reset, bus-width adoption), the COUNTER (count/wrap, sync vs async reset, wire vs bus width),
-  the ROM (asynchronous bus read, `x` propagation on a floating address), and switch-array lane
+  the ROM (asynchronous bus read, `x` propagation on a floating address; sync access latches on the
+  clock edge and powers to `x`), and switch-array lane
   setting (`setSwitchLanes`/`switchLanesOf`).
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
-  reset, negedge, `initialValue`, active-low reset), the REGISTER (bus internal reg + sync reset,
-  wire concat + async reset), the COUNTER (bus internal reg + sync reset,
-  wire per-bit assigns + async reset), the ROM (inferred memory array + `initial` + `assign`),
+  reset, negedge, `initialValue`, active-low reset, power-on `initial`), the REGISTER (bus internal reg +
+  sync reset, wire concat + async reset), the COUNTER (bus internal reg + sync reset,
+  wire per-bit assigns + async reset, power-on `initial`), the ROM (async `case` lookup vs sync
+  inferred memory + registered read),
   fan-in bus concatenation, bus-split slicing,
   nested composite modules, identifier sanitization, floating-net warning, and the nested-switch
   fixed-initial-value constant.

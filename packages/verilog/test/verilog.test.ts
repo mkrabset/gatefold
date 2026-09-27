@@ -75,6 +75,16 @@ const register2: ChildDef = {
   ],
 }
 
+const romSync: ChildDef = {
+  kind: 'fork',
+  primitive: 'rom',
+  ports: [
+    { id: 'in:0', name: 'ADDR', direction: 'input' },
+    { id: 'in:1', name: 'CLK', direction: 'input' },
+    { id: 'out:0', name: 'DATA', direction: 'output' },
+  ],
+}
+
 function jsonOf(root: CompositeDef): string {
   const design: Design = { version: 2, root, library: {} }
   return serializeDesign(design)
@@ -573,6 +583,7 @@ describe('exportVerilog', () => {
     }
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain("always @(negedge clk_CLK or negedge RST) if (!RST) Q <= 1'b1; else Q <= D;")
+    expect(source).toContain("initial Q = 1'b1;")
   })
 
   it('exports a non-exported switch constant as a multi-bit binary literal', () => {
@@ -615,6 +626,7 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign cnt_Q = cnt_cnt;')
     expect(source).toContain('assign Q = cnt_Q;')
     expect(source).toContain("always @(posedge clk_CLK) if (cnt_RST) cnt_cnt <= {4{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
+    expect(source).toContain("initial cnt_cnt = {4{1'b0}};")
     expect(source).toContain("assign cnt_RST = 1'b0;")
     expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
   })
@@ -643,6 +655,7 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Q0 = cnt_cnt[0];')
     expect(source).toContain('assign Q1 = cnt_cnt[1];')
     expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) cnt_cnt <= {2{1'b0}}; else cnt_cnt <= cnt_cnt + 1'b1;")
+    expect(source).toContain("initial cnt_cnt = {2{1'b0}};")
   })
 
   it('emits a BUS-mode register sampling DATA with a sync reset and a pulled-down RST', () => {
@@ -669,6 +682,7 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign reg_Q = reg_reg;')
     expect(source).toContain('assign Q = reg_Q;')
     expect(source).toContain("always @(posedge clk_CLK) if (reg_RST) reg_reg <= {4{1'b0}}; else reg_reg <= sw_BUS;")
+    expect(source).toContain("initial reg_reg = {4{1'b0}};")
     expect(source).toContain("assign reg_RST = 1'b0;")
     expect(issues.some((i) => i.message.includes('floating input'))).toBe(false)
   })
@@ -699,9 +713,10 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Q0 = reg_reg[0];')
     expect(source).toContain('assign Q1 = reg_reg[1];')
     expect(source).toContain("always @(posedge clk_CLK or posedge RST) if (RST) reg_reg <= {2{1'b0}}; else reg_reg <= {D1, D0};")
+    expect(source).toContain("initial reg_reg = {2{1'b0}};")
   })
 
-  it('emits a ROM as an inferred memory (array + initial + assign)', () => {
+  it('emits an async ROM as a combinational case lookup (no register, no clock)', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',
       ports: [output('out:0', 'DATA')],
@@ -717,14 +732,46 @@ describe('exportVerilog', () => {
     }
     const { source } = exportVerilog(jsonOf(main))
     expect(source).toContain('output [3:0] DATA')
+    expect(source).toContain('reg [3:0] rom_data;')
+    expect(source).toContain('always @* begin')
+    expect(source).toContain('case (sw_BUS)')
+    expect(source).toContain("2'd1: rom_data = 4'h1;")
+    expect(source).toContain("2'd2: rom_data = 4'hA;")
+    expect(source).toContain("2'd3: rom_data = 4'hF;")
+    expect(source).toContain("default: rom_data = {4{1'b0}};")
+    expect(source).toContain('assign DATA = rom_data;')
+    // Zero words are folded into `default`, and there is no inferred memory array.
+    expect(source).not.toContain('rom_mem')
+    expect(source).not.toContain('initial begin')
+  })
+
+  it('emits a sync ROM as an inferred memory with a registered read', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'DATA')],
+      instances: [
+        pgOut(),
+        prim('clk', 'clock', { period: 1000 }),
+        prim('sw', 'switch-array', { initialValue: '1' }),
+        { id: 'rom', name: 'rom', def: romSync, pos: { x: 0, y: 0 }, props: { busWidth: 2, dataWidth: 4, access: 'sync', contents: '0 1 A F' } },
+      ],
+      connections: [
+        { id: 'c1', from: iref('sw', 'out:0'), to: iref('rom', 'in:0') },
+        { id: 'c2', from: iref('clk', 'out:0'), to: iref('rom', 'in:1') },
+        { id: 'c3', from: iref('rom', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('output [3:0] DATA')
+    expect(source).toContain('reg [3:0] rom_data;')
     expect(source).toContain('reg [3:0] rom_mem [0:3];')
     expect(source).toContain('integer rom_i;')
     expect(source).toContain('initial begin')
-    expect(source).toContain('assign DATA = rom_mem[sw_BUS];')
+    expect(source).toContain('always @(posedge clk_CLK) rom_data <= rom_mem[sw_BUS];')
+    expect(source).toContain('assign DATA = rom_data;')
     expect(source).toContain("rom_mem[1] = 4'h1;")
     expect(source).toContain("rom_mem[2] = 4'hA;")
     expect(source).toContain("rom_mem[3] = 4'hF;")
-    // Zero words are covered by the zero-fill loop, not emitted individually.
-    expect(source).not.toContain('rom_mem[0] =')
+    expect(source).not.toContain('always @* begin')
   })
 })

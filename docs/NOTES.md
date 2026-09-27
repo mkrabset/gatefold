@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-27 (REGISTER primitive).
+Last updated: 2026-09-27 (ROM access + sequential power-on init).
 
 ## Where we are
 
@@ -12,6 +12,25 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **ROM `access` property + sequential power-on init** — fixed a real on-board bug: an async ROM
+  emitted `reg mem[]` + `initial` + `assign DATA = mem[ADDR]`, and Yosys (`synth_ice40`) mapped that
+  memory array to flip-flop storage with a *registered* read (see `examples/design.initproblem.buildlog.txt`),
+  so `DATA` only reflected the ROM after the first clock edge instead of combinationally. The fix:
+  - **Model** (`primitives/rom.ts`) — a new `access` property (`async` default / `sync`), `romPorts(access)`
+    (sync adds a `CLK` input at `in:1`), `romAccessOf`, `isSequential(props?)` (true only when sync),
+    and `clockPortId()` = `'in:1'`; `intrinsicWidth` gives `CLK` width 1. `Primitive.isSequential` now
+    takes an optional `props` so a primitive's sequential-ness can be per-instance.
+  - **Verilog** (`verilog.ts`) — `async` emits a combinational `always @* case (ADDR) … default: 0`
+    lookup (LUTs, resolves before any clock edge); `sync` keeps the inferred memory
+    (`reg mem[]` + `initial` + `always @(posedge CLK) <data> <= mem[ADDR]`, block-RAM-friendly).
+    DFF/REGISTER/COUNTER now also emit a power-on `initial` block (`q = initialValue`,
+    `cnt`/`reg = 0`) so they don't rely on the device's power-on state.
+  - **Sim** (`engine.ts`) — a synchronous ROM is a sequential (`kind: 'rom'`): `advanceState` reuses
+    `Rom.transfer` to look up the sampled address; it powers to all-`x` before its first edge.
+  - **App** (`portEdit.ts`, `editorStore.ts`) — `applyRomAccess` regenerates the fork ports and prunes
+    only the removed `CLK` wiring (ADDR/DATA survive); dispatched from `setInstanceProp`.
+  - Tests across model/sim/verilog/app; docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **REGISTER primitive** — a new sequential primitive (`CLK`, `RST`, `DATA`/`D0…` → `Q`/`Q0…`): an
   n-bit register (an array of 1-bit memory cells) so a multi-bit register can be built as a single

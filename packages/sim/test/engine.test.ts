@@ -182,6 +182,15 @@ const rom2x4: ChildDef = {
     { id: 'out:0', name: 'DATA', direction: 'output' },
   ],
 }
+const romSync2x4: ChildDef = {
+  kind: 'fork',
+  primitive: 'rom',
+  ports: [
+    { id: 'in:0', name: 'ADDR', direction: 'input' },
+    { id: 'in:1', name: 'CLK', direction: 'input' },
+    { id: 'out:0', name: 'DATA', direction: 'output' },
+  ],
+}
 
 describe('Simulation engine', () => {
   it('propagates combinational logic from switches', () => {
@@ -849,6 +858,38 @@ describe('Simulation engine', () => {
       mkDesign([inst('rom', rom2x4, { busWidth: 2, dataWidth: 4, contents: '0 1 2 3' })], []),
     )
     expect(sim.signalOf('rom', 'out:0')).toEqual(['x', 'x', 'x', 'x'])
+  })
+
+  it('reads ROM memory synchronously on a clock edge (undefined before the first edge)', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [
+          inst('addr', switchBus),
+          inst('clk', 'switch-array'),
+          inst('rom', romSync2x4, { busWidth: 2, dataWidth: 4, access: 'sync', contents: '0 1 2 3' }),
+        ],
+        [
+          conn('c1', iref('addr', 'out:0'), iref('rom', 'in:0')),
+          conn('c2', iref('clk', 'out:0'), iref('rom', 'in:1')),
+        ],
+      ),
+    )
+    // The data output is undefined until the first clock edge.
+    expect(sim.signalOf('rom', 'out:0')).toEqual(['x', 'x', 'x', 'x'])
+    sim.setSwitchLanes('addr', [0, 1]) // address 2, not yet latched
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual(['x', 'x', 'x', 'x'])
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual([0, 1, 0, 0]) // 0x2 latched on the edge
+    sim.setSwitchLanes('addr', [1, 1]) // address 3, not yet latched
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual([0, 1, 0, 0])
+    sim.setSwitch('clk', 0)
+    sim.step()
+    sim.setSwitch('clk', 1)
+    sim.step()
+    expect(sim.signalOf('rom', 'out:0')).toEqual([1, 1, 0, 0]) // 0x3 latched on the next edge
   })
 
   it('inverts a switch-array output when its terminal is inverted', () => {

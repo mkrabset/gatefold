@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../ports'
 import { Gate, gateBounds } from './gate'
 import type { DrawOptions, PropertySpec } from './primitive'
@@ -32,7 +32,7 @@ export class Dff extends Gate {
     return null
   }
 
-  isSequential(): boolean {
+  isSequential(_props?: Record<string, PropertyValue>): boolean {
     return true
   }
 

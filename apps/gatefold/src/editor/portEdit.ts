@@ -12,6 +12,7 @@ import {
   outputPorts,
   registerPorts,
   registerWidthOf,
+  romPorts,
   uniqueId,
 } from '@gatefold/model'
 import { instanceBounds } from './geometry'
@@ -123,6 +124,23 @@ export function applyRegisterTerminalType(parentDef: CompositeDef, inst: Instanc
       !(c.from.instanceId === inst.id && c.from.portId !== 'in:0' && c.from.portId !== 'in:1') &&
       !(c.to.instanceId === inst.id && c.to.portId !== 'in:0' && c.to.portId !== 'in:1'),
   )
+}
+
+/** Change a ROM's access mode, regenerating its ports (a sync ROM gains a `CLK` input) and
+ *  pruning only connections to the removed `CLK` pin — the `ADDR`/`DATA` wiring is preserved. */
+export function applyRomAccess(parentDef: CompositeDef, inst: Instance, access: 'async' | 'sync'): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  if (!inst.props) inst.props = {}
+  inst.props.access = access
+  const newPorts = romPorts(access)
+  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
+  def.ports = newPorts
+  if (removed.size > 0) {
+    parentDef.connections = parentDef.connections.filter(
+      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
+    )
+  }
 }
 
 /** Default placement for a newly-added port group: just outside the component bounds

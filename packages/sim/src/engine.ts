@@ -42,9 +42,10 @@ interface Sequential {
   resetActiveHigh: boolean
   /** 'sync' resets only on the clock edge; 'async' resets level-sensitively. */
   resetStyle: 'sync' | 'async'
-  /** 'dff' samples D; 'register' samples its data vector; 'counter' increments its state. */
-  kind: 'dff' | 'register' | 'counter'
-  /** Register width: 1 for a DFF, the sampled/counting width for a register/counter. */
+  /** 'dff' samples D; 'register' samples its data vector; 'counter' increments its state;
+   *  'rom' (sync access) samples its address vector into a data read. */
+  kind: 'dff' | 'register' | 'counter' | 'rom'
+  /** Register width: 1 for a DFF, the sampled/counting/read width otherwise. */
   width: number
   /** Current register state (a bit vector). */
   state: Signal[]
@@ -182,7 +183,7 @@ export class Simulation {
     this.sequentials = []
 
     for (const inst of this.instances) {
-      if (primitiveOf(inst.kind).isSequential()) {
+      if (primitiveOf(inst.kind).isSequential(inst.props)) {
         this.addSequential(inst, config)
         continue
       }
@@ -356,11 +357,15 @@ export class Simulation {
     const dataInputs = inst.inputs.filter((ip) => ip !== clkInput && ip !== rstInput)
     const outputs = inst.outputs
     const complementId = prim.complementPortId?.() ?? null
-    const isVector = inst.kind === 'register' || inst.kind === 'counter'
+    const isVector = inst.kind === 'register' || inst.kind === 'counter' || inst.kind === 'rom'
     const resetValue: Signal = inst.props?.initialValue === true ? 1 : 0
-    // A register/counter's width is the number of wire outputs, or the connected bus
+    // A register/counter/ROM width is the number of wire outputs, or the connected bus
     // width; a DFF is 1 bit.
     const width = isVector ? (outputs.length === 1 ? this.netWidths[outputs[0].net] || 1 : outputs.length) : 1
+    // A synchronous ROM's data output is undefined until its first clock edge; every
+    // other sequential powers on to its reset value (0, or a DFF's initialValue).
+    const powerOn: Signal[] =
+      inst.kind === 'rom' ? Array.from({ length: width }, () => 'x' as Signal) : Array.from({ length: width }, () => resetValue)
 
     const seq: Sequential = {
       inst,
@@ -373,9 +378,9 @@ export class Simulation {
       edge: inst.kind === 'dff' && inst.props?.edge === 'negedge' ? 'negedge' : 'posedge',
       resetActiveHigh: inst.props?.resetActiveHigh !== false,
       resetStyle: inst.kind === 'dff' ? 'async' : inst.props?.resetStyle === 'async' ? 'async' : 'sync',
-      kind: inst.kind === 'counter' ? 'counter' : inst.kind === 'register' ? 'register' : 'dff',
+      kind: inst.kind === 'counter' ? 'counter' : inst.kind === 'register' ? 'register' : inst.kind === 'rom' ? 'rom' : 'dff',
       width,
-      state: Array.from({ length: width }, () => resetValue),
+      state: powerOn,
       resetValue,
       lastClk: 'x',
     }
@@ -400,6 +405,13 @@ export class Simulation {
   /** The next state on a clock edge with no reset: sample data or increment. */
   private advanceState(seq: Sequential): Signal[] {
     if (seq.kind === 'counter') return incrementVector(seq.state)
+    if (seq.kind === 'rom') {
+      // A synchronous ROM samples its address vector and looks up the memory contents
+      // (reusing the primitive's combinational transfer, including `x` propagation).
+      const di = seq.dataInputs[0]
+      const addr = di.inverted ? invertVector(this.valueOf(di.net)) : this.valueOf(di.net)
+      return primitiveOf('rom').transfer([addr], seq.inst.props)[0] ?? Array.from({ length: seq.width }, () => 'x' as Signal)
+    }
     if (seq.kind === 'register') {
       // A bus-mode register reads the whole DATA vector; a wire-mode register reads one
       // bit per single-wire data input (each with terminal inversion applied).
@@ -418,7 +430,7 @@ export class Simulation {
   /** Project the register state onto one output port, applying internal complement then inversion. */
   private outputValue(seq: Sequential, op: FlatPort, opIndex: number, state: Signal[]): Signal[] {
     let internal: Signal[]
-    if (seq.kind === 'counter' || seq.kind === 'register') {
+    if (seq.kind === 'counter' || seq.kind === 'register' || seq.kind === 'rom') {
       internal = seq.outputs.length === 1 ? state : [state[opIndex] ?? 0]
     } else {
       const bit = op.portId === seq.complementId ? invert(state[0]) : state[0]

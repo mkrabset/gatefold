@@ -429,13 +429,16 @@ register the FPGA can map to flip-flops.
 
 * *Inputs:* 1 (`ADDR`) · *Outputs:* 1 (`DATA`) · Properties *Address
 width* (`busWidth`, default 8, 1–16), *Data width* (`dataWidth`, default
-8, 1–64), *Value format* (`HEX` / `DEC` / `BINARY`, default `HEX`)
-* A read-only memory: put an address on the `ADDR` bus and, after the
-gate’s propagation delay, the stored word appears on the `DATA` bus. The
-read is *asynchronous* — there is no clock and no address latching, so
-`DATA` follows `ADDR` like any combinational gate. Any unknown (`x`)
-address bit drives all-`x` data; addresses past the stored contents read
-`0`.
+8, 1–64), *Access* (`async` / `sync`, default `async`), *Value format*
+(`HEX` / `DEC` / `BINARY`, default `HEX`)
+* A read-only memory: put an address on the `ADDR` bus and the stored
+word appears on the `DATA` bus. The *Access* property picks the read
+timing: *async* reads combinationally — there is no clock and no address
+latching, so `DATA` follows `ADDR` like any combinational gate (and
+resolves before any clock edge); *sync* adds a `CLK` input and latches
+the address {plus} registers the data on a clock edge (one-cycle
+latency). Any unknown (`x`) address bit drives all-`x` data; addresses
+past the stored contents read `0`.
 * The memory holds `2^AddressWidth` words of `DataWidth` bits each (so
 an 8-bit address is 256 × 8-bit). Click *Edit contents…* in the
 properties panel to open the contents editor:
@@ -462,10 +465,12 @@ rules).
 ** *Value format* only sets the editor’s entry/display radix — the
 stored contents are kept radix-independent, so switching radices never
 corrupts the memory.
-* In Verilog export the ROM is emitted as an inferred memory
-(`reg mem++[]++` {plus} an `initial` block {plus}
-`assign DATA = mem++[++ADDR++]++`), leaving the FPGA toolchain to
-implement it as block RAM or distributed LUTs as it sees fit.
+* In Verilog export the ROM follows its *Access*: *async* emits a
+combinational `case` lookup (distributed LUTs, `DATA` available before
+any clock edge), while *sync* emits an inferred memory (`reg mem++[]++`
+{plus} an `initial` block {plus}
+`always @(posedge CLK) DATA ++<++= mem++[++ADDR++]++`), which the FPGA
+toolchain can implement as block RAM.
 
 ==== FAN-IN
 
@@ -724,12 +729,14 @@ top module.
 * *Gates* (AND/OR/XOR/NOT/BUFFER) as `assign` expressions, so terminal
 inversion becomes a `~`.
 * *DFF* as `always @(posedge clk …)`, with the async reset (when
-connected) and `INIT` from the _Initial value_ property.
+connected) and `INIT` from the _Initial value_ property, plus a power-on
+`initial` block.
 * *Buses* as `++[++n-1:0++]++` vectors — FAN-IN/BUS-MERGE concatenate,
 FAN-OUT/BUS-SPLIT slice.
-* *ROM* as an inferred memory (`reg mem++[]++` {plus} an `initial` block
-{plus} `assign DATA = mem++[++ADDR++]++`), so the synthesis toolchain
-picks block RAM vs LUTs.
+* *ROM* following its _Access_: *async* as a combinational `case` lookup
+(distributed LUTs), or *sync* as an inferred memory (`reg mem++[]++`
+{plus} an `initial` block {plus} a registered read), so the synthesis
+toolchain can pick block RAM.
 * *Hierarchy* as nested module instantiations; composite ports become
 module ports.
 

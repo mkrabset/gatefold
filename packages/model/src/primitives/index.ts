@@ -30,7 +30,8 @@ export { sevenSegGeometry, sevenSegDigit, sevenSegPositionCount, sevenSegDigits,
 export { arrayPorts, isArrayDef, arrayDirection } from './array'
 export { registerPorts, registerWidthOf, REGISTER_DEFAULT_WIDTH, REGISTER_MAX_WIDTH } from './register'
 export { counterPorts, counterWidthOf, COUNTER_DEFAULT_WIDTH, COUNTER_MAX_WIDTH } from './counter'
-export { romAddressWidthOf, romDataWidthOf, romContentsOf, ROM_DEFAULT_ADDRESS_WIDTH, ROM_DEFAULT_DATA_WIDTH, ROM_MAX_ADDRESS_WIDTH, ROM_MAX_DATA_WIDTH } from './rom'
+export { romAddressWidthOf, romDataWidthOf, romContentsOf, romPorts, romAccessOf, ROM_DEFAULT_ADDRESS_WIDTH, ROM_DEFAULT_DATA_WIDTH, ROM_MAX_ADDRESS_WIDTH, ROM_MAX_DATA_WIDTH } from './rom'
+export type { RomAccess } from './rom'
 export { CLOCK_DEFAULT_PERIOD, periodOf } from './clock'
 export { invertSignal } from './logic'
 

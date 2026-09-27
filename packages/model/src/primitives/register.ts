@@ -64,7 +64,7 @@ export class Register extends Gate {
     return null
   }
 
-  isSequential(): boolean {
+  isSequential(_props?: Record<string, PropertyValue>): boolean {
     return true
   }
 

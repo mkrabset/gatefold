@@ -193,6 +193,32 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(conns.some((c) => c.from.instanceId === reg.id)).toBe(false)
   })
 
+  it('switches a ROM between async and sync access, adding/removing the CLK input', () => {
+    reset()
+    useEditorStore.getState().addInstance('rom', { x: 0, y: 0 })
+    const rom = (): Instance => mainInstances().find((i) => i.def.kind === 'fork' && i.def.primitive === 'rom')!
+    const portsOf = (): Port[] => {
+      const def = rom().def
+      return def.kind === 'fork' ? def.ports : []
+    }
+    expect(rom().props).toEqual({ busWidth: 8, dataWidth: 8, access: 'async', valueFormat: 'HEX' })
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'out:0'])
+    expect(portsOf().map((p) => p.name)).toEqual(['ADDR', 'DATA'])
+
+    // Switch to sync: a CLK input is added after ADDR.
+    useEditorStore.getState().setInstanceProp(rom().id, 'access', 'sync')
+    expect(rom().props?.access).toBe('sync')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
+    expect(portsOf().map((p) => p.name)).toEqual(['ADDR', 'CLK', 'DATA'])
+
+    // Wire CLK, then switch back to async: CLK is removed and its wiring pruned.
+    useEditorStore.getState().addConnection({ instanceId: 'clk', portId: 'out:0' }, { instanceId: rom().id, portId: 'in:1' })
+    expect(mainDef().connections.some((c) => c.to.instanceId === rom().id && c.to.portId === 'in:1')).toBe(true)
+    useEditorStore.getState().setInstanceProp(rom().id, 'access', 'async')
+    expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'out:0'])
+    expect(mainDef().connections.some((c) => c.to.instanceId === rom().id && c.to.portId === 'in:1')).toBe(false)
+  })
+
   it('places a join-point as a shared builtin', () => {
     reset()
     useEditorStore.getState().addInstance('join-point', { x: 0, y: 0 })

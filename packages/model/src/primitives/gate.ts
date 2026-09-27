@@ -156,7 +156,7 @@ export abstract class Gate implements Primitive {
     return true
   }
 
-  isSequential(): boolean {
+  isSequential(_props?: Record<string, PropertyValue>): boolean {
     return false
   }
 

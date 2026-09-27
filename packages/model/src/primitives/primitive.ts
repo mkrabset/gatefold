@@ -81,8 +81,10 @@ export interface Primitive {
   /** True when the def can be entered for editing. */
   isNavigable(): boolean
   /** True for stateful (edge-triggered) primitives, evaluated by the engine's sequential
-   *  path rather than the combinational `transfer`. */
-  isSequential(): boolean
+   *  path rather than the combinational `transfer`. `props` is the instance's property
+   *  record, for primitives whose sequential-ness depends on a per-instance value
+   *  (e.g. a ROM's `access` mode). */
+  isSequential(props?: Record<string, PropertyValue>): boolean
   /** The clock input's port id for a sequential primitive, or null. */
   clockPortId?(): string | null
   /** The asynchronous reset input's port id for a sequential primitive, or null. */

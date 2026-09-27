@@ -473,6 +473,7 @@ class Generator {
         } else {
           stmts.push(`always @(${effEdge} ${clk}) ${q} <= ${qv(dSig)};`)
         }
+        stmts.push(`initial ${q} = ${qv(init)};`)
         // Derived outputs (e.g. the internally-complemented `!Q`): continuous assignments
         // from Q. A pin is inverted when its own bubble, its internal complement, and Q's
         // bubble differ — i.e. an odd number of inversions.
@@ -521,6 +522,7 @@ class Generator {
         } else {
           stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
         }
+        stmts.push(`initial ${cnt} = ${zero};`)
         return
       }
 
@@ -566,6 +568,7 @@ class Generator {
         } else {
           stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${reg} <= ${zero}; else ${reg} <= ${dExpr};`)
         }
+        stmts.push(`initial ${reg} = ${zero};`)
         return
       }
 
@@ -577,23 +580,44 @@ class Generator {
         const AW = netWidthByName.get(net(input.id)) ?? 1
         const DW = netWidthByName.get(data) ?? 1
         const depth = 1 << AW
-        const memName = uniqueName(`${inst.name || 'u'}_mem`, used)
-        const idxName = uniqueName(`${inst.name || 'u'}_i`, used)
-        decls.push(`reg [${DW - 1}:0] ${memName} [0:${depth - 1}];`)
-        decls.push(`integer ${idxName};`)
-        // Infer a ROM/RAM: an `initial`-filled memory read combinational-by-assign, so the
-        // synthesis toolchain decides block RAM vs distributed LUTs. The array is zero-filled,
-        // then non-zero words are overridden from the stored contents.
+        const sync = inst.props?.access === 'sync'
         const mem = parseMemoryContents(romContentsOf(inst.props), 'HEX', DW, depth) ?? []
-        stmts.push(`initial begin`)
-        stmts.push(`  for (${idxName} = 0; ${idxName} < ${depth}; ${idxName} = ${idxName} + 1) ${memName}[${idxName}] = {${DW}{1'b0}};`)
-        for (let i = 0; i < mem.length; i++) {
-          const word = mem[i]
-          if (!word.some((b) => b === 1)) continue
-          stmts.push(`  ${memName}[${i}] = ${DW}'h${formatSwitchValue(word, 'HEX')};`)
+        const tmp = uniqueName(`${inst.name || 'u'}_data`, used)
+        decls.push(`reg [${DW - 1}:0] ${tmp};`)
+        if (sync) {
+          // Synchronous access: a registered read (address latched and data registered on
+          // the clock edge) so the toolchain can infer block RAM. `DATA` is undefined until
+          // the first clock edge.
+          const clk = net(primitiveOf('rom').clockPortId?.() ?? 'in:1')
+          const memName = uniqueName(`${inst.name || 'u'}_mem`, used)
+          const idxName = uniqueName(`${inst.name || 'u'}_i`, used)
+          decls.push(`reg [${DW - 1}:0] ${memName} [0:${depth - 1}];`)
+          decls.push(`integer ${idxName};`)
+          // Zero-fill, then override the non-zero words from the stored contents.
+          stmts.push(`initial begin`)
+          stmts.push(`  for (${idxName} = 0; ${idxName} < ${depth}; ${idxName} = ${idxName} + 1) ${memName}[${idxName}] = {${DW}{1'b0}};`)
+          for (let i = 0; i < mem.length; i++) {
+            const word = mem[i]
+            if (!word.some((b) => b === 1)) continue
+            stmts.push(`  ${memName}[${i}] = ${DW}'h${formatSwitchValue(word, 'HEX')};`)
+          }
+          stmts.push(`end`)
+          stmts.push(`always @(posedge ${clk}) ${tmp} <= ${memName}[${addr}];`)
+        } else {
+          // Asynchronous access: a purely combinational lookup, so the toolchain infers
+          // distributed LUTs (no register, no clock) and `DATA` resolves before any clock edge.
+          stmts.push(`always @* begin`)
+          stmts.push(`  case (${addr})`)
+          for (let i = 0; i < depth; i++) {
+            const word = mem[i]
+            if (!word || !word.some((b) => b === 1)) continue
+            stmts.push(`    ${AW}'d${i}: ${tmp} = ${DW}'h${formatSwitchValue(word, 'HEX')};`)
+          }
+          stmts.push(`    default: ${tmp} = {${DW}{1'b0}};`)
+          stmts.push(`  endcase`)
+          stmts.push(`end`)
         }
-        stmts.push(`end`)
-        stmts.push(`assign ${data} = ${inv(output, `${memName}[${addr}]`)};`)
+        stmts.push(`assign ${data} = ${inv(output, tmp)};`)
         return
       }
 

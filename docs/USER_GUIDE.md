@@ -325,12 +325,14 @@ its properties, and what it does.
 
 ### ROM
 - **Inputs:** 1 (`ADDR`) · **Outputs:** 1 (`DATA`) · Properties **Address width** (`busWidth`,
-  default 8, 1–16), **Data width** (`dataWidth`, default 8, 1–64), **Value format** (`HEX` / `DEC` /
-  `BINARY`, default `HEX`)
-- A read-only memory: put an address on the `ADDR` bus and, after the gate's propagation delay,
-  the stored word appears on the `DATA` bus. The read is **asynchronous** — there is no clock and
-  no address latching, so `DATA` follows `ADDR` like any combinational gate. Any unknown (`x`)
-  address bit drives all-`x` data; addresses past the stored contents read `0`.
+  default 8, 1–16), **Data width** (`dataWidth`, default 8, 1–64), **Access** (`async` / `sync`,
+  default `async`), **Value format** (`HEX` / `DEC` / `BINARY`, default `HEX`)
+- A read-only memory: put an address on the `ADDR` bus and the stored word appears on the `DATA` bus.
+  The **Access** property picks the read timing: **async** reads combinationally — there is no clock
+  and no address latching, so `DATA` follows `ADDR` like any combinational gate (and resolves before
+  any clock edge); **sync** adds a `CLK` input and latches the address + registers the data on a clock
+  edge (one-cycle latency). Any unknown (`x`) address bit drives all-`x` data; addresses past the
+  stored contents read `0`.
 - The memory holds `2^AddressWidth` words of `DataWidth` bits each (so an 8-bit address is
   256 × 8-bit). Click **Edit contents…** in the properties panel to open the contents editor:
   - Each line is `ADDR value value …` — an address followed by one or more values, all shown in the
@@ -349,9 +351,10 @@ its properties, and what it does.
     parses it exactly like a loaded file (same current-format, data-only-or-`ADDR:` rules).
   - **Value format** only sets the editor's entry/display radix — the stored contents are kept
     radix-independent, so switching radices never corrupts the memory.
-- In Verilog export the ROM is emitted as an inferred memory (`reg mem[]` + an `initial` block +
-  `assign DATA = mem[ADDR]`), leaving the FPGA toolchain to implement it as block RAM or
-  distributed LUTs as it sees fit.
+- In Verilog export the ROM follows its **Access**: **async** emits a combinational `case` lookup
+  (distributed LUTs, `DATA` available before any clock edge), while **sync** emits an inferred memory
+  (`reg mem[]` + an `initial` block + `always @(posedge CLK) DATA <= mem[ADDR]`), which the FPGA
+  toolchain can implement as block RAM.
 
 ### FAN-IN
 - **Inputs:** 2+ (single-wire), default 4 · **Outputs:** 1 (`BUS`) · *inputs variable*
@@ -551,10 +554,11 @@ What the generator produces:
 - One **`module` per composite**, with the top-level sheet (`main`) as the top module.
 - **Gates** (AND/OR/XOR/NOT/BUFFER) as `assign` expressions, so terminal inversion becomes a `~`.
 - **DFF** as `always @(posedge clk …)`, with the async reset (when connected) and `INIT` from the
-  *Initial value* property.
+  *Initial value* property, plus a power-on `initial` block.
 - **Buses** as `[n-1:0]` vectors — FAN-IN/BUS-MERGE concatenate, FAN-OUT/BUS-SPLIT slice.
-- **ROM** as an inferred memory (`reg mem[]` + an `initial` block + `assign DATA = mem[ADDR]`),
-  so the synthesis toolchain picks block RAM vs LUTs.
+- **ROM** following its *Access*: **async** as a combinational `case` lookup (distributed LUTs), or
+  **sync** as an inferred memory (`reg mem[]` + an `initial` block + a registered read), so the
+  synthesis toolchain can pick block RAM.
 - **Hierarchy** as nested module instantiations; composite ports become module ports.
 
 The top module's inputs and outputs are only the port terminals of the main scope, plus a top-level

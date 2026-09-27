@@ -46,7 +46,7 @@ import type { Clipboard } from '@gatefold/model'
 import { exportVerilog as buildVerilog } from '@gatefold/verilog'
 import { applyTemplate, applyTemplateToAll, scopeDefIds } from '../editor/apply'
 import { computeAutoConnectMatches } from '../editor/autoconnect'
-import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, applyCounterPorts, applyCounterTerminalType, applyRegisterPorts, applyRegisterTerminalType, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
+import { addPortToDef, applyArrayPortCount, applyArrayTerminalType, applyCounterPorts, applyCounterTerminalType, applyRegisterPorts, applyRegisterTerminalType, applyRomAccess, mutablePorts, portPlacement, pruneInstancePorts } from '../editor/portEdit'
 import type { CutLine, PendingWire, Rect, Viewport } from '../editor/types'
 import { downloadText } from '../util/download'
 import { encodeDesignLink } from '../util/link'
@@ -642,6 +642,10 @@ export const useEditorStore = create<EditorState>()(
               inst.props.width = value
               applyRegisterPorts(def, inst)
             }
+            return
+          }
+          if (childPrimitive(inst.def) === 'rom' && name === 'access') {
+            applyRomAccess(def, inst, value === 'sync' ? 'sync' : 'async')
             return
           }
           if (!inst.props) inst.props = {}

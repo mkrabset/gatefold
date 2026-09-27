@@ -65,14 +65,18 @@ authoritative — update this when a term's meaning changes.
   The `RST` input defaults to pull-down. In Verilog export this maps to `always @(posedge clk …)` with
   an `if (rst)` branch, so it becomes a real synchronous register of FPGA flip-flops.
 - **ROM** — a read-only-memory primitive: an `ADDR` address-bus input and a `DATA` data-bus output,
-  both fixed by the `busWidth`/`dataWidth` properties. A purely combinational, asynchronous read —
-  `DATA = mem[ADDR]` after the gate's propagation delay, with no address latching or clock; any `x`
-  address bit yields all-`x` data, and addresses past the stored contents read `0`. The stored memory
+  both fixed by the `busWidth`/`dataWidth` properties. Its `access` property picks the read timing:
+  `async` (default) reads combinationally — `DATA = mem[ADDR]` after the gate's propagation delay, with
+  no address latching or clock; `sync` adds a `CLK` input and latches the address + registers the data
+  output on a clock edge (one-cycle latency, powering to `x`). Any `x` address bit yields all-`x` data,
+  and addresses past the stored contents read `0`. The stored memory
   is the `contents` property (a canonical HEX word list, one per address, edited in an
   address-prefixed dialog where each line is `ADDR value value …`, addresses are read-only, and a
   single-digit cursor overwrites on typing); `valueFormat` (`HEX`/`DEC`/`BINARY`) is only the
-  entry/display radix. Verilog export emits an inferred memory (`reg mem[]` + `initial` +
-  `assign DATA = mem[ADDR]`), leaving the RAM-vs-LUT choice to the synthesis toolchain.
+  entry/display radix. Verilog export emits a combinational `case` lookup (`async`, so `DATA` resolves
+  before any clock edge and the toolchain infers distributed LUTs) or an inferred memory with a
+  registered read (`sync`: `reg mem[]` + `initial` + `always @(posedge CLK) DATA <= mem[ADDR]`, so the
+  toolchain can infer block RAM).
 - **7-seg** — a probe primitive (sink) with a single bus input (width divisible by 4, ≤ 64).
   Its `mode` property (`HEX` / `DEC` / `SIGNED DEC`) picks the decoding: hexadecimal, unsigned
   decimal, or two's-complement decimal (with a leading `−` sign slot); `order` (`asc`/`desc`)

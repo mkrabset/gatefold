@@ -719,7 +719,10 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   composite (root = top module, children emitted first).
 - **Per module** — a local union-find resolves connection endpoints into named nets (with widths
   from the model's width solver); port-group instances are dissolved so a composite's `ports`
-  become the module ports. Gates emit as `assign` expressions (inversion is a `~`); the DFF emits
+  become the module ports. A **NODE join-point** is a pure passthrough, so its input and output
+  pins are unioned into one net and the node emits nothing — a wire spliced through one or more
+  NODEs (in series or with arbitrary fan-out) stays a single continuous net. Gates emit as
+  `assign` expressions (inversion is a `~`); the DFF emits
   `always @(posedge clk …)` with an async-reset branch and `INIT` from `initialValue`, plus an
   `assign !Q = ~Q;` for its inverted output; the REGISTER emits a single internal register
   (`reg [N-1:0] <name>_reg`) with `assign Q = reg;` (bus) or one `assign Q_i = reg[i];` per wire,

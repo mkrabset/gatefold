@@ -212,9 +212,23 @@ class Generator {
       }
     }
 
-    // Resolve nets with a union-find over connection endpoints.
+    // Resolve nets with a union-find over connection endpoints. A join-point is a pure
+    // passthrough, so its input and output pins are unioned too — a wire spliced through
+    // one or more NODEs (in series or with arbitrary fan-out branches) stays one
+    // continuous net, and no extra wire/assign is emitted for the node.
     const uf = new UnionFind()
     for (const c of connections) uf.union(pinKey(c.from), pinKey(c.to))
+    for (const inst of instances) {
+      if (childPrimitive(inst.def) !== 'join-point') continue
+      const ports = childPorts(inst.def)
+      const ins = inputPorts(ports)
+      const outs = outputPorts(ports)
+      for (const ip of ins) {
+        for (const op of outs) {
+          uf.union(pinKey({ instanceId: inst.id, portId: ip.id }), pinKey({ instanceId: inst.id, portId: op.id }))
+        }
+      }
+    }
 
     const allPins: PinRef[] = []
     if (inputGroup) for (const p of inputPorts(def.ports)) allPins.push({ instanceId: inputGroup.id, portId: p.id })
@@ -363,7 +377,7 @@ class Generator {
       const net = (id: string): string => netOf(pin(id))
       const inv = (port: { inverted?: boolean } | undefined, s: string): string => (port?.inverted ? `~(${s})` : s)
 
-      if (kind === 'and' || kind === 'or' || kind === 'xor' || kind === 'not' || kind === 'buffer' || kind === 'join-point') {
+      if (kind === 'and' || kind === 'or' || kind === 'xor' || kind === 'not' || kind === 'buffer') {
         const op = kind === 'and' ? ' & ' : kind === 'or' ? ' | ' : kind === 'xor' ? ' ^ ' : null
         const inputs = inputPorts(ports)
         const output = outputPorts(ports)[0]
@@ -655,8 +669,9 @@ class Generator {
         emitCompositeInstance(inst, idef)
         continue
       }
-      if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg' || idef.primitive === 'probe') {
+      if (idef.primitive === 'clock' || idef.primitive === 'led-array' || idef.primitive === 'seven-seg' || idef.primitive === 'probe' || idef.primitive === 'join-point') {
         // Clock: root is a module input, nested errored. LEDs/7-seg/probes: ignored entirely.
+        // Join-point: a pure passthrough already folded into its net by the union-find above.
         continue
       }
       if (idef.primitive === 'switch-array') {

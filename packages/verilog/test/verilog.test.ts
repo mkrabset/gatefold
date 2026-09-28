@@ -138,6 +138,57 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign Y = A;')
   })
 
+  it('folds a NODE spliced into an internal wire into one continuous net', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), prim('g1', 'buffer'), prim('j', 'join-point'), prim('g2', 'buffer'), pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('g1', 'in:0') },
+        { id: 'c2', from: iref('g1', 'out:0'), to: iref('j', 'in:0') },
+        { id: 'c3', from: iref('j', 'out:0'), to: iref('g2', 'in:0') },
+        { id: 'c4', from: iref('g2', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign g1_Y = A;')
+    expect(source).toContain('assign Y = g1_Y;')
+    expect(source).toContain('wire g1_Y;')
+    expect(source).not.toContain('j_Y')
+  })
+
+  it('folds multiple NODEs (series + fan-out) into one continuous net', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y1'), output('out:1', 'Y2')],
+      instances: [
+        pgIn(),
+        prim('g1', 'buffer'),
+        prim('n1', 'join-point'),
+        prim('n2', 'join-point'),
+        prim('g2', 'buffer'),
+        prim('g3', 'buffer'),
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('g1', 'in:0') },
+        { id: 'c2', from: iref('g1', 'out:0'), to: iref('n1', 'in:0') },
+        { id: 'c3', from: iref('n1', 'out:0'), to: iref('n2', 'in:0') },
+        { id: 'c4', from: iref('n2', 'out:0'), to: iref('g2', 'in:0') },
+        { id: 'c5', from: iref('n2', 'out:0'), to: iref('g3', 'in:0') },
+        { id: 'c6', from: iref('g2', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c7', from: iref('g3', 'out:0'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign g1_Y = A;')
+    expect(source).toContain('assign Y1 = g1_Y;')
+    expect(source).toContain('assign Y2 = g1_Y;')
+    expect(source).toContain('wire g1_Y;')
+    expect(source).not.toContain('n1_Y')
+    expect(source).not.toContain('n2_Y')
+  })
+
   it('exports an exported root switch as a module input', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',

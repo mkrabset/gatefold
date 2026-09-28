@@ -202,7 +202,7 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
       </label>
       <label className="field">
         <span>Type</span>
-        <input defaultValue={childPrimitive(def) ?? 'composite'} readOnly />
+        <input value={childPrimitive(def) ?? 'composite'} readOnly />
       </label>
       {childPrimitive(def) &&
         primitiveOf(childPrimitive(def)!)

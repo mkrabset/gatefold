@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { currentWidthRoot, resolveNav, useEditorStore } from '../state/editorStore'
+import { currentWidthRoot, currentTestbenchComposite, resolveNav, useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
+import { useUiStore } from '../state/uiStore'
+import { useTestStore } from '../state/testStore'
 import type { ChildDef, CompositeDef, Instance, PropertyValue } from '@gatefold/model'
 import type { PropertySpec } from '@gatefold/model'
 import { allowInversion, allowRenameTerminals, childPrimitive, childPorts, inputPorts, isArityFixed, isNavigableDef, isPortGroupDef, isTemplateDef, outputPorts, parseSwitchValue, primitiveOf, romAddressWidthOf, romDataWidthOf, valueFormatOf } from '@gatefold/model'
@@ -107,6 +109,7 @@ export function Sidebar({ width }: { width: number }) {
   const setSelection = useEditorStore((s) => s.setSelection)
   const navigateTo = useEditorStore((s) => s.navigateTo)
   const simulating = useSimStore((s) => s.mode) === 'simulate'
+  const testing = useUiStore((s) => s.middleTab) === 'testing'
 
   // In simulate mode, navigation is done on the canvas (which keeps the sim path in
   // sync); entering defs from the tree is disabled.
@@ -116,6 +119,19 @@ export function Sidebar({ width }: { width: number }) {
 
   const rootDef = design.root
   const current = resolveNav(design, navStack) ?? design.root
+
+  // The "Testing" tab edits the test-bench sheet instead of the design: its own
+  // properties panel replaces the tree/ports/properties editors.
+  if (testing) {
+    return (
+      <aside className="sidebar" style={{ width }}>
+        <div className="side-section grow">
+          <div className="side-title">Properties</div>
+          <TestbenchProperties />
+        </div>
+      </aside>
+    )
+  }
 
   return (
     <aside className="sidebar" style={{ width }}>
@@ -194,6 +210,8 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
     return <div className="props-empty">Nothing selected</div>
   }
   const def = inst.def
+  const widthRoot = currentWidthRoot(useEditorStore.getState())
+  const setInstanceProp = useEditorStore.getState().setInstanceProp
   return (
     <div className="props">
       <label className="field">
@@ -212,11 +230,12 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
               <span>{spec.type === 'number' && spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
               <PropertyField
                 key={`${inst.id}:${spec.name}`}
-                instanceId={inst.id}
                 parentDef={current}
                 instance={inst}
                 spec={spec}
                 value={inst.props?.[spec.name] ?? spec.default}
+                setProp={(name, value) => setInstanceProp(inst.id, name, value)}
+                widthRoot={widthRoot}
               />
             </label>
           ))}
@@ -253,22 +272,22 @@ function DefNameField({ defId, initial }: { defId: string; initial: string }) {
 
 /** A custom-property editor that commits its value on Enter/blur (or change for a checkbox). */
 function PropertyField({
-  instanceId,
   parentDef,
   instance,
   spec,
   value,
+  setProp,
+  widthRoot,
 }: {
-  instanceId: string
   parentDef: CompositeDef
   instance: Instance
   spec: PropertySpec
   value: PropertyValue
+  setProp: (name: string, value: PropertyValue) => void
+  widthRoot: CompositeDef
 }) {
-  const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
-
   if (spec.name === 'initialValue' && childPrimitive(instance.def) === 'switch-array') {
-    return <SwitchInitialValueField instanceId={instanceId} parentDef={parentDef} instance={instance} value={value} />
+    return <SwitchInitialValueField parentDef={parentDef} instance={instance} value={value} setProp={setProp} widthRoot={widthRoot} />
   }
 
   if (spec.type === 'boolean') {
@@ -276,13 +295,13 @@ function PropertyField({
       <input
         type="checkbox"
         defaultChecked={value === true}
-        onChange={(e) => setInstanceProp(instanceId, spec.name, e.target.checked)}
+        onChange={(e) => setProp(spec.name, e.target.checked)}
       />
     )
   }
   if (spec.type === 'select') {
     return (
-      <select value={String(value)} onChange={(e) => setInstanceProp(instanceId, spec.name, e.target.value)}>
+      <select value={String(value)} onChange={(e) => setProp(spec.name, e.target.value)}>
         {spec.options?.map((opt) => (
           <option key={opt} value={opt}>
             {opt}
@@ -305,12 +324,12 @@ function PropertyField({
           let v = n
           if (spec.min !== undefined) v = Math.max(spec.min, v)
           if (spec.max !== undefined) v = Math.min(spec.max, v)
-          setInstanceProp(instanceId, spec.name, v)
+          setProp(spec.name, v)
         }}
       />
     )
   }
-  return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setInstanceProp(instanceId, spec.name, raw)} />
+  return <CommitInput defaultValue={String(value ?? '')} onCommit={(raw) => setProp(spec.name, raw)} />
 }
 
 /**
@@ -320,17 +339,18 @@ function PropertyField({
  * the width is undetermined (an unwired bus) the text is accepted verbatim.
  */
 function SwitchInitialValueField({
-  instanceId,
   parentDef,
   instance,
   value,
+  setProp,
+  widthRoot,
 }: {
-  instanceId: string
   parentDef: CompositeDef
   instance: Instance
   value: PropertyValue
+  setProp: (name: string, value: PropertyValue) => void
+  widthRoot: CompositeDef
 }) {
-  const setInstanceProp = useEditorStore((s) => s.setInstanceProp)
   const setNotice = useEditorStore((s) => s.setNotice)
   const [text, setText] = useState(() => (typeof value === 'string' ? value : ''))
   const lastValid = useRef(typeof value === 'string' ? value : '')
@@ -339,14 +359,14 @@ function SwitchInitialValueField({
 
   const commit = (raw: string) => {
     const t = raw.trim()
-    const width = arrayLaneCount(currentWidthRoot(useEditorStore.getState()), parentDef, instance, instance.def)
+    const width = arrayLaneCount(widthRoot, parentDef, instance, instance.def)
     if (width !== null && !parseSwitchValue(t, valueFormatOf(instance.props), width)) {
       setNotice(`Not a valid ${width}-bit value`)
       setText(lastValid.current)
       return
     }
     lastValid.current = t
-    setInstanceProp(instanceId, 'initialValue', t)
+    setProp('initialValue', t)
   }
 
   const commitRef = useRef(commit)
@@ -462,6 +482,48 @@ function PortsEditor() {
   return (
     <div className="props">
       <PortsGroups />
+    </div>
+  )
+}
+
+/**
+ * The "Testing" tab's properties panel: edits the selected external (test-bench)
+ * component's custom properties, reusing the same `PropertyField` editor but resolving
+ * widths against the synthesized test-bench composite.
+ */
+function TestbenchProperties() {
+  const design = useEditorStore((s) => s.design)
+  const selectedIds = useTestStore((s) => s.selectedIds)
+  const setTestInstanceProp = useEditorStore((s) => s.setTestInstanceProp)
+  if (selectedIds.length === 0) return <div className="props-empty">Nothing selected</div>
+  if (selectedIds.length > 1) return <div className="props-empty">{selectedIds.length} components selected</div>
+  const inst = design.testbench?.instances.find((i) => i.id === selectedIds[0])
+  if (!inst) return <div className="props-empty">Nothing selected</div>
+  const kind = childPrimitive(inst.def)
+  const widthRoot = currentTestbenchComposite(design)
+  return (
+    <div className="props">
+      <label className="field">
+        <span>Type</span>
+        <input value={kind ?? 'composite'} readOnly />
+      </label>
+      {kind &&
+        primitiveOf(kind)
+          .properties()
+          .map((spec) => (
+            <label className="field" key={spec.name} title={spec.tooltip}>
+              <span>{spec.type === 'number' && spec.unit ? `${spec.label} (${spec.unit})` : spec.label}</span>
+              <PropertyField
+                key={`${inst.id}:${spec.name}`}
+                parentDef={widthRoot}
+                instance={inst}
+                spec={spec}
+                value={inst.props?.[spec.name] ?? spec.default}
+                setProp={(name, value) => setTestInstanceProp(inst.id, name, value)}
+                widthRoot={widthRoot}
+              />
+            </label>
+          ))}
     </div>
   )
 }

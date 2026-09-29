@@ -864,4 +864,23 @@ describe('editorStore testbench actions', () => {
     useEditorStore.temporal.getState().undo()
     expect(useEditorStore.getState().design.testbench).toBeUndefined()
   })
+
+  it('edits an external component property (clock period)', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('clock', { x: -100, y: 0 })
+    const id = tb().instances[0].id
+    s.setTestInstanceProp(id, 'period', 5000)
+    expect(tb().instances[0].props?.period).toBe(5000)
+  })
+
+  it('switches a testbench array between wire and bus', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('switch-array', { x: -100, y: 0 })
+    const id = tb().instances[0].id
+    s.setTestInstanceProp(id, 'terminalType', 'wire')
+    expect(tb().instances[0].props?.terminalType).toBe('wire')
+    expect(tb().instances[0].def.kind).toBe('fork')
+  })
 })

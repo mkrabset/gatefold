@@ -212,6 +212,7 @@ interface EditorState {
   addTestInstance: (kind: string, pos: { x: number; y: number }) => void
   setMainPos: (pos: { x: number; y: number }) => void
   setTestInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
+  setTestInstanceProp: (id: string, name: string, value: PropertyValue) => void
   addTestConnection: (from: PinRef, to: PinRef) => void
   retargetTestConnection: (id: string, to: PinRef) => void
   removeTestConnection: (id: string) => void
@@ -1028,6 +1029,23 @@ export const useEditorStore = create<EditorState>()(
             const inst = tb.instances.find((x) => x.id === id)
             if (inst) inst.pos = positions[i]
           })
+        }),
+
+      setTestInstanceProp: (id, name, value) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          const inst = tb.instances.find((x) => x.id === id)
+          if (!inst) return
+          // An array's terminal-type change regenerates its ports and prunes its wiring,
+          // reusing the same rule as the designer (via the synthesized test-bench composite).
+          if (isArrayDef(inst.def) && name === 'terminalType') {
+            const composite = testbenchComposite(s.design, tb)
+            applyArrayTerminalType(composite, inst, value === 'wire' ? 'wire' : 'bus')
+            tb.connections = composite.connections
+            return
+          }
+          if (!inst.props) inst.props = {}
+          inst.props[name] = value
         }),
 
       addTestConnection: (from, to) =>

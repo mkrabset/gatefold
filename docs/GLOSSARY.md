@@ -140,6 +140,14 @@ authoritative — update this when a term's meaning changes.
   clears the `uuid` on its copies rather than leaving a dangling pointer.
 - **Root** — the top-level composite (`design.root`, usually `main`); the outermost sheet, in the
   content tree.
+- **Test bench** — the "Testing" tab sheet, one level *above* the root, where outside-world
+  components (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) drive the root's input ports and read its
+  output ports. The root appears as a single fixed **main** box (non-deletable but movable, named
+  after the root). Stored in `Design.testbench` (optional — `{ main.pos, instances, connections }`);
+  the `main` instance itself is synthesized on demand with `def = design.root` (never stored), so
+  it always reflects the root's live interface. The test bench is the simulation root (the engine
+  runs `withTestbench(design)`), so the outside world drives `main` during simulation; it is
+  **excluded from Verilog export** and library export.
 
 ## Terminals & wiring
 

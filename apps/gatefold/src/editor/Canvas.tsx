@@ -498,7 +498,9 @@ export function Canvas() {
       if (e.key === 'Escape' && pointerOver) {
         const sim = useSimStore.getState()
         // At the top level in simulate mode, Escape leaves simulation entirely.
-        if (sim.mode === 'simulate' && sim.path.length === 0) {
+        // The designer's top level is the `main` instance inside the test-bench wrapper
+        // (path length 1).
+        if (sim.mode === 'simulate' && sim.path.length === 1) {
           sim.toggleMode()
           return
         }

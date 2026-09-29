@@ -18,6 +18,7 @@ export type {
   PinRef,
   Connection,
   Design,
+  Testbench,
 } from './types'
 
 // Terminals: port ids and direction filtering.
@@ -81,6 +82,9 @@ export {
   deleteTemplate,
 } from './library'
 export type { LibraryFile } from './library'
+
+// Test bench (the "one level up" testing sheet).
+export { MAIN_INSTANCE_ID, TESTBENCH_COMPOSITE_ID, emptyTestbench, testbenchComposite, withTestbench } from './testbench'
 
 // Primitive registry and behaviour classes (their own barrel; see primitives/index.ts).
 export * from './primitives'

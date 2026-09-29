@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PropertyValue, PullDirection } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PrimitiveKind, PropertyValue, PullDirection, Testbench } from '@gatefold/model'
 import {
   allCompositeIds,
   allowInversion,
@@ -17,6 +17,7 @@ import {
   connectionError,
   defaultPropsOf,
   deleteTemplate,
+  emptyTestbench,
   exportLibrary as buildLibraryFile,
   findComposite,
   findConnectionTo,
@@ -31,6 +32,7 @@ import {
   isPrimitiveKind,
   isProbeDef,
   isTemplateDef,
+  MAIN_INSTANCE_ID,
   nextConnectionId,
   newUuid,
   outputPorts,
@@ -40,6 +42,7 @@ import {
   serializeLibrary,
   templateCategory,
   templateNames,
+  testbenchComposite,
   uniqueId,
 } from '@gatefold/model'
 import type { Clipboard } from '@gatefold/model'
@@ -206,6 +209,13 @@ interface EditorState {
   exportLibrary: () => void
   importLibrary: (json: string) => void
   exportVerilog: () => void
+  addTestInstance: (kind: string, pos: { x: number; y: number }) => void
+  setMainPos: (pos: { x: number; y: number }) => void
+  setTestInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
+  addTestConnection: (from: PinRef, to: PinRef) => void
+  retargetTestConnection: (id: string, to: PinRef) => void
+  removeTestConnection: (id: string) => void
+  deleteTestInstances: (ids: string[]) => void
 }
 
 /** Prune the parent sheet's wires to the current scope's removed ports (a no-op unless
@@ -257,12 +267,43 @@ export function endMoveTransaction(): void {
 // Small helper for generating a name/id that is unique among a set of existing ones.
 const uniqueAgainst = (existing: Set<string>, base: string): string => uniqueId(existing, base, '')
 
+/** The outside-world components placeable in the test-bench sheet (the "Testing" tab). */
+export const TEST_IO_KINDS: PrimitiveKind[] = ['clock', 'switch-array', 'led-array', 'seven-seg', 'probe']
+
+/** Return the design's test bench, creating an empty one on first use. */
+function ensureTestbench(s: EditorState): Testbench {
+  if (!s.design.testbench) s.design.testbench = emptyTestbench()
+  return s.design.testbench
+}
+
+// Memoize the synthesized test-bench composite on object identity, so the width solver's
+// per-root cache stays warm across draws (the composite is rebuilt only when the root or
+// the test-bench content actually change — immer gives them fresh identities on edit).
+let tbCacheRoot: CompositeDef | undefined
+let tbCacheTestbench: Testbench | undefined
+let tbCacheComposite: CompositeDef | null = null
+
+/**
+ * The synthesized test-bench composite for a design (memoized). The "Testing" canvas
+ * renders and hit-tests against this composite and resolves widths against it.
+ */
+export function currentTestbenchComposite(design: Design): CompositeDef {
+  if (tbCacheRoot === design.root && tbCacheTestbench === design.testbench && tbCacheComposite) {
+    return tbCacheComposite
+  }
+  tbCacheRoot = design.root
+  tbCacheTestbench = design.testbench
+  tbCacheComposite = testbenchComposite(design, design.testbench ?? emptyTestbench())
+  return tbCacheComposite
+}
+
 /** An empty starting design: an empty root sheet (built-ins are inline references). */
 export function createDemoDesign(): Design {
   return {
     version: 2,
     root: { kind: 'composite', id: 'main', name: 'main', uuid: newUuid(), ports: [], instances: [], connections: [] },
     library: {},
+    testbench: emptyTestbench(),
   }
 }
 
@@ -956,6 +997,90 @@ export const useEditorStore = create<EditorState>()(
           set((s) => void (s.notice = e instanceof Error ? e.message : 'Could not export Verilog'))
         }
       },
+
+      addTestInstance: (kind, pos) =>
+        set((s) => {
+          if (!isPrimitiveKind(kind) || !TEST_IO_KINDS.includes(kind)) return
+          const tb = ensureTestbench(s)
+          const srcDef = forkOf(kind)
+          const primitive = childPrimitive(srcDef)
+          // Default instance name is empty, except CLOCK which keeps its label.
+          const name = primitive === 'clock' ? childLabel(srcDef) : ''
+          const id = uniqueAgainst(new Set(tb.instances.map((i) => i.id)), childLabel(srcDef))
+          const copied = cloneChildDef(srcDef, allCompositeIds(s.design))
+          const props = primitive ? defaultPropsOf(primitive) : {}
+          tb.instances.push({ id, name, def: copied, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
+        }),
+
+      setMainPos: (pos) =>
+        set((s) => {
+          ensureTestbench(s).main.pos = pos
+        }),
+
+      setTestInstancesPosition: (ids, positions) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          ids.forEach((id, i) => {
+            if (id === MAIN_INSTANCE_ID) {
+              tb.main.pos = positions[i]
+              return
+            }
+            const inst = tb.instances.find((x) => x.id === id)
+            if (inst) inst.pos = positions[i]
+          })
+        }),
+
+      addTestConnection: (from, to) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          const composite = testbenchComposite(s.design, tb)
+          if (findConnectionTo(tb.connections, to)) {
+            s.notice = 'Input already has a driver'
+            return
+          }
+          const err = connectionError(composite, composite, from, to)
+          if (err) {
+            s.notice = err
+            return
+          }
+          tb.connections.push({ id: nextConnectionId(tb.connections), from, to })
+        }),
+
+      retargetTestConnection: (id, to) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          const original = tb.connections.find((c) => c.id === id)
+          if (!original) return
+          const conflict = findConnectionTo(tb.connections, to)
+          if (conflict && conflict.id !== id) {
+            s.notice = 'Input already has a driver'
+            return
+          }
+          const composite = testbenchComposite(s.design, tb)
+          const err = connectionError(composite, composite, original.from, to)
+          if (err) {
+            s.notice = err
+            return
+          }
+          original.to = to
+        }),
+
+      removeTestConnection: (id) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          tb.connections = tb.connections.filter((c) => c.id !== id)
+        }),
+
+      deleteTestInstances: (ids) =>
+        set((s) => {
+          const tb = ensureTestbench(s)
+          // The fixed `main` box is never deletable.
+          const removed = new Set(ids.filter((id) => id !== MAIN_INSTANCE_ID))
+          tb.instances = tb.instances.filter((i) => !removed.has(i.id))
+          tb.connections = tb.connections.filter(
+            (c) => !removed.has(c.from.instanceId) && !removed.has(c.to.instanceId),
+          )
+        }),
     })),
     {
       limit: 100,

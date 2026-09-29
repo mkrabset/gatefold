@@ -17,7 +17,7 @@ export const DEFAULT_LANE_DISTANCE = 7
 export const DEFAULT_MAX_HISTORY_EVENTS = 1_000_000
 
 /** The middle panel's active view. */
-export type MiddleTab = 'designer' | 'timeline'
+export type MiddleTab = 'designer' | 'timeline' | 'testing'
 
 interface UiState {
   theme: Theme

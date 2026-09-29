@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-27 (ROM access + sequential power-on init).
+Last updated: 2026-09-29 (Testing tab — the test-bench sheet).
 
 ## Where we are
 
@@ -12,6 +12,33 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Testing tab (test bench)** — a third middle-panel tab, a sheet one level *above* the top-level
+  `main`, for connecting outside-world components (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) to the
+  design's interface without putting them in the design or its Verilog:
+  - **Model** — optional `Design.testbench` (`{ main: { pos }, instances, connections }`) plus a new
+    `testbench.ts` (`MAIN_INSTANCE_ID = '$main'`, `emptyTestbench`, `testbenchComposite`,
+    `withTestbench`). The root appears as a fixed, synthesized **main** instance whose `def` is the
+    live `design.root` (never stored), named after the root. `serialize.ts` round-trips the optional
+    field (omitted when absent, so legacy files stay byte-stable); `cloneDesign` deep-copies it;
+    `sanitizeDesign` prunes dangling test-bench connections. Verilog and library export ignore it.
+  - **Simulation** — `simStore.rebuild()` now simulates `withTestbench(design)`, so the test bench is
+    always the simulation root (an empty one behaves identically to the bare root). The designer's
+    sim `path` starts at `[MAIN_INSTANCE_ID]`, `viewingLive` walks from the wrapper, and the
+    designer's Escape exits at `path.length === 1`. Probe-label prefixing (`main.`) is stripped back
+    off in `rebuild()`. Test-bench-aware signal/switch helpers (`testColorOf`/`testSignalOf`/
+    `toggleTestSwitch`…) resolve at the empty path.
+  - **App** — test-bench content lives in `editorStore.design.testbench` (undoable via zundo), with
+    new actions (`addTestInstance`, `setMainPos`, `setTestInstancesPosition`, `addTestConnection`/
+    `retargetTestConnection`/`removeTestConnection`, `deleteTestInstances` — which never deletes
+    `main`). A transient `testStore` holds the canvas viewport/selection/hover/marquee/pending-wire.
+    `uiStore.MiddleTab` gains `'testing'`; new `ui/TestingView.tsx` renders an IO palette + a canvas
+    that reuses `drawScene`/`hitTest`/`hitTestPort`/`wireSearch` against a memoized
+    `currentTestbenchComposite(design)`. `App.tsx` routes Delete to the test bench when the tab is
+    active.
+  - Tests: model `testbench.test.ts` (synthesis/clone/serialize), sim `testbench.test.ts` (switch→
+    main→probe, external clock→DFF), app `editorStore.test.ts` (add/wire/delete-skips-main/move/
+    undo). Docs updated (`ARCHITECTURE.md` §8c, `GLOSSARY.md`, `USER_GUIDE.md` §6b).
 
 - **ROM `access` property + sequential power-on init** — fixed a real on-board bug: an async ROM
   emitted `reg mem[]` + `initial` + `assign DATA = mem[ADDR]`, and Yosys (`synth_ice40`) mapped that

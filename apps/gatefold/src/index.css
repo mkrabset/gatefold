@@ -1083,3 +1083,50 @@ body {
   white-space: nowrap;
   text-align: center;
 }
+
+/* ---------- Testing (test-bench) ---------- */
+.testing {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.testing-palette {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.testing-palette-item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.testing-palette-item:hover {
+  border-color: var(--accent);
+}
+
+.testing-palette-item:active {
+  cursor: grabbing;
+}
+
+.testing-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}

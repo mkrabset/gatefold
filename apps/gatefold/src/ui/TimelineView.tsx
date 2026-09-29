@@ -27,8 +27,7 @@ interface Transition {
 }
 
 /** Map a user's probe order (labels) onto group indices, falling back to natural order. */
-function computeOrder(history: HistoryBuffer, probeOrder: string[] | null): number[] {
-  const n = history.groupCount
+function computeOrder(history: HistoryBuffer, probeOrder: string[] | null): number[] {  const n = history.groupCount
   const natural = Array.from({ length: n }, (_, i) => i)
   if (!probeOrder || probeOrder.length !== n) return natural
   const byLabel = new Map<string, number>()

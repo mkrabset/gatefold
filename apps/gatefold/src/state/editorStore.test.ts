@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { builtinOf, forkOf, inputPortId, newUuid, outputPortId, UNCATEGORIZED } from '@gatefold/model'
+import { builtinOf, forkOf, inputPortId, MAIN_INSTANCE_ID, newUuid, outputPortId, UNCATEGORIZED } from '@gatefold/model'
 import type { CompositeDef, Design, Instance, Port } from '@gatefold/model'
 import {
   beginMoveTransaction,
@@ -810,3 +810,58 @@ function makeEmbeddedDesign(): Design {
   }
   return { version: 2, root: main, library: { ander, ander2 } }
 }
+
+describe('editorStore testbench actions', () => {
+  const tb = () => useEditorStore.getState().design.testbench!
+
+  function resetTb() {
+    useEditorStore.setState({ design: makePortGroupDesign(), selectedIds: [], navStack: [{ kind: 'root' }] })
+    useEditorStore.temporal.getState().clear()
+  }
+
+  it('adds an external instance with default props', () => {
+    resetTb()
+    useEditorStore.getState().addTestInstance('clock', { x: -100, y: 0 })
+    expect(tb().instances).toHaveLength(1)
+    expect(tb().instances[0].def.kind).toBe('fork')
+    expect(tb().instances[0].props?.period).toBeDefined()
+  })
+
+  it('wires a switch to main and rejects a second driver on the same pin', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('switch-array', { x: -100, y: 0 })
+    const sw = tb().instances[0].id
+    s.addTestConnection({ instanceId: sw, portId: 'out:0' }, { instanceId: MAIN_INSTANCE_ID, portId: 'in:0' })
+    expect(tb().connections).toHaveLength(1)
+    s.addTestConnection({ instanceId: sw, portId: 'out:0' }, { instanceId: MAIN_INSTANCE_ID, portId: 'in:0' })
+    expect(tb().connections).toHaveLength(1)
+  })
+
+  it('deletes external instances but never the main box', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('led-array', { x: 120, y: 0 })
+    const led = tb().instances[0].id
+    s.addTestConnection({ instanceId: MAIN_INSTANCE_ID, portId: 'out:0' }, { instanceId: led, portId: 'in:0' })
+    s.deleteTestInstances([led, MAIN_INSTANCE_ID])
+    expect(tb().instances).toHaveLength(0)
+    expect(tb().connections).toHaveLength(0)
+  })
+
+  it('moves main via setMainPos and setTestInstancesPosition', () => {
+    resetTb()
+    useEditorStore.getState().setMainPos({ x: 42, y: 43 })
+    expect(tb().main.pos).toEqual({ x: 42, y: 43 })
+    useEditorStore.getState().setTestInstancesPosition([MAIN_INSTANCE_ID], [{ x: 1, y: 2 }])
+    expect(tb().main.pos).toEqual({ x: 1, y: 2 })
+  })
+
+  it('testbench edits are undoable', () => {
+    resetTb()
+    useEditorStore.getState().addTestInstance('clock', { x: -100, y: 0 })
+    expect(tb().instances).toHaveLength(1)
+    useEditorStore.temporal.getState().undo()
+    expect(useEditorStore.getState().design.testbench).toBeUndefined()
+  })
+})

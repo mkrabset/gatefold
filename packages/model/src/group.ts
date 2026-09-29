@@ -108,7 +108,20 @@ export function cloneDesign(design: Design): Design {
     const copy = cloneComposite(def, usedIds)
     library[copy.id] = copy
   }
-  return { version: design.version, root, library }
+  const testbench = design.testbench
+    ? {
+        main: { pos: { ...design.testbench.main.pos } },
+        instances: design.testbench.instances.map((inst) => ({
+          id: inst.id,
+          name: inst.name,
+          pos: { ...inst.pos },
+          ...(inst.props ? { props: { ...inst.props } } : {}),
+          def: cloneChildDef(inst.def, usedIds),
+        })),
+        connections: design.testbench.connections.map((c) => ({ id: c.id, from: clonePinRef(c.from), to: clonePinRef(c.to) })),
+      }
+    : undefined
+  return { version: design.version, root, library, ...(testbench ? { testbench } : {}) }
 }
 
 /**

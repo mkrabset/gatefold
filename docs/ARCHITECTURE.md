@@ -759,6 +759,42 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 
 ---
 
+## 8c. Test bench (the "Testing" tab)
+
+A sheet one level *above* the top-level root, where outside-world components drive the root's
+input ports and read its outputs — without polluting the design or its Verilog.
+
+- **Model** (`packages/model/src/testbench.ts`) — `Testbench { main: { pos }, instances, connections }`
+  is an optional `Design.testbench` field. The root appears as a single fixed **main** instance
+  (reserved id `MAIN_INSTANCE_ID = '$main'`) that is *synthesized* on demand by
+  `testbenchComposite(design, testbench)`: its `def` is the live `design.root` (never stored, so
+  the interface always reflects the root), named after the root. `withTestbench(design)` returns a
+  design whose root is that wrapper composite (an empty test bench when none is stored). The
+  reserved `$`-prefixed ids (`$main`, `$testbench`) can never collide with name-derived ids.
+- **Serialization** — `serialize.ts` round-trips the optional `testbench` (only emitted when
+  present, so legacy files and byte-stability are unaffected) and `sanitizeDesign` drops dangling
+  test-bench connections. `cloneDesign` deep-copies it. Verilog and library export ignore it (they
+  read only `root`/`library`).
+- **Simulation** — `simStore.rebuild()` simulates `withTestbench(design)`, so the test bench is
+  always the simulation root. The designer's sim `path` therefore starts at `[MAIN_INSTANCE_ID]`
+  (`flatId` prefixes `main.`), and `viewingLive` walks from the wrapper root; the designer's Escape
+  exits simulation at `path.length === 1`. Probe labels from the wrapped root gain a `main.`
+  prefix, which `rebuild()` strips back off. The testing canvas resolves signals and toggles
+  switches at the empty path (`testColorOf`/`testSignalOf`/`toggleTestSwitch`…).
+- **State** — the test-bench *content* lives in `editorStore.design.testbench` (undoable via the
+  existing zundo `partialize({ design })`), via new actions `addTestInstance`, `setMainPos`,
+  `setTestInstancesPosition`, `addTestConnection`/`retargetTestConnection`/`removeTestConnection`,
+  and `deleteTestInstances` (which never deletes `main`). A separate transient `testStore` holds the
+  canvas viewport/selection/hover/marquee/pending-wire.
+- **UI** — `uiStore.MiddleTab` gains `'testing'`; `ui/TestingView.tsx` renders a small IO palette
+  (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) above a canvas that reuses `drawScene`/`hitTest`/
+  `hitTestPort`/`wireSearch` against `currentTestbenchComposite(design)` (memoized on the root and
+  test-bench object identities, so the width solver's cache stays warm). Interactions are a focused
+  subset: place (drag), move (incl. `main`), wire/grab/re-target/delete, marquee select, pan/zoom,
+  and in simulate mode switch toggling + the `#` set-value dialog. `main` is non-deletable.
+
+---
+
 ## 9. Testing
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
@@ -782,6 +818,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
 - `packages/model/test/serialize.test.ts` — design round-trip and validation.
 - `packages/model/test/library.test.ts` — library export closure/normalization and import
   merge/collision handling.
+- `packages/model/test/testbench.test.ts` — `testbenchComposite`/`withTestbench` synthesis,
+  `cloneDesign` deep-copy, and serialization round-trip/omission.
 - `packages/model/test/transfer.test.ts` — `Primitive.transfer` 3-state truth tables and bus
   reshape.
 - `packages/sim/test/engine.test.ts` — gates, `x` propagation, SR latch, gated JK, master-slave
@@ -792,6 +830,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   the ROM (asynchronous bus read, `x` propagation on a floating address; sync access latches on the
   clock edge and powers to `x`), and switch-array lane
   setting (`setSwitchLanes`/`switchLanesOf`).
+- `packages/sim/test/testbench.test.ts` — a wrapped design: external switch drives `main` inputs,
+  probe reads `main` outputs, external clock drives a DFF inside `main`.
 - `packages/verilog/test/verilog.test.ts` — gate emission (incl. XOR), inversion, DFF (with/without
   reset, negedge, `initialValue`, active-low reset, power-on `initial`), the REGISTER (bus internal reg +
   sync reset, wire concat + async reset), the COUNTER (bus internal reg + sync reset,
@@ -806,7 +846,8 @@ output is a `.v` module hierarchy — this keeps the generator fully decoupled f
   radix,   `applyDigit` (hex nibble / binary bit / decimal clamp), `valuesPerLineFor`, `formatRomText`, and
   `parseRomText` (data-only by default; `ADDR:` colon-prefixed lines for explicit addresses).
 - `apps/gatefold/src/state/editorStore.test.ts` — undo/redo (delete, drag coalescing,
-  multi-step), copy/paste, and the single-driver + re-target rejection rules.
+  multi-step), copy/paste, and the single-driver + re-target rejection rules, plus the test-bench
+  actions (add/wire/delete-skips-main, move main, undoable).
 - Run with `pnpm test`; typecheck with `pnpm typecheck`; build with `pnpm build`.
 
 ---
@@ -831,6 +872,7 @@ beside the data they operate on.
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |
 | `serialize.ts` | JSON serialization + migration | `serializeDesign`, `parseDesign`, `sanitizeDesign`, `buildProject` |
 | `library.ts` | Component library import/export | `exportLibrary`, `importLibrary`, `deleteTemplate` |
+| `testbench.ts` | The "one level up" testing sheet | `MAIN_INSTANCE_ID`, `emptyTestbench`, `testbenchComposite`, `withTestbench` |
 | `primitives/` | Primitive registry + one `Primitive` class per kind | `primitiveOf`, `forkOf`, `builtinOf`, `childPorts`, `isPortGroupDef`, `isProbeDef`, `registerPorts`, `counterPorts`, `romAddressWidthOf`, … |
 
 ### `packages/sim/src` (`@gatefold/sim`)
@@ -870,6 +912,8 @@ beside the data they operate on.
 | `state/simStore.ts` | Simulation runtime store (engine + history buffer) |
 | `state/uiStore.ts` | Persisted UI preferences (theme, panels, history settings, tab) |
 | `state/defaultState.ts` | `localStorage` default design |
+| `state/testStore.ts` | Transient canvas state for the "Testing" tab |
 | `ui/TimelineView.tsx` | Simulation timeline (probe waveform canvas) |
+| `ui/TestingView.tsx` | Test-bench sheet (IO palette + canvas) |
 | `ui/*` | React panels/dialogs (toolbar, sidebar, library, dialogs) |
 | `util/*` | Downloads, share links, formatting |

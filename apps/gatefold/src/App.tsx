@@ -13,10 +13,12 @@ import { SettingsDialog } from './ui/SettingsDialog'
 import { SwitchValueDialog } from './ui/SwitchValueDialog'
 import { RomContentsDialog } from './ui/RomContentsDialog'
 import { TimelineView } from './ui/TimelineView'
+import { TestingView } from './ui/TestingView'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
 import { useSimStore } from './state/simStore'
+import { useTestStore } from './state/testStore'
 
 /** True when the event targets a text entry, where editor shortcuts should be ignored. */
 function isTextInput(target: EventTarget | null): boolean {
@@ -63,7 +65,11 @@ export default function App() {
         useEditorStore.getState().paste()
       } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault()
-        useEditorStore.getState().deleteSelection()
+        if (useUiStore.getState().middleTab === 'testing') {
+          useEditorStore.getState().deleteTestInstances(useTestStore.getState().selectedIds)
+        } else {
+          useEditorStore.getState().deleteSelection()
+        }
       } else if (mod && key === 'z' && e.shiftKey) {
         e.preventDefault()
         useEditorStore.temporal.getState().redo()
@@ -116,9 +122,17 @@ export default function App() {
             >
               Simulation timeline
             </button>
+            <button
+              className={`tab${middleTab === 'testing' ? ' active' : ''}`}
+              role="tab"
+              aria-selected={middleTab === 'testing'}
+              onClick={() => setMiddleTab('testing')}
+            >
+              Testing
+            </button>
           </div>
           <div className="center-content">
-            {middleTab === 'designer' ? <Canvas /> : <TimelineView />}
+            {middleTab === 'designer' ? <Canvas /> : middleTab === 'timeline' ? <TimelineView /> : <TestingView />}
           </div>
         </div>
         {/* direction=-1: library is right of the handle, drag right shrinks it */}

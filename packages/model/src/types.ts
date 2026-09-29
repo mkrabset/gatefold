@@ -122,12 +122,32 @@ export interface Connection {
 }
 
 /**
+ * A test bench: the sheet one level *above* the top-level `root`, where outside-world
+ * components (clocks, switches, LEDs, 7-seg displays, probes) drive the root's input
+ * ports and read its output ports. The root is represented by a single fixed "main"
+ * instance (synthesized on demand — its `def` is always the live `design.root`, never
+ * stored). Only its `pos` is persisted here; `instances`/`connections` hold the external
+ * components and their wiring (which may reference the reserved main-instance id).
+ */
+export interface Testbench {
+  /** Position of the fixed "main" box. */
+  main: { pos: { x: number; y: number } }
+  /** External IO components (primitive forks). */
+  instances: Instance[]
+  /** Wiring among the external components and the `main` instance. */
+  connections: Connection[]
+}
+
+/**
  * The whole document: the root composite (the content tree) plus the component
  * library (templates). Both are nested — a composite owns its children as inline
- * objects, so deleting a template deletes its children for free.
+ * objects, so deleting a template deletes its children for free. The optional
+ * `testbench` is the testing-panel sheet above the root; it is excluded from Verilog
+ * and library export.
  */
 export interface Design {
   version: number
   root: CompositeDef
   library: Record<string, CompositeDef>
+  testbench?: Testbench
 }

@@ -18,8 +18,9 @@ The screen is split into four areas:
 | **Canvas** | Center | The schematic — place, select, wire, pan, zoom |
 | **Library** | Right | The primitive palette and your custom components |
 
-The center panel has a **tab bar** with two views: **Designer** (the schematic canvas) and
-**Simulation timeline** (the recorded probe waveforms — see §7).
+The center panel has a **tab bar** with three views: **Designer** (the schematic canvas),
+**Simulation timeline** (the recorded probe waveforms — see §7), and **Testing** (the test-bench
+sheet — see §6b).
 
 ### Toolbar
 
@@ -435,6 +436,29 @@ its properties, and what it does.
 > **Internal primitives** (`INPUT-PORT` / `OUTPUT-PORT`) are not in the palette: they model a
 > composite's own input/output terminals internally and are created automatically when you
 > group components or edit a composite's ports.
+
+---
+
+## 6b. The Testing tab (test bench)
+
+The **Testing** tab is a sheet one level *above* your top-level design, where you connect the
+outside world — clocks, buttons (switches), displays — to the design's interface without adding
+them to the design itself.
+
+- The design appears as a single fixed **main** box (named after the top-level sheet) with its
+  input ports on the left and output ports on the right. It is **movable** (drag it) but **not
+  deletable**.
+- A small palette above the canvas offers the interface primitives — **CLOCK**, **SWITCHES**,
+  **LEDS**, **7-SEG**, and **PROBE**. Drag one onto the sheet, then wire it to a `main` port exactly
+  like on the designer canvas (drag from an output pin to an input pin; grab an existing wire to
+  re-target or delete it).
+- Editing works like the designer: drag components, marquee/Shift-click to select, **Delete** to
+  remove a component, and pan (Shift+drag) / zoom (mouse wheel).
+- In **simulate** mode the test-bench components drive and read `main`: toggle a **SWITCHES** lane
+  by clicking it (or use its `#` badge to type a whole value), and watch **LEDS**/**7-SEG**/probe
+  outputs update. The designer still shows the same simulation, one level down inside `main`.
+- The test bench is saved with your project JSON, but it is **ignored by the Verilog export** — it
+  never affects the generated `.v`, the component library, or the design's own interface.
 
 ---
 

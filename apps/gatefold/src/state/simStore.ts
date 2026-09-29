@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Signal, ValueFormat, ValueOrder } from '@gatefold/model'
+import { MAIN_INSTANCE_ID, withTestbench } from '@gatefold/model'
 import { Simulation, HistoryBuffer } from '@gatefold/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
 import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
@@ -50,6 +51,9 @@ interface SimState {
   openSwitchDialog: (instanceId: string, size: number, format: ValueFormat, order: ValueOrder) => void
   closeSwitchDialog: () => void
   setSwitchValue: (instanceId: string, lanes: Signal[]) => void
+  toggleTestSwitch: (instanceId: string, lane?: number) => void
+  openTestSwitchDialog: (instanceId: string, size: number, format: ValueFormat, order: ValueOrder) => void
+  setTestSwitchValue: (instanceId: string, lanes: Signal[]) => void
   descend: (instanceId: string) => void
   ascend: () => void
   setStepMode: (mode: SimConfig['stepMode']) => void
@@ -71,7 +75,20 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
   const rebuild = (): { engine: Simulation; history: HistoryBuffer } => {
     const ui = useUiStore.getState()
     const history = new HistoryBuffer(ui.maxHistoryEvents, ui.historyLimitMode)
-    return { engine: new Simulation(useEditorStore.getState().design, config(), history), history }
+    // Simulate the test bench: it wraps `design.root` in a `main` instance plus any
+    // external IO components, so the outside world drives the top-level interface.
+    const design = useEditorStore.getState().design
+    const engine = new Simulation(withTestbench(design), config(), history)
+    // Drop the wrapper's leading `<rootName>.` segment from probe labels.
+    const rootName = design.root.name
+    const groups: { label: string; lanes: number }[] = []
+    for (let i = 0; i < history.groupCount; i++) {
+      const label = history.groupLabel(i)
+      const prefix = `${rootName}.`
+      groups.push({ label: label.startsWith(prefix) ? label.slice(prefix.length) : label, lanes: history.groupLanes(i) })
+    }
+    history.setGroups(groups)
+    return { engine, history }
   }
 
   /** Enter simulate mode from design mode: build the engine and reset to the top level. */
@@ -79,7 +96,8 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     // Simulate from the top; navigation within the simulation is tracked by `path`.
     useEditorStore.getState().resetNavigation()
     const { engine, history } = rebuild()
-    set({ mode: 'simulate', engine, history, probeOrder: null, path: [], version: get().version + 1 })
+    // The designer's root is the `main` instance inside the test-bench wrapper.
+    set({ mode: 'simulate', engine, history, probeOrder: null, path: [MAIN_INSTANCE_ID], version: get().version + 1 })
   }
 
   return {
@@ -178,6 +196,30 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       set((s) => ({ switchDialog: null, version: s.version + 1 }))
     },
 
+    toggleTestSwitch: (instanceId, lane = 0) => {
+      const { engine } = get()
+      if (!engine) return
+      engine.toggleSwitch(instanceId, lane)
+      engine.step()
+      set((s) => ({ version: s.version + 1 }))
+    },
+
+    openTestSwitchDialog: (instanceId, size, format, order) => {
+      const { engine } = get()
+      if (!engine) return
+      const lanes = engine.switchLanesOf(instanceId)
+      if (!lanes) return
+      set({ switchDialog: { instanceId, size, lanes, format, order } })
+    },
+
+    setTestSwitchValue: (instanceId, lanes) => {
+      const { engine } = get()
+      if (!engine) return
+      engine.setSwitchLanes(instanceId, lanes)
+      engine.step()
+      set((s) => ({ switchDialog: null, version: s.version + 1 }))
+    },
+
     descend: (instanceId) => set((s) => ({ path: [...s.path, instanceId] })),
     ascend: () => set((s) => ({ path: s.path.slice(0, -1) })),
 
@@ -211,12 +253,13 @@ function flatId(instanceId: string): string {
  * Whether the currently-viewed def (top of `navStack`) is the live def at the current
  * `path`. When the user navigates into a def that is not part of the running simulation
  * (e.g. a library template), the signal/pin ids no longer correspond to flattened netlist
- * keys, so signal lookups and switch toggles must be suppressed.
+ * keys, so signal lookups and switch toggles must be suppressed. The walk starts from the
+ * test-bench wrapper (the simulation root), whose `main` instance holds `design.root`.
  */
 function viewingLive(): boolean {
   const { path } = useSimStore.getState()
   const editor = useEditorStore.getState()
-  let def: import('@gatefold/model').ChildDef = editor.design.root
+  let def: import('@gatefold/model').ChildDef = withTestbench(editor.design).root
   for (const id of path) {
     if (def.kind !== 'composite') return false
     const inst: import('@gatefold/model').Instance | undefined = def.instances.find((i) => i.id === id)
@@ -258,4 +301,35 @@ export function simValueOf(instanceId: string, portId: string): Signal | undefin
 /** Resolve the full bit-vector signal for a pin, or undefined. */
 export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
   return rawSignalOf(instanceId, portId)
+}
+
+/**
+ * Resolve a signal at the test-bench top level (the "Testing" tab). Unlike the designer,
+ * the test-bench sheet is always live (it is the simulation root), so there is no
+ * `viewingLive` gate and no `path` prefix — the instance id is the flattened id as-is.
+ */
+function testRawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
+  const { engine, mode } = useSimStore.getState()
+  if (mode !== 'simulate' || !engine) return undefined
+  return engine.signalOf(instanceId, portId)
+}
+
+/** Theme-aware wire/marker color for a test-bench pin (optionally a specific lane). */
+export function testColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
+  const sig = testRawSignalOf(instanceId, portId)
+  if (!sig) return undefined
+  const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
+  if (bit === undefined) return undefined
+  return signalColor(bit, useUiStore.getState().theme)
+}
+
+/** Single-bit signal on a test-bench pin, or undefined. */
+export function testValueOf(instanceId: string, portId: string): Signal | undefined {
+  const sig = testRawSignalOf(instanceId, portId)
+  return sig && sig.length === 1 ? sig[0] : undefined
+}
+
+/** Full bit-vector signal on a test-bench pin, or undefined. */
+export function testSignalOf(instanceId: string, portId: string): Signal[] | undefined {
+  return testRawSignalOf(instanceId, portId)
 }

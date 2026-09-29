@@ -1,4 +1,5 @@
-import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port, PrimitiveKind } from './types'
+import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port, PrimitiveKind, Testbench } from './types'
+import { MAIN_INSTANCE_ID } from './testbench'
 
 /**
  * Serialization of a whole design. The output is the nested model verbatim (built-ins
@@ -11,6 +12,7 @@ export interface ProjectJson {
   version: number
   root: CompositeDef
   library: Record<string, CompositeDef>
+  testbench?: Testbench
 }
 
 /** Round instance coordinates to 2 decimals, shrinking the serialized output. */
@@ -35,7 +37,7 @@ export function stringifyJson(value: unknown): string {
 export function buildProject(design: Design): ProjectJson {
   const library: Record<string, CompositeDef> = {}
   for (const id of Object.keys(design.library).sort()) library[id] = design.library[id]
-  return { version: design.version, root: design.root, library }
+  return { version: design.version, root: design.root, library, ...(design.testbench ? { testbench: design.testbench } : {}) }
 }
 
 /** Serialize a design to compact JSON (coords rounded, library keys sorted). */
@@ -285,7 +287,23 @@ function isDesign(v: unknown): v is Design {
   if (typeof v.version !== 'number') return false
   if (!isComposite(v.root)) return false
   if (!isRecord(v.library)) return false
-  return Object.values(v.library).every(isComposite)
+  if (!Object.values(v.library).every(isComposite)) return false
+  if (v.testbench !== undefined && !isTestbench(v.testbench)) return false
+  return true
+}
+
+function isTestbench(v: unknown): v is Testbench {
+  return (
+    isRecord(v) &&
+    isRecord(v.main) &&
+    isRecord(v.main.pos) &&
+    typeof v.main.pos.x === 'number' &&
+    typeof v.main.pos.y === 'number' &&
+    Array.isArray(v.instances) &&
+    v.instances.every(isInstance) &&
+    Array.isArray(v.connections) &&
+    v.connections.every(isConnection)
+  )
 }
 
 // --- sanitization --------------------------------------------------------------
@@ -332,5 +350,32 @@ export function sanitizeDesign(design: Design): { design: Design; issues: Saniti
   const root = sanitize(design.root)
   const library: Record<string, CompositeDef> = {}
   for (const [id, def] of Object.entries(design.library)) library[id] = sanitize(def)
-  return { design: { ...design, root, library }, issues }
+
+  // Sanitize the test bench: its endpoints reference either the reserved `main` id or an
+  // external instance; drop any connection with a dangling endpoint and normalize any
+  // legacy fork join-points (there are none normally — the palette places forks only).
+  const testbench = design.testbench
+    ? {
+        main: { pos: { ...design.testbench.main.pos } },
+        instances: design.testbench.instances.map((i) =>
+          i.def.kind === 'fork' && i.def.primitive === 'join-point'
+            ? { ...i, def: { kind: 'builtin', primitive: 'join-point' } as const }
+            : i,
+        ),
+        connections: design.testbench.connections.filter((c) => {
+          const ids = new Set<string>([MAIN_INSTANCE_ID, ...design.testbench!.instances.map((i) => i.id)])
+          if (!ids.has(c.from.instanceId)) {
+            issues.push({ type: 'dangling-connection', defId: '$testbench', connectionId: c.id, endpoint: 'from', missingInstanceId: c.from.instanceId })
+            return false
+          }
+          if (!ids.has(c.to.instanceId)) {
+            issues.push({ type: 'dangling-connection', defId: '$testbench', connectionId: c.id, endpoint: 'to', missingInstanceId: c.to.instanceId })
+            return false
+          }
+          return true
+        }),
+      }
+    : undefined
+
+  return { design: { ...design, root, library, ...(testbench ? { testbench } : {}) }, issues }
 }

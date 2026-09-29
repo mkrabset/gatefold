@@ -146,7 +146,7 @@ function drawPorts(
     const s = w2s(pos.x, pos.y, cw, ch, vp)
     const width = pinWidth(root, parentDef, { instanceId: instance.id, portId: port.id })
     const hovered = !!hoverPort && hoverPort.instanceId === instance.id && hoverPort.portId === port.id
-    const signalColor = sim?.colorOf(instance.id, port.id)
+    const signalColor = sim?.colorOf(instance.id, port.id, undefined, port.inverted ?? false)
     drawPin(ctx, s, width, color, port.inverted ?? false, bubbleOnLeft, vp, p, bg, hovered, d, signalColor)
     if (portPullActive(parentDef, instance, port)) {
       drawPullGlyph(ctx, s.x, s.y, port.pull!, vp, p)
@@ -427,8 +427,9 @@ export function drawPortGroupBox(
     const x = pos.x + (isInput ? w / 2 : -w / 2)
     const s = w2s(x, y, cw, ch, vp)
     const hovered = !!hoverPort && hoverPort.instanceId === instanceId && hoverPort.portId === port.id
-    const signalColor = sim?.colorOf(instanceId, port.id)
-    drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, allowInversion ? port.inverted ?? false : false, !isInput, vp, p, bg, hovered, d, signalColor)
+    const inverted = allowInversion ? port.inverted ?? false : false
+    const signalColor = sim?.colorOf(instanceId, port.id, undefined, inverted)
+    drawPin(ctx, s, widthFor(port), isInput ? p.pinHover : p.pin, inverted, !isInput, vp, p, bg, hovered, d, signalColor)
     const offset = PIN_LABEL_GAP * vp.zoom
     ctx.fillStyle = p.text
     if (isInput) {

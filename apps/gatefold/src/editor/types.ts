@@ -37,9 +37,11 @@ export interface CutLine {
   kind: 'insert' | 'delete'
 }
 
-/** Simulation view callbacks: resolve a signal color/value for a pin (and bus lane). */
+/** Simulation view callbacks: resolve a signal color/value for a pin (and bus lane).
+ *  `colorOf` accepts an `inverted` flag so terminal markers can render the logical
+ *  (post-bubble) value, opposite of the wire. */
 export interface SimView {
-  colorOf: (instanceId: string, portId: string, lane?: number) => string | undefined
+  colorOf: (instanceId: string, portId: string, lane?: number, inverted?: boolean) => string | undefined
   valueOf: (instanceId: string, portId: string) => Signal | undefined
   signalOf: (instanceId: string, portId: string) => Signal[] | undefined
   /** Formatted simulation-speed label shown as a HUD overlay. */

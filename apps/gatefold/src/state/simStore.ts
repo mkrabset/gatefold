@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Signal, ValueFormat, ValueOrder } from '@gatefold/model'
-import { MAIN_INSTANCE_ID, withTestbench } from '@gatefold/model'
+import { MAIN_INSTANCE_ID, invertSignal, withTestbench } from '@gatefold/model'
 import { Simulation, HistoryBuffer } from '@gatefold/sim'
 import { DEFAULT_CONFIG, type SimConfig } from '@gatefold/sim'
 import { INSTANCE_PATH_SEP, joinInstancePath } from '@gatefold/sim'
@@ -282,14 +282,15 @@ export function signalColor(signal: Signal, theme: string): string {
   return SIGNAL_COLORS[signal][theme === 'dark' ? 'dark' : 'light']
 }
 
-/** Resolve a wire/marker color for a pin (optionally a specific bus lane). */
-export function simColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
+/** Resolve a wire/marker color for a pin (optionally a specific bus lane, or the logical
+ *  value at an inverted terminal via `inverted`). */
+export function simColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
   const sig = rawSignalOf(instanceId, portId)
   if (!sig) return undefined
   const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
   if (bit === undefined) return undefined
   const theme = useUiStore.getState().theme
-  return signalColor(bit, theme)
+  return signalColor(inverted ? invertSignal(bit) : bit, theme)
 }
 
 /** Resolve a single-bit signal for a pin (probe state), or undefined. */
@@ -314,13 +315,14 @@ function testRawSignalOf(instanceId: string, portId: string): Signal[] | undefin
   return engine.signalOf(instanceId, portId)
 }
 
-/** Theme-aware wire/marker color for a test-bench pin (optionally a specific lane). */
-export function testColorOf(instanceId: string, portId: string, lane?: number): string | undefined {
+/** Theme-aware wire/marker color for a test-bench pin (optionally a specific lane, or the
+ *  logical value at an inverted terminal via `inverted`). */
+export function testColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
   const sig = testRawSignalOf(instanceId, portId)
   if (!sig) return undefined
   const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
   if (bit === undefined) return undefined
-  return signalColor(bit, useUiStore.getState().theme)
+  return signalColor(inverted ? invertSignal(bit) : bit, useUiStore.getState().theme)
 }
 
 /** Single-bit signal on a test-bench pin, or undefined. */

@@ -459,7 +459,9 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   (pull-down) just to the left of its pin. A composite instance's port name is pushed further
   left to clear the glyph. Press `1`/`0` while hovering the pin to toggle.
 - **Labels**: primitives show type above and instance name below; composites show the
-  instance name centered with the type above and port names beside the pins.
+  instance name centered with the type above and port names beside the pins. A composite
+  box widens to contain its centered name (`def.name`), via a conservative per-character
+  width estimate (`COMPOSITE_NAME_CHAR_W`), so a long name never sticks out of the box.
 - **Wires**: two strokes — a thick background "halo" then the thin wire — so crossings read
   as pass-over. Wires sharing a source are grouped (all halos, then all lines) so fan-out
   renders as one bundle. A pending wire renders as a dashed preview.

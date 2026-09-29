@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { builtinOf, connectionError, forkOf } from '@gatefold/model'
-import { COMPACT_VALUE_CHAR_W, COMPACT_VALUE_PAD, DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
+import { COMPACT_VALUE_CHAR_W, COMPACT_VALUE_PAD, COMPOSITE_NAME_CHAR_W, COMPOSITE_NAME_PAD, DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
@@ -376,5 +376,36 @@ describe('compact switch array body', () => {
     const main = design.root
     const sw = main.instances.find((i) => i.id === 'sw')!
     expect(instanceBodySize(main, main, sw, sw.def).h).toBeGreaterThan(defBodySize(sw.def).h)
+  })
+})
+
+function makeCompositeDesign(name: string): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [{ id: 'c', name: 'c', def: { id: 'comp', name, kind: 'composite', ports: [], instances: [], connections: [] }, pos: { x: 0, y: 0 } }],
+    connections: [],
+  }
+  return { version: 2, root: main, library: {} }
+}
+
+describe('composite name width', () => {
+  it('keeps the default width for a short name', () => {
+    const design = makeCompositeDesign('comp')
+    const main = design.root
+    const c = main.instances.find((i) => i.id === 'c')!
+    expect(instanceBodySize(main, main, c, c.def).w).toBe(defBodySize(c.def).w)
+  })
+
+  it('widens the box to contain a long name', () => {
+    const name = 'tenDivider64bits'
+    const design = makeCompositeDesign(name)
+    const main = design.root
+    const c = main.instances.find((i) => i.id === 'c')!
+    const expected = 2 * COMPOSITE_NAME_PAD + name.length * COMPOSITE_NAME_CHAR_W
+    expect(expected).toBeGreaterThan(defBodySize(c.def).w)
+    expect(instanceBodySize(main, main, c, c.def).w).toBe(expected)
   })
 })

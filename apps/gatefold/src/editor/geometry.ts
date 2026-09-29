@@ -39,6 +39,12 @@ export const COMPACT_VALUE_PAD = 8
 export const COMPACT_VALUE_FONT = 12
 export const COMPACT_VALUE_CHAR_W = 7.5
 
+/** Composite name label metrics (world units): horizontal padding around the 11px name
+ *  drawn centered inside a composite box, and a conservative per-character width so the
+ *  box is wide enough to contain the name without it sticking out. */
+export const COMPOSITE_NAME_PAD = 8
+export const COMPOSITE_NAME_CHAR_W = 7
+
 /** The default (and maximum) bus-lane spacing in world units — the current `2 × 3.5`
  *  pitch. The lane-distance setting scales down from here; arrays always use it. */
 export const DEFAULT_LANE_DISTANCE = 7
@@ -172,6 +178,10 @@ export function instanceBodySize(
   const inH = sideHeight(widthsOf(root, parentDef, instance.id, inputPorts(childPorts(def))), d)
   const outH = sideHeight(widthsOf(root, parentDef, instance.id, outputPorts(childPorts(def))), d)
   let w = base.w
+  if (def.kind === 'composite') {
+    // A composite renders its name centered inside the box: widen it so the name fits.
+    w = Math.max(w, 2 * COMPOSITE_NAME_PAD + def.name.length * COMPOSITE_NAME_CHAR_W)
+  }
   if (k === 'switch-array' && instance.props?.compact === true) {
     // A compact switch renders a value: make the box wide enough for the longest value
     // in the instance's radix (the height below is at least the terminal side height).

@@ -146,7 +146,13 @@ export function drawScene(
     }
   }
 
-  for (const [key, traces] of groups) {
+  // Draw highest-arity nets first so low-arity wires render on top and stay
+  // visible instead of being hidden behind wide buses. Undetermined pins read
+  // width 1, so they land on top with the single-wire nets.
+  const orderedGroups = [...groups.entries()].sort(
+    ([, a], [, b]) => (b[0]?.width ?? 0) - (a[0]?.width ?? 0),
+  )
+  for (const [key, traces] of orderedGroups) {
     const dots = joinPointsByGroup.get(key) ?? []
     if (traces[0].undetermined) {
       // Width not yet determined: a thin dashed single wire.

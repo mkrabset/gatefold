@@ -85,6 +85,14 @@ export interface CompositeDef {
   uuid?: string
   /** User-defined grouping shown in the library; `undefined` = Uncategorized. */
   category?: string
+  /**
+   * Array configuration. Present only on array composites (built by `arrayComposite`):
+   * `count` is the number of materialized copies (mirrored in `instances`), `chains` the
+   * inter-copy wiring rules, `orientation` the copies' layout direction, and `common` the
+   * input port ids delivered as one shared wire to every copy (rather than a `count`-wide
+   * bus). Drives regeneration when the size changes.
+   */
+  arrayConfig?: { count: number; chains: ArrayChain[]; orientation: ArrayOrientation; common: string[] }
 }
 
 /**
@@ -120,6 +128,20 @@ export interface Connection {
   from: PinRef
   to: PinRef
 }
+
+/**
+ * A chain rule on an array composite: the inner template's output port `from` is wired
+ * to the *next* copy's input port `to` (`copy[i].from → copy[i+1].to`). Chained ports
+ * collapse to single wires at the array's boundary (copy 0's input, copy N−1's output);
+ * non-chained ports become count-wide buses.
+ */
+export interface ArrayChain {
+  from: string
+  to: string
+}
+
+/** Layout direction of an array composite's copies. */
+export type ArrayOrientation = 'horizontal' | 'vertical'
 
 /**
  * A test bench: the sheet one level *above* the top-level `root`, where outside-world

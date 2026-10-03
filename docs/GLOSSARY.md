@@ -148,6 +148,23 @@ authoritative — update this when a term's meaning changes.
   it always reflects the root's live interface. The test bench is the simulation root (the engine
   runs `withTestbench(design)`), so the outside world drives `main` during simulation; it is
   **excluded from Verilog export** and library export.
+- **Array composite** — an ordinary `CompositeDef` produced by `arrayComposite` that replicates a
+  template composite `count` times in parallel. Non-chained terminals become `count`-wide buses
+  (bundled/unbundled by internal FAN-IN/FAN-OUT instances); chained terminals collapse to single
+  wires at the boundary, and **common** inputs are shared as one wire to every copy.
+  Carries `CompositeDef.arrayConfig = { count, chains, orientation, common }`, so the store can
+  regenerate its internals when the size changes. Rendered as a single box with a `×N` badge.
+  `orientation` (`horizontal`/`vertical`) only changes the copies' internal layout; `common` lists
+  input port ids delivered identically to all copies (e.g. a word mux's selection line).
+- **Common input** — an array input port listed in `arrayConfig.common`: one shared wire delivered to
+  every copy, instead of a `count`-wide per-copy bus. Routed through a **NODE join-point** in the
+  fan-out column (so all copies' wires converge on a single dot), then fanned out to each copy.
+  Width stays 1. Mutually exclusive with chaining (a chained input is single-wire but feeds only
+  copy 0).
+- **Chain** — an inter-copy wiring rule on an array composite (`ArrayChain { from, to }`): the
+  template's output terminal `from` is wired to the *next* copy's input terminal `to`
+  (`copy[i].from → copy[i+1].to`). The first copy's input and last copy's output become the
+  array's boundary terminals. Chaining is the mechanism behind a ripple-carry adder (`Cout → Cin`).
 
 ## Terminals & wiring
 

@@ -740,6 +740,54 @@ body {
   border-color: var(--accent);
 }
 
+.dialog-chain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.dialog-chain-row .dialog-select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dialog-chain-arrow {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.dialog-chain-row .dialog-btn {
+  padding: 3px 8px;
+  flex: 0 0 auto;
+}
+
+.dialog-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.dialog-input-name {
+  flex: 0 0 80px;
+  font-weight: 500;
+}
+
+.dialog-input-mode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dialog-input-chained {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
 .dialog-error {
   color: var(--red);
   font-size: 12px;

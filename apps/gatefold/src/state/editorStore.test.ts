@@ -21,6 +21,7 @@ function reset() {
     notice: null,
     navStack: [{ kind: 'root' }],
     pendingGroup: null,
+    pendingArray: null,
     pendingDelete: null,
     pendingClearAll: false,
     viewport: { x: 400, y: 250, zoom: 1 },
@@ -638,6 +639,125 @@ describe('editorStore undo/redo + clipboard', () => {
 
     useEditorStore.getState().connectAutoMatches()
     expect(mainDef().connections).toHaveLength(0)
+  })
+})
+
+describe('array', () => {
+  it('wraps a selected composite into an array and regenerates on count change', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [] })
+
+    store.setArrayDialogCount(4)
+    store.setArrayDialogChains([{ from: 'out:1', to: 'in:1' }])
+    store.confirmArray()
+
+    const ha = mainInstances().find((i) => i.id === 'ha1')!
+    expect(ha.def.kind).toBe('composite')
+    const arr = ha.def as CompositeDef
+    expect(arr.arrayConfig).toEqual({ count: 4, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'horizontal', common: [] })
+    // 4 copies plus the port groups and fan-in/out plumbing.
+    expect(arr.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(4)
+
+    // Change count: the internals regenerate while the interface is preserved.
+    store.setArrayCount('ha1', 2)
+    const arr2 = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr2.arrayConfig).toEqual({ count: 2, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'horizontal', common: [] })
+    expect(arr2.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(2)
+
+    useEditorStore.temporal.getState().undo()
+    const arr3 = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr3.arrayConfig?.count).toBe(4)
+  })
+
+  it('ignores multi-select and non-composite selections', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1', 'and1'])
+    store.openArrayDialog()
+    expect(useEditorStore.getState().pendingArray).toBeNull()
+
+    store.setSelection(['and1'])
+    store.openArrayDialog()
+    expect(useEditorStore.getState().pendingArray).toBeNull()
+  })
+
+  it('re-configures an existing array in place instead of nesting', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    store.setArrayDialogCount(4)
+    store.confirmArray()
+
+    // Re-open the dialog on the array and change the count: it must stay one composite
+    // (not wrap another array around it).
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 4, chains: [], orientation: 'horizontal', common: [] })
+    store.setArrayDialogCount(3)
+    store.confirmArray()
+
+    const arr = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr.arrayConfig?.count).toBe(3)
+    // The copies are full-adder composites (not nested arrays).
+    expect(arr.instances.filter((i) => i.def.kind === 'composite' && i.def.arrayConfig)).toHaveLength(0)
+    expect(arr.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(3)
+  })
+
+  it('applies a vertical orientation from the dialog and via the store', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    store.setArrayDialogCount(3)
+    store.setArrayDialogOrientation('vertical')
+    store.confirmArray()
+
+    let arr = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr.arrayConfig?.orientation).toBe('vertical')
+    const copies = arr.instances.filter((i) => i.id.startsWith('i'))
+    expect(copies.map((c) => c.pos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 0, y: 80 },
+      { x: 0, y: 160 },
+    ])
+
+    // Flip back to horizontal via the store.
+    store.setArrayOrientation('ha1', 'horizontal')
+    arr = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr.arrayConfig?.orientation).toBe('horizontal')
+    expect(arr.instances.filter((i) => i.id.startsWith('i')).map((c) => c.pos)).toEqual([
+      { x: 0, y: 0 },
+      { x: 160, y: 0 },
+      { x: 320, y: 0 },
+    ])
+  })
+
+  it('marks an input as common so it is shared by every copy', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    store.setArrayDialogCount(3)
+    store.setArrayDialogCommon(['in:0'])
+    store.confirmArray()
+
+    const arr = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr.arrayConfig?.common).toEqual(['in:0'])
+    // The common input is routed through a join-point (NODE) that fans out to the copies.
+    expect(arr.instances.some((i) => i.def.kind === 'fork' && i.def.primitive === 'fan-out' && i.id === 'f-fan-out-in-0')).toBe(false)
+    const join = arr.instances.find((i) => i.def.kind === 'builtin' && i.def.primitive === 'join-point')!
+    expect(join).toBeDefined()
+    const wires = arr.connections.filter((c) => c.from.instanceId === join.id && c.from.portId === 'out:0' && c.to.portId === 'in:0')
+    expect(wires.map((c) => c.to.instanceId).sort()).toEqual(['i0', 'i1', 'i2'])
+
+    // Count change preserves the common input.
+    store.setArrayCount('ha1', 2)
+    const arr2 = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr2.arrayConfig?.common).toEqual(['in:0'])
   })
 })
 

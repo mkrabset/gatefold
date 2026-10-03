@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port } from '@gatefold/model'
-import { builtinOf, forkOf, serializeDesign } from '@gatefold/model'
+import { builtinOf, forkOf, serializeDesign, arrayComposite } from '@gatefold/model'
 import { exportVerilog } from '../src/index'
 
 const iref = (instanceId: string, portId: string): PinRef => ({ instanceId, portId })
@@ -846,5 +846,57 @@ describe('exportVerilog', () => {
     expect(source).toContain("rom_mem[2] = 4'hA;")
     expect(source).toContain("rom_mem[3] = 4'hF;")
     expect(source).not.toContain('always @* begin')
+  })
+
+  it('emits an array composite as nested modules with bus concat/slice', () => {
+    const xor2: ChildDef = {
+      kind: 'fork', primitive: 'xor',
+      ports: [
+        { id: 'in:0', name: 'A', direction: 'input' },
+        { id: 'in:1', name: 'B', direction: 'input' },
+        { id: 'out:0', name: 'Y', direction: 'output' },
+      ],
+    }
+    const fa: CompositeDef = {
+      id: 'fa', name: 'fa', kind: 'composite',
+      ports: [
+        input('in:0', 'A'), input('in:1', 'B'), input('in:2', 'Cin'),
+        output('out:0', 'Sum'), output('out:1', 'Cout'),
+      ],
+      instances: [
+        { id: 'in', name: '', def: builtinOf('input-port'), pos: { x: 0, y: 0 } },
+        { id: 'out', name: '', def: builtinOf('output-port'), pos: { x: 0, y: 0 } },
+        fork('x', xor2),
+      ],
+      connections: [
+        { id: 'c1', from: iref('in', 'in:0'), to: iref('x', 'in:0') },
+        { id: 'c2', from: iref('in', 'in:1'), to: iref('x', 'in:1') },
+        { id: 'c3', from: iref('x', 'out:0'), to: iref('out', 'out:0') },
+        { id: 'c4', from: iref('in', 'in:2'), to: iref('out', 'out:1') },
+      ],
+    }
+    const arr = arrayComposite(fa, 4, [{ from: 'out:1', to: 'in:2' }], new Set())
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [
+        input('in:0', 'A'), input('in:1', 'B'), input('in:2', 'Cin'),
+        output('out:0', 'Sum'), output('out:1', 'Cout'),
+      ],
+      instances: [pgIn(), pgOut(), composite('arr', arr)],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('arr', 'in:0') },
+        { id: 'c2', from: iref('pi', 'in:1'), to: iref('arr', 'in:1') },
+        { id: 'c3', from: iref('pi', 'in:2'), to: iref('arr', 'in:2') },
+        { id: 'c4', from: iref('arr', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c5', from: iref('arr', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(issues.filter((i) => i.level === 'error')).toEqual([])
+    expect(source).toContain('module main (')
+    expect(source).toContain('input [3:0] A')
+    expect(source).toContain('input [3:0] B')
+    expect(source).toContain('output [3:0] Sum')
+    expect(source).toContain('module fa_array')
   })
 })

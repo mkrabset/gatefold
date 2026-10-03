@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-09-29 (Testing tab — the test-bench sheet).
+Last updated: 2026-10-03 (Array composites — parameterized duplication).
 
 ## Where we are
 
@@ -13,6 +13,19 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Array composites (parameterized duplication)** — a Blender-array-inspired way to avoid
+  repetitive work: select a single composite (e.g. a full-adder) and **Array** it `count` times.
+  Non-chained terminals become `count`-wide buses (via internal FAN-IN/FAN-OUT), an optional
+  **chain** rule wires `copy[i].from → copy[i+1].to` (e.g. `Cout → Cin`) to collapse the carry to
+  a single wire, a **common** input is shared as one wire to every copy (e.g. a word mux's `Sel`),
+  and an **orientation** (`horizontal`/`vertical`) controls the copies' layout. Building an N-bit
+  ripple adder from one full-adder, or a 2×N mux from 2×1 muxes. Implemented as a *materialized
+  generator* (no new node type): a pure `arrayComposite` in `@gatefold/model` produces an ordinary
+  composite whose `arrayConfig = { count, chains, orientation, common }` is stamped on it; the
+  store regenerates the internals when the config changes (source = the first copy), keeping the
+  ports and external wiring intact. See `ARCHITECTURE.md` §6d. *Limitation*: FAN-IN/FAN-OUT bundle
+  single-wire lanes, so arraying an already-arrayed (bus-lane) *parallel* port is not yet
+  supported; common ports are direct fan-out and work regardless of width.
 - **Uneven bus-split / bus-merge (`firstLanes`)** — the split/merge primitives gained an optional
   `firstLanes` property (number, default `0` = even split, 0–64) so a bus can be divided unevenly
   (e.g. a 64-lane bus with `firstLanes = 10` splits into 10 + 54 lanes). The default behaviour is

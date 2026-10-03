@@ -5,6 +5,7 @@ import { Sidebar } from './ui/Sidebar'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ResizeHandle } from './ui/ResizeHandle'
 import { GroupDialog } from './ui/GroupDialog'
+import { ArrayDialog } from './ui/ArrayDialog'
 import { DeleteDialog } from './ui/DeleteDialog'
 import { ClearAllDialog } from './ui/ClearAllDialog'
 import { DeleteCategoriesDialog } from './ui/DeleteCategoriesDialog'
@@ -140,6 +141,7 @@ export default function App() {
         <LibraryPanel width={libraryWidth} />
       </div>
       <GroupDialog />
+      <ArrayDialog />
       <DeleteDialog />
       {pendingClearAll && <ClearAllDialog />}
       {pendingCategoryDelete && <DeleteCategoriesDialog />}

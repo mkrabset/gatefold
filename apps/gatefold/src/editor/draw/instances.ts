@@ -274,6 +274,13 @@ function drawInstance(
     const l = s.x - (w / 2) * vp.zoom
     const t = s.y - (h / 2) * vp.zoom
     drawRoundedBox(ctx, l, t, w * vp.zoom, h * vp.zoom, 6 * vp.zoom, p.compositeFill, p.gateStroke)
+    if (def.kind === 'composite' && def.arrayConfig) {
+      ctx.fillStyle = p.text
+      ctx.font = `${10 * vp.zoom}px system-ui, sans-serif`
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillText(`×${def.arrayConfig.count}`, l + 6 * vp.zoom, t + 4 * vp.zoom)
+    }
     ctx.fillStyle = p.text
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'

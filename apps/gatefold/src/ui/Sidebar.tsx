@@ -222,6 +222,34 @@ function PropertiesPanel({ selectedIds }: { selectedIds: string[] }) {
         <span>Type</span>
         <input value={childPrimitive(def) ?? 'composite'} readOnly />
       </label>
+      {def.kind === 'composite' && def.arrayConfig && (
+        <>
+          <label className="field" title="Number of copies in this array">
+            <span>Count</span>
+            <CommitInput
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={def.arrayConfig.count}
+              onCommit={(raw) => {
+                const n = Number(raw)
+                if (Number.isInteger(n) && n >= 1) useEditorStore.getState().setArrayCount(inst.id, n)
+              }}
+            />
+          </label>
+          <label className="field" title="Layout direction of the array's copies">
+            <span>Orientation</span>
+            <select
+              className="dialog-select"
+              value={def.arrayConfig.orientation}
+              onChange={(e) => useEditorStore.getState().setArrayOrientation(inst.id, e.target.value === 'vertical' ? 'vertical' : 'horizontal')}
+            >
+              <option value="horizontal">Horizontal</option>
+              <option value="vertical">Vertical</option>
+            </select>
+          </label>
+        </>
+      )}
       {childPrimitive(def) &&
         primitiveOf(childPrimitive(def)!)
           .properties()

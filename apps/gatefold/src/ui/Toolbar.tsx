@@ -71,6 +71,14 @@ const GroupIcon = () => (
   </svg>
 )
 
+const ArrayIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="1.5" y="2.5" width="8" height="8" rx="1" />
+    <rect x="4.5" y="5.5" width="8" height="8" rx="1" />
+    <path d="M7.5 1v1.5M10 1v1.5M12.5 1v1.5" />
+  </svg>
+)
+
 const BookmarkIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path d="M4.5 2.5h7v11l-3.5-2.5-3.5 2.5z" />
@@ -107,6 +115,13 @@ export function Toolbar() {
   const openGlobalSettings = useUiStore((s) => s.openSettings)
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const openGroupDialog = useEditorStore((s) => s.openGroupDialog)
+  const openArrayDialog = useEditorStore((s) => s.openArrayDialog)
+  const canArray = useEditorStore((s) => {
+    const def = resolveNav(s.design, s.navStack)
+    if (!def || def.kind !== 'composite' || s.selectedIds.length !== 1) return false
+    const inst = def.instances.find((i) => i.id === s.selectedIds[0])
+    return !!inst && inst.def.kind === 'composite'
+  })
   const saveProject = useEditorStore((s) => s.saveProject)
   const loadProject = useEditorStore((s) => s.loadProject)
   const exportVerilog = useEditorStore((s) => s.exportVerilog)
@@ -156,6 +171,10 @@ export function Toolbar() {
 
       <IconButton title="Group into component" disabled={selectedIds.length === 0} onClick={openGroupDialog}>
         <GroupIcon />
+      </IconButton>
+
+      <IconButton title="Array into copies" disabled={!canArray} onClick={openArrayDialog}>
+        <ArrayIcon />
       </IconButton>
 
       <div className="tb-divider" />

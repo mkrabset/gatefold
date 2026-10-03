@@ -17,6 +17,8 @@ export type {
   Instance,
   PinRef,
   Connection,
+  ArrayChain,
+  ArrayOrientation,
   Design,
   Testbench,
 } from './types'
@@ -54,6 +56,9 @@ export type { SheetWidths } from './widths'
 // Grouping into composites + deep-clone.
 export { cloneChildDef, cloneComposite, cloneDesign, inferGroup, applyGroup } from './group'
 export type { InstancePin, InferredInput, InferredOutput, InferredGroup } from './group'
+
+// Array generation (replicate a composite N times with optional inter-copy chaining).
+export { arrayComposite } from './array'
 
 // Copy/paste.
 export { captureClipboard, instantiateClipboard } from './clipboard'

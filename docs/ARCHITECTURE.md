@@ -675,6 +675,55 @@ evaluates as a true edge-triggered element and (later) exports to real FPGA flip
 
 ---
 
+## 6d. Array composites (parameterized duplication)
+
+A materialized-generator feature: an **array composite** is an ordinary `CompositeDef`
+(no new node type) that replicates a template composite `count` times in parallel, with
+optional inter-copy **chains** and **common** inputs. It introduces a single model field —
+`CompositeDef.arrayConfig?: { count: number; chains: ArrayChain[]; orientation: ArrayOrientation; common: string[] }` —
+and one pure generator, `arrayComposite(template, count, chains, usedIds, orientation, common)` in
+`packages/model/src/array.ts`.
+
+- **Interface** — transparent: the array's `ports` mirror the template's by id/name, each linked
+  to the array's own `input-port`/`output-port` group via `Port.terminal`.
+- **Orientation** — the *flow* (input port → fan-outs → copies → fan-ins → output port) is always
+  left-to-right; `arrayConfig.orientation` (`horizontal`/`vertical`) only changes how the copies
+  are laid out among themselves (left-to-right vs top-to-bottom). Purely cosmetic — the internal
+  `pos` coordinates never affect wiring, widths, or simulation. Parallel ports' fans are spread
+  into a vertical column (no overlap) and the port groups/fan columns are vertically centred on
+  the array.
+- **Parallel bundling** — each *non-chained, non-common* input port gets an internal FAN-OUT
+  instance (bus → `count` single-wire lanes to the copies) and each *non-chained* output port an
+  internal FAN-IN instance (the copies' lanes → bus), so the width solver resolves those terminals
+  to `count`-wide buses with no special width code. The simulator (`transfer` concat/slice) and the
+  Verilog generator (concat/slicing) consume them unchanged.
+- **Common inputs** — a port in `arrayConfig.common` is a single wire routed through a **NODE
+  join-point** (a `builtin` placed in the fan-out column) and fanned out to every copy, so its width
+  stays 1 and all copies' wires converge on one dot. This shares one signal across all copies — e.g.
+  a word mux's selection line driven identically into each bit-mux. Mutually exclusive with
+  chaining.
+- **Chaining** — each `ArrayChain { from, to }` wires `copy[i].from → copy[i+1].to` for
+  `i in 0..count-2`; the chained input feeds only copy 0 and the chained output is driven only by
+  copy `count-1`, collapsing both to single wires. This is the ripple-carry pattern (`Cout → Cin`).
+- **Ownership** — the `count` copies are deep clones of the template (via `cloneComposite`, so
+  each carries the template's `uuid` and a fresh id). The array is *self-describing*: its first
+  copy is the regeneration source, so a `count`/`chains`/`common`/`orientation` change rebuilds the
+  internals from it (no stored prototype, no library lookup). `cloneComposite`/serialization
+  round-trip `arrayConfig`; `applyTemplateToAll` still reaches the copies through their shared
+  `uuid`.
+- **Limitation** — FAN-IN/FAN-OUT bundle single-wire lanes, so a template whose *parallel* ports
+  are themselves buses (arraying an already-arrayed component) is not yet supported; a common port
+  is a direct fan-out and works regardless of width. An N-bit ripple adder is built as `Array(N)`
+  of a single-bit full-adder; a word mux as `Array(N)` of a bit mux with `common: ['Sel']`.
+
+The store's `openArrayDialog`/`confirmArray` promote the source to a library template (or reuse
+its origin) and swap the instance's def for the array; `setArrayCount`/`setArrayChains` regenerate
+the internals in place (same `id`/ports, so external wiring survives). UI: an **Array** toolbar
+button (single composite selection), an `ArrayDialog` (count + chain rules), a **Count** field in
+the properties panel, and a `×N` badge on the composite box.
+
+---
+
 ## 7. Current gaps (not yet implemented)
 
 - Instance/definition name-uniqueness validation (rename collision is rejected among templates;

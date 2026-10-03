@@ -230,6 +230,40 @@ instances.
 . *Edit internals* — double-click any component (composite or gate) to
 descend into it.
 
+==== Array (duplicating a component)
+
+Avoid repetitive work by replicating a single component many times in
+parallel. Select *one composite* (e.g. a full-adder) and press *Array*
+in the toolbar:
+
+* *Count* — how many copies to place. Each _non-chained_ terminal
+becomes a `count`-wide bus (e.g. a full-adder’s `A`/`B`/`Sum` become
+4-bit buses for `Count = 4`).
+* *Orientation* — lay the *copies* out horizontally (left to right) or
+vertically (top to bottom). The surrounding flow — input port, fan-outs,
+the copies, fan-ins, output port — is always left-to-right; orientation
+only affects how the copies are arranged among themselves.
+* *Inputs* — for each input, choose *Parallel (bus)* (one wire per copy,
+the default) or *Common (shared)* (one wire delivered to every copy,
+routed through a NODE join-point). Use _Common_ for a signal all copies
+share — e.g. the selection line of a word mux built from bit muxes.
+Chained inputs are already single-wire, so they show as _chained_ and
+can’t be toggled.
+* *Chains* — optional rules that wire one output of each copy to the
+next copy’s input (`copy++[++i++]++.from → copy++[++i{plus}1++]++.to`).
+The classic ripple-carry rule is `Cout → Cin`: the first copy’s `Cin`
+and last copy’s `Cout` become the array’s single-wire terminals. Add
+several chains for e.g. a shift register.
+
+The array is a normal composite: its box shows a `×N` badge, you can
+descend into it (showing the copies), and its *Count* appears in the
+properties panel — changing it regenerates the copies while keeping the
+external wiring. Editing the source template and applying it ("`Apply to
+all`" in the library panel) updates every copy, since the copies share
+the template’s lineage. _Note:_ chaining currently supports single-wire
+terminals only, and arraying a component that is itself a bus-array is
+not yet supported.
+
 ==== Terminal inversion
 
 Any terminal can be logically inverted (a negation bubble). Toggle it by

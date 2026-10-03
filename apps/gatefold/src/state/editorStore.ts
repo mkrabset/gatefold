@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PrimitiveKind, PropertyValue, PullDirection, Testbench } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PrimitiveKind, PropertyValue, PullDirection, Testbench, ArrayChain, ArrayOrientation } from '@gatefold/model'
 import {
   allCompositeIds,
   allowInversion,
   allowRenameTerminals,
   applyGroup,
+  arrayComposite,
   builtinOf,
   captureClipboard,
   childLabel,
@@ -82,6 +83,17 @@ export interface PendingGroup {
   promoteInstanceId: string | null
 }
 
+/** Values captured in the array dialog while awaiting confirmation. */
+export interface PendingArray {
+  /** The selected composite instance being wrapped. */
+  instanceId: string
+  count: number
+  chains: ArrayChain[]
+  orientation: ArrayOrientation
+  /** Input port ids delivered as one shared wire to every copy (not a bus). */
+  common: string[]
+}
+
 /** The deletion scope chosen in the "clear everything" dialog. */
 export interface ClearAllSelection {
   /** Clear the root sheet's instances/connections/ports. */
@@ -141,6 +153,7 @@ interface EditorState {
   /** Incremented on design load / descent to request a one-shot fit-to-view from the canvas. */
   fitToken: number
   pendingGroup: PendingGroup | null
+  pendingArray: PendingArray | null
   pendingDelete: string | null
   /** True while the "delete everything" confirmation dialog is open. */
   pendingClearAll: boolean
@@ -167,6 +180,16 @@ interface EditorState {
   setGroupOutputName: (index: number, name: string) => void
   confirmGroup: () => void
   cancelGroup: () => void
+  openArrayDialog: () => void
+  setArrayDialogCount: (count: number) => void
+  setArrayDialogChains: (chains: ArrayChain[]) => void
+  setArrayDialogOrientation: (orientation: ArrayOrientation) => void
+  setArrayDialogCommon: (common: string[]) => void
+  confirmArray: () => void
+  cancelArray: () => void
+  setArrayCount: (instanceId: string, count: number) => void
+  setArrayChains: (instanceId: string, chains: ArrayChain[]) => void
+  setArrayOrientation: (instanceId: string, orientation: ArrayOrientation) => void
   requestDeleteTemplate: (defId: string) => void
   confirmDeleteTemplate: () => void
   cancelDeleteTemplate: () => void
@@ -240,8 +263,44 @@ function resetAfterBulkDelete(s: EditorState): void {
   s.pendingWire = null
   s.hoverPort = null
   s.pendingGroup = null
+  s.pendingArray = null
   s.pendingDelete = null
   s.fitToken += 1
+}
+
+/**
+ * The library template to array from: the origin of `def`'s lineage when one exists,
+ * else a freshly promoted template (deep-copied, clean terminals, new uuid). Promoting
+ * keeps the array's copies reachable by "apply template changes to all" later.
+ */
+function resolveArrayTemplate(design: Design, def: CompositeDef): CompositeDef {
+  if (def.uuid) {
+    const origin = Object.values(design.library).find((t) => t.uuid === def.uuid)
+    if (origin) return origin
+  }
+  const copy = cloneComposite(def, allCompositeIds(design))
+  copy.name = uniqueAgainst(templateNames(design), def.name)
+  copy.uuid = newUuid()
+  for (const port of copy.ports) delete port.inverted
+  design.library[copy.id] = copy
+  return copy
+}
+
+/**
+ * Regenerate an array composite's internals from its first copy (the array is
+ * self-describing: its copies *are* the template), keeping its id/name/uuid and its
+ * ports (so external wiring survives) while swapping the instances/connections.
+ */
+function regenerateArray(s: EditorState, inst: Instance, count: number, chains: ArrayChain[], orientation: ArrayOrientation, common: string[]): void {
+  const def = inst.def
+  if (def.kind !== 'composite') return
+  const source = def.instances.find((i) => i.def.kind === 'composite')
+  if (!source || source.def.kind !== 'composite') return
+  const fresh = arrayComposite(source.def, count, chains, allCompositeIds(s.design), orientation, common)
+  def.instances = fresh.instances
+  def.connections = fresh.connections
+  def.ports = fresh.ports
+  def.arrayConfig = fresh.arrayConfig
 }
 
 // In-memory clipboard (not part of the undoable design state).
@@ -326,6 +385,7 @@ export const useEditorStore = create<EditorState>()(
       design: initialDesign ?? createDemoDesign(),
       fitToken: initialDesign ? 1 : 0,
       pendingGroup: null,
+      pendingArray: null,
       pendingDelete: null,
       pendingClearAll: false,
       pendingCategoryDelete: false,
@@ -517,6 +577,85 @@ export const useEditorStore = create<EditorState>()(
           s.selectedIds = last ? [last.id] : []
         }),
       cancelGroup: () => set((s) => void (s.pendingGroup = null)),
+      openArrayDialog: () =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          if (s.selectedIds.length !== 1) return
+          const inst = def.instances.find((i) => i.id === s.selectedIds[0])
+          if (!inst || inst.def.kind !== 'composite') return
+          const existing = inst.def.arrayConfig
+          s.pendingArray = {
+            instanceId: inst.id,
+            count: existing?.count ?? 2,
+            chains: existing ? existing.chains.map((c) => ({ from: c.from, to: c.to })) : [],
+            orientation: existing?.orientation ?? 'horizontal',
+            common: existing ? [...existing.common] : [],
+          }
+        }),
+      setArrayDialogCount: (count) =>
+        set((s) => {
+          if (s.pendingArray) s.pendingArray.count = Math.max(1, Math.floor(count))
+        }),
+      setArrayDialogChains: (chains) =>
+        set((s) => {
+          if (s.pendingArray) s.pendingArray.chains = chains.map((c) => ({ from: c.from, to: c.to }))
+        }),
+      setArrayDialogOrientation: (orientation) =>
+        set((s) => {
+          if (s.pendingArray) s.pendingArray.orientation = orientation
+        }),
+      setArrayDialogCommon: (common) =>
+        set((s) => {
+          if (s.pendingArray) s.pendingArray.common = [...common]
+        }),
+      confirmArray: () =>
+        set((s) => {
+          const p = s.pendingArray
+          if (!p) return
+          const def = currentDef(s)
+          s.pendingArray = null
+          if (!def || def.kind !== 'composite') return
+          const inst = def.instances.find((i) => i.id === p.instanceId)
+          if (!inst || inst.def.kind !== 'composite') return
+          if (inst.def.arrayConfig) {
+            // Re-configuring an existing array: regenerate its internals in place
+            // (rather than nesting another array around it).
+            regenerateArray(s, inst, p.count, p.chains, p.orientation, p.common)
+          } else {
+            const template = resolveArrayTemplate(s.design, inst.def)
+            inst.def = arrayComposite(template, p.count, p.chains, allCompositeIds(s.design), p.orientation, p.common)
+          }
+          s.selectedIds = [inst.id]
+        }),
+      cancelArray: () => set((s) => void (s.pendingArray = null)),
+      setArrayCount: (instanceId, count) =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const inst = def.instances.find((i) => i.id === instanceId)
+          if (!inst || inst.def.kind !== 'composite' || !inst.def.arrayConfig) return
+          const n = Math.max(1, Math.floor(count))
+          if (n === inst.def.arrayConfig.count) return
+          regenerateArray(s, inst, n, inst.def.arrayConfig.chains, inst.def.arrayConfig.orientation, inst.def.arrayConfig.common)
+        }),
+      setArrayChains: (instanceId, chains) =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const inst = def.instances.find((i) => i.id === instanceId)
+          if (!inst || inst.def.kind !== 'composite' || !inst.def.arrayConfig) return
+          regenerateArray(s, inst, inst.def.arrayConfig.count, chains, inst.def.arrayConfig.orientation, inst.def.arrayConfig.common)
+        }),
+      setArrayOrientation: (instanceId, orientation) =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          const inst = def.instances.find((i) => i.id === instanceId)
+          if (!inst || inst.def.kind !== 'composite' || !inst.def.arrayConfig) return
+          if (orientation === inst.def.arrayConfig.orientation) return
+          regenerateArray(s, inst, inst.def.arrayConfig.count, inst.def.arrayConfig.chains, orientation, inst.def.arrayConfig.common)
+        }),
       requestDeleteTemplate: (defId) => set((s) => void (s.pendingDelete = defId)),
       cancelDeleteTemplate: () => set((s) => void (s.pendingDelete = null)),
       confirmDeleteTemplate: () =>

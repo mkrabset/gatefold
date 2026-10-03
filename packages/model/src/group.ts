@@ -86,6 +86,7 @@ export function cloneComposite(def: CompositeDef, usedIds: Set<string>): Composi
     name: def.name,
     ...(def.uuid ? { uuid: def.uuid } : {}),
     ...(def.category ? { category: def.category } : {}),
+    ...(def.arrayConfig ? { arrayConfig: { count: def.arrayConfig.count, chains: def.arrayConfig.chains.map((c) => ({ from: c.from, to: c.to })), orientation: def.arrayConfig.orientation, common: [...def.arrayConfig.common] } } : {}),
     ports: def.ports.map(clonePort),
     instances: def.instances.map((inst) => ({
       id: inst.id,

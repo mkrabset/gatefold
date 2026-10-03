@@ -88,7 +88,7 @@ export class Register extends Gate {
     ]
   }
 
-  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>): number | null {
+  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>, _props?: Record<string, PropertyValue>): number | null {
     // The DATA bus and Q bus adopt each other's width (so a register's data-in and
     // data-out always agree); CLK/RST and the WIRE terminals are single-wire.
     if (port.name === 'DATA') return siblings.get('out:0') ?? null

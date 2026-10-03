@@ -125,6 +125,32 @@ export function deriveBusWidth(
   return other ?? null
 }
 
+/** The `firstLanes` property value (bus-split/bus-merge), or null when unset/auto. */
+export function firstLanesOf(props?: Record<string, PropertyValue>): number | null {
+  const v = typeof props?.firstLanes === 'number' ? Math.floor(props.firstLanes) : 0
+  return v >= 1 ? v : null
+}
+
+/**
+ * Width derivation for an uneven bus-split/bus-merge: `total = first + other`, with the
+ * `firstPortId` pin fixed at `firstLanes`. The caller decides when this relation applies
+ * (only when `firstLanes` is set); otherwise it uses `deriveBusWidth` for an even split.
+ */
+export function deriveUnevenWidth(
+  port: Port,
+  siblings: ReadonlyMap<string, number>,
+  totalPortId: string,
+  firstPortId: string,
+  otherPortId: string,
+  firstLanes: number,
+): number | null {
+  if (port.id === firstPortId) return firstLanes
+  const total = siblings.get(totalPortId)
+  if (port.id === otherPortId) return total === undefined ? null : total - firstLanes
+  const other = siblings.get(otherPortId)
+  return other === undefined ? null : firstLanes + other
+}
+
 /**
  * Base class for the single-wire logic gates (AND, OR, XOR, NOT, CLOCK, and the bus
  * FAN-IN/FAN-OUT). Supplies the defaults shared across them: variable inputs named A…

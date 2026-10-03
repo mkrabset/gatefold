@@ -80,4 +80,25 @@ describe('global width resolution across composite boundaries', () => {
     expect(isNeutralPin(root, cwo, iref('cmp', 'in:0'))).toBe(true)
     expect(pinWidth(root, cwo, iref('cmp', 'out:0'))).toBe(1)
   })
+
+  it('resolves an uneven bus-split (firstLanes) from the connection', () => {
+    const main: CompositeDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [
+        inst('bus64', forkOf('bus'), 0, 0, { lanes: 64 }),
+        inst('bs', forkOf('bus-split'), 0, 0, { firstLanes: 10 }),
+      ],
+      connections: [{ id: 'w', from: iref('bus64', 'out:0'), to: iref('bs', 'in:0') }],
+    }
+    const design: Design = { version: 2, root: main, library: {} }
+    const root = design.root
+    expect(pinWidth(root, root, iref('bs', 'in:0'))).toBe(64)
+    expect(pinWidth(root, root, iref('bs', 'out:0'))).toBe(10)
+    expect(pinWidth(root, root, iref('bs', 'out:1'))).toBe(54)
+    expect(isNeutralPin(root, root, iref('bs', 'out:0'))).toBe(false)
+    expect(isNeutralPin(root, root, iref('bs', 'out:1'))).toBe(false)
+  })
 })

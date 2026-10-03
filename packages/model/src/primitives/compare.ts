@@ -1,4 +1,4 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../ports'
 import { Gate, fillAndStroke, gateBounds } from './gate'
 import type { DrawOptions } from './primitive'
@@ -29,7 +29,7 @@ export class Compare extends Gate {
     return null
   }
 
-  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>): number | null {
+  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>, _props?: Record<string, PropertyValue>): number | null {
     // The output is a single wire; each input equals the other input's width.
     if (port.direction === 'output') return 1
     const other = siblings.get(port.id === 'in:0' ? 'in:1' : 'in:0')

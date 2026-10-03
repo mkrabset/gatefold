@@ -13,6 +13,17 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Uneven bus-split / bus-merge (`firstLanes`)** — the split/merge primitives gained an optional
+  `firstLanes` property (number, default `0` = even split, 0–64) so a bus can be divided unevenly
+  (e.g. a 64-lane bus with `firstLanes = 10` splits into 10 + 54 lanes). The default behaviour is
+  unchanged. To support this, `Primitive.deriveWidth` now takes the instance `props` (threaded
+  through the width solver's `Relation`), and a new `firstLanesOf`/`deriveUnevenWidth` pair in
+  `primitives/gate.ts` expresses `total = first + other` with `first = firstLanes`. The split's
+  `transfer` slices by `firstLanes` (the merge's concatenation is width-independent), and the
+  Verilog split emits the corresponding `[firstLanes-1:0]` / `[n-1:firstLanes]` slices. Docs updated
+  (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`); tests in model (primitives/transfer/widths),
+  sim (engine), and verilog.
+
 - **Testing tab (test bench)** — a third middle-panel tab, a sheet one level *above* the top-level
   `main`, for connecting outside-world components (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) to the
   design's interface without putting them in the design or its Verilog:

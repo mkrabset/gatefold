@@ -33,6 +33,7 @@ export { counterPorts, counterWidthOf, COUNTER_DEFAULT_WIDTH, COUNTER_MAX_WIDTH 
 export { romAddressWidthOf, romDataWidthOf, romContentsOf, romPorts, romAccessOf, ROM_DEFAULT_ADDRESS_WIDTH, ROM_DEFAULT_DATA_WIDTH, ROM_MAX_ADDRESS_WIDTH, ROM_MAX_DATA_WIDTH } from './rom'
 export type { RomAccess } from './rom'
 export { CLOCK_DEFAULT_PERIOD, periodOf } from './clock'
+export { firstLanesOf } from './gate'
 export { invertSignal } from './logic'
 
 const PRIMITIVES: Record<PrimitiveKind, Primitive> = {

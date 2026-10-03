@@ -57,8 +57,16 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(primitiveOf('bus-split').transfer([[1, 0, 1, 0]])).toEqual([[1, 0], [1, 0]])
   })
 
+  it('BUS-SPLIT splits unevenly when firstLanes is set', () => {
+    expect(primitiveOf('bus-split').transfer([[1, 0, 1, 0, 1, 1]], { firstLanes: 2 })).toEqual([[1, 0], [1, 0, 1, 1]])
+  })
+
   it('BUS-MERGE concatenates two buses', () => {
     expect(primitiveOf('bus-merge').transfer([[1, 0], [0, 1]])).toEqual([[1, 0, 0, 1]])
+  })
+
+  it('BUS-MERGE concatenates unevenly (firstLanes only affects width, not order)', () => {
+    expect(primitiveOf('bus-merge').transfer([[1, 0], [0, 1, 1]])).toEqual([[1, 0, 0, 1, 1]])
   })
 
   it('COMPARE reports equality (1), difference (0), or unknown (x)', () => {

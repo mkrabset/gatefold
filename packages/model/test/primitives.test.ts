@@ -402,6 +402,33 @@ describe('model primitives', () => {
     expect(merge(mIn0, new Map())).toBeNull()
   })
 
+  it('splits/merges unevenly when firstLanes is set', () => {
+    const split = primitiveOf('bus-split').deriveWidth!
+    const in0 = inP('bus-split')[0]
+    const out0 = outP('bus-split')[0]
+    const out1 = outP('bus-split')[1]
+    // firstLanes fixes Y1 to 10; Y2 = input − 10; input = 10 + Y2.
+    expect(split(out0, new Map(), { firstLanes: 10 })).toBe(10)
+    expect(split(out1, new Map([['in:0', 64]]), { firstLanes: 10 })).toBe(54)
+    expect(split(in0, new Map([['out:1', 54]]), { firstLanes: 10 })).toBe(64)
+    // With no firstLanes, the even-split behaviour is unchanged.
+    expect(split(out0, new Map([['in:0', 6]]))).toBe(3)
+
+    const merge = primitiveOf('bus-merge').deriveWidth!
+    const mOut = outP('bus-merge')[0]
+    const mIn0 = inP('bus-merge')[0]
+    const mIn1 = inP('bus-merge')[1]
+    expect(merge(mIn0, new Map(), { firstLanes: 10 })).toBe(10)
+    expect(merge(mIn1, new Map([['out:0', 64]]), { firstLanes: 10 })).toBe(54)
+    expect(merge(mOut, new Map([['in:1', 54]]), { firstLanes: 10 })).toBe(64)
+  })
+
+  it('defaults firstLanes to 0 (even split) for bus-split/bus-merge', () => {
+    expect(defaultPropsOf('bus-split').firstLanes).toBe(0)
+    expect(defaultPropsOf('bus-merge').firstLanes).toBe(0)
+    expect(primitiveOf('bus-split').properties().find((p) => p.name === 'firstLanes')?.type).toBe('number')
+  })
+
   it('provides undetermined-width hints', () => {
     const splitIn = inP('bus-split')[0]
     const splitOut = outP('bus-split')[0]

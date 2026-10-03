@@ -246,13 +246,17 @@ design.root.instances = [
   a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
   composite-terminal mirrors, and the `×2`/equality relations of `bus-split`/`bus-merge`/
-  `compare` via `Primitive.deriveWidth`). The graph is solved **globally** across the whole
+  `compare` via `Primitive.deriveWidth`). `deriveWidth` takes the instance `props` too, so
+  the split/merge relations can be made **uneven**: the `firstLanes` property (default `0`,
+  i.e. even) fixes the first output/input to `firstLanes` lanes and gives the other side the
+  remainder. The graph is solved **globally** across the whole
   subtree rooted at the width root (the edited template, else `design.root`), and a composite's
   `Port.terminal` mirror is **bidirectional** — so an external bus connection determines an
   otherwise-undetermined (neutral) bus *inside* a component, and vice versa.
   `Primitive.intrinsicWidth(ports, port, props?)` takes the instance props so a primitive can
   fix its width from a property (the `bus` primitive returns `lanes`).
-  An undetermined pin is neutral; a conflict, a non-integer result (odd bus into a splitter),
+  An undetermined pin is neutral; a conflict, a non-integer result (an odd bus into an even
+  splitter, or a `firstLanes` larger than the bus),
   or a failed `Primitive.widthError` constraint marks the sheet invalid — `widthError` carries
   a per-primitive validation message (e.g. the 7-seg requires a width divisible by 4 and ≤ 64).
 - **Copy-on-place**: library templates are immutable. Placing or grouping deep-copies the

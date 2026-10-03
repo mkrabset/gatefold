@@ -223,13 +223,15 @@ wire (or a `?` box on a display).
 
 - **FAN-IN** bundles `n` single wires into one `n`-wide bus.
 - **FAN-OUT** splits one `n`-wide bus into `n` single wires.
-- **BUS-SPLIT** splits one bus into two halves; **BUS-MERGE** joins two buses into one (twice
-  the width).
+- **BUS-SPLIT** splits one bus into two parts; **BUS-MERGE** joins two buses into one (twice
+  the width). By default the split/merge is even, but a **First lanes** property lets you fix
+  the first part to a specific width and give the rest to the second (e.g. a 64-lane bus with
+  `First lanes = 10` splits into a 10-lane and a 54-lane part). Set it to `0` to split evenly.
 - **BUS** (the primitive) *fixes* a bus to a specific width (`Lanes`), and is a passthrough.
 - **COMPARE** takes two buses of the same (derived) width and outputs `1` when they match,
   `0` when they differ.
-- Connecting mismatched widths is rejected at wiring time ("Bus width mismatch"), and a bus
-  splitter requires an even width ("Bus width must be even").
+- Connecting mismatched widths is rejected at wiring time ("Bus width mismatch"), and an even
+  bus splitter requires an even width ("Bus width must be even").
 
 ---
 
@@ -366,12 +368,16 @@ its properties, and what it does.
 - Splits one `n`-wide bus input into `n` single-wire outputs.
 
 ### BUS-SPLIT
-- **Inputs:** 1 (`BUS`, width `n`, even) · **Outputs:** 2 (`Y1`, `Y2`, width `n/2` each)
-- Splits a bus into two equal halves. The input width must be even.
+- **Inputs:** 1 (`BUS`, width `n`) · **Outputs:** 2 (`Y1`, `Y2`)
+- Splits a bus into two parts. By default it splits evenly (`Y1`/`Y2` each `n/2`, requiring an
+  even width); the **First lanes** property (default `0`, 0–64) fixes `Y1` to that many lanes and
+  gives `Y2` the remainder (`n − First lanes`). `0` means "split evenly".
 
 ### BUS-MERGE
-- **Inputs:** 2 (`A`, `B`, width `m` each) · **Outputs:** 1 (`BUS`, width `2m`)
-- Concatenates two buses into one twice as wide.
+- **Inputs:** 2 (`A`, `B`) · **Outputs:** 1 (`BUS`)
+- Concatenates two buses into one. By default the two inputs are equal (each `m`, the output
+  `2m`); the **First lanes** property (default `0`, 0–64) fixes `A` to that many lanes and gives
+  `B` the remainder (`output − First lanes`). `0` means "merge evenly".
 
 ### BUS
 - **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)

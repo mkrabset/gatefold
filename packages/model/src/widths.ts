@@ -1,4 +1,4 @@
-import type { CompositeDef, PinRef, Port } from './types'
+import type { CompositeDef, PinRef, Port, PropertyValue } from './types'
 import { childPorts, primitiveOf } from './primitives'
 import type { Primitive } from './primitives'
 
@@ -29,6 +29,7 @@ interface Relation {
   ports: Port[]
   keys: string[]
   prim: Primitive
+  props?: Record<string, PropertyValue>
 }
 
 /** A primitive instance with a per-pin width constraint (e.g. the 7-seg). */
@@ -105,7 +106,7 @@ function collect(root: CompositeDef): SheetModel {
       const ports = childPorts(idef)
       const keys = ports.map((p) => pinKeyAt(path, inst.id, p.id))
       if (prim.deriveWidth) {
-        model.relations.push({ ports, keys, prim })
+        model.relations.push({ ports, keys, prim, props: inst.props })
       } else {
         for (let i = 0; i < ports.length; i++) {
           const w = prim.intrinsicWidth(ports, ports[i], inst.props)
@@ -173,7 +174,7 @@ function resolve(model: SheetModel): SheetWidths {
           const w = widths.get(rel.keys[j])
           if (w !== undefined) siblings.set(rel.ports[j].id, w)
         }
-        const derived = rel.prim.deriveWidth!(rel.ports[i], siblings)
+        const derived = rel.prim.deriveWidth!(rel.ports[i], siblings, rel.props)
         if (derived !== null) {
           set(key, derived)
           changed = true

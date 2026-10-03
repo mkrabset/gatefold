@@ -615,6 +615,28 @@ describe('exportVerilog', () => {
     expect(source).toContain('[1:1]')
   })
 
+  it('slices unevenly when a bus-split has firstLanes', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [output('out:0', 'Y1'), output('out:1', 'Y2')],
+      instances: [
+        prim('src', 'bus', { lanes: 64 }),
+        prim('bs', 'bus-split', { firstLanes: 10 }),
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('src', 'out:0'), to: iref('bs', 'in:0') },
+        { id: 'c2', from: iref('bs', 'out:0'), to: iref('po', 'out:0') },
+        { id: 'c3', from: iref('bs', 'out:1'), to: iref('po', 'out:1') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign Y1 =')
+    expect(source).toContain('assign Y2 =')
+    expect(source).toContain('[9:0]')
+    expect(source).toContain('[63:10]')
+  })
+
   it('honors a DFF negedge, initial value, and active-low reset', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',

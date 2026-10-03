@@ -197,8 +197,13 @@ authoritative — update this when a term's meaning changes.
 - **Width / arity** — the number of wires a terminal carries (`1` = single wire, `n` = bus).
 - **Fan-in** — primitive with `n` single-wire inputs → `1` bus output (width `n`).
 - **Fan-out** — primitive with `1` bus input (width `n`) → `n` single-wire outputs.
-- **Bus-split** — primitive with `1` bus input (width `n`) → `2` bus outputs (width `n/2`).
-- **Bus-merge** — primitive with `2` bus inputs (width `m`) → `1` bus output (width `2m`).
+- **Bus-split** — primitive with `1` bus input (width `n`) → `2` bus outputs. By default the
+  split is even (`Y1`/`Y2` each `n/2`); the `firstLanes` property fixes `Y1` to that many lanes
+  and gives `Y2` the remainder (`n − firstLanes`). `firstLanes = 0` (the default) means "split
+  evenly".
+- **Bus-merge** — primitive with `2` bus inputs (`A`/`B`) → `1` bus output. By default the two
+  inputs are equal (each `m`); the `firstLanes` property fixes `A` to that many lanes and gives
+  `B` the remainder (`output − firstLanes`). `firstLanes = 0` (the default) means "merge evenly".
 - **Bus (primitive)** — a passthrough (single bus in → single bus out) whose `lanes` property
   fixes the width of both terminals, used to pin a bus to a specific width.
 - **Compare** — a primitive with two bus inputs of **equal derived width** and one single-wire
@@ -212,8 +217,9 @@ authoritative — update this when a term's meaning changes.
   relations, and property-driven intrinsic widths (the `bus` primitive's `lanes`). It solves
   the whole subtree rooted at the **width root** (the edited template, else the design root),
   and a composite terminal mirror is **bidirectional**, so an external bus connection fixes an
-  otherwise-neutral bus *inside* a component. A conflict, a non-integer result (odd bus into a
-  splitter), or a failed `widthError` constraint (7-seg multiple-of-4 / ≤64) is invalid.
+  otherwise-neutral bus *inside* a component. A conflict, a non-integer result (an odd bus into an
+  even splitter, or a `firstLanes` larger than the bus), or a failed `widthError` constraint
+  (7-seg multiple-of-4 / ≤64) is invalid.
 
 ## Editing operations
 

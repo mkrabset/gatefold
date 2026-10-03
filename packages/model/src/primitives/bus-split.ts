@@ -1,12 +1,14 @@
-import type { Port, Signal } from '../types'
+import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../ports'
-import { deriveBusWidth, drawBusSplit, Gate } from './gate'
-import type { DrawOptions } from './primitive'
+import { deriveBusWidth, deriveUnevenWidth, drawBusSplit, firstLanesOf, Gate } from './gate'
+import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
 /**
- * Splits one bus input (width n, even) into two bus outputs of width n/2 each. The
- * widths are derived from wiring via `deriveWidth`, never stored.
+ * Splits one bus input (width n) into two bus outputs. By default the split is even
+ * (`Y1`/`Y2` each n/2); the `firstLanes` property fixes `Y1` to that many lanes and
+ * gives `Y2` the remainder (n − firstLanes). Widths are derived from wiring via
+ * `deriveWidth`, never stored.
  */
 export class BusSplit extends Gate {
   readonly kind = 'bus-split' as const
@@ -23,13 +25,21 @@ export class BusSplit extends Gate {
     ]
   }
 
-  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>): number | null {
+  properties(): PropertySpec[] {
+    return [
+      { name: 'firstLanes', label: 'First lanes', type: 'number', default: 0, min: 0, max: 64, tooltip: 'Number of lanes in the first output (Y1); the rest go to Y2. 0 = split evenly.' },
+    ]
+  }
+
+  deriveWidth(port: Port, siblings: ReadonlyMap<string, number>, props?: Record<string, PropertyValue>): number | null {
+    const first = firstLanesOf(props)
+    if (first !== null) return deriveUnevenWidth(port, siblings, 'in:0', 'out:0', 'out:1', first)
     return deriveBusWidth(port, siblings, 'in:0', ['out:0', 'out:1'])
   }
 
-  transfer(inputs: Signal[][]): Signal[][] {
-    const bits = inputs[0]
-    const m = bits.length / 2
+  transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][] {
+    const bits = inputs[0] ?? []
+    const m = firstLanesOf(props) ?? Math.floor(bits.length / 2)
     return [bits.slice(0, m), bits.slice(m)]
   }
 

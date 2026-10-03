@@ -3,6 +3,7 @@ import {
   childPorts,
   childPrimitive,
   findConnectionTo,
+  firstLanesOf,
   formatSwitchValue,
   inputPorts,
   outputPorts,
@@ -417,7 +418,7 @@ class Generator {
         const input = inputPorts(ports)[0]
         const [y1, y2] = outputPorts(ports)
         const n = netWidthByName.get(net(input.id)) ?? 1
-        const m = Math.max(1, n >> 1)
+        const m = firstLanesOf(inst.props) ?? Math.max(1, n >> 1)
         let r1 = `${net(input.id)}[${m - 1}:0]`
         let r2 = `${net(input.id)}[${n - 1}:${m}]`
         if (input.inverted) { r1 = `~(${r1})`; r2 = `~(${r2})` }

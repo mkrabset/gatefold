@@ -493,6 +493,28 @@ describe('Simulation engine', () => {
     expect(sim.signalOf('bs', 'out:1')).toEqual([1, 0])
   })
 
+  it('splits a bus unevenly when the split has firstLanes', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('s0', 'switch-array'), inst('s1', 'switch-array'), inst('s2', 'switch-array'), inst('s3', 'switch-array'), inst('fi', fanIn4), inst('bs', 'bus-split', { firstLanes: 1 })],
+        [
+          conn('c0', iref('s0', 'out:0'), iref('fi', 'in:0')),
+          conn('c1', iref('s1', 'out:0'), iref('fi', 'in:1')),
+          conn('c2', iref('s2', 'out:0'), iref('fi', 'in:2')),
+          conn('c3', iref('s3', 'out:0'), iref('fi', 'in:3')),
+          conn('c4', iref('fi', 'out:0'), iref('bs', 'in:0')),
+        ],
+      ),
+    )
+    sim.setSwitch('s0', 1)
+    sim.setSwitch('s1', 0)
+    sim.setSwitch('s2', 1)
+    sim.setSwitch('s3', 1)
+    sim.step()
+    expect(sim.signalOf('bs', 'out:0')).toEqual([1])
+    expect(sim.signalOf('bs', 'out:1')).toEqual([0, 1, 1])
+  })
+
   it('compares two equal-width buses', () => {
     const sim = new Simulation(
       mkDesign(

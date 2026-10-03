@@ -648,7 +648,7 @@ describe('array', () => {
     const store = useEditorStore.getState()
     store.setSelection(['ha1'])
     store.openArrayDialog()
-    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [] })
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [], newLayer: false })
 
     store.setArrayDialogCount(4)
     store.setArrayDialogChains([{ from: 'out:1', to: 'in:1' }])
@@ -696,7 +696,7 @@ describe('array', () => {
     // (not wrap another array around it).
     store.setSelection(['ha1'])
     store.openArrayDialog()
-    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 4, chains: [], orientation: 'horizontal', common: [] })
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 4, chains: [], orientation: 'horizontal', common: [], newLayer: false })
     store.setArrayDialogCount(3)
     store.confirmArray()
 
@@ -705,6 +705,31 @@ describe('array', () => {
     // The copies are full-adder composites (not nested arrays).
     expect(arr.instances.filter((i) => i.def.kind === 'composite' && i.def.arrayConfig)).toHaveLength(0)
     expect(arr.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(3)
+  })
+
+  it('wraps an existing array in a new layer when "new layer" is checked', () => {
+    reset()
+    const store = useEditorStore.getState()
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    store.setArrayDialogCount(4)
+    store.confirmArray()
+
+    // Re-open on the array and check "new layer": the fields reset to defaults.
+    store.setSelection(['ha1'])
+    store.openArrayDialog()
+    store.setArrayDialogNewLayer(true)
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [], newLayer: true })
+
+    store.setArrayDialogCount(3)
+    store.confirmArray()
+
+    const arr = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
+    expect(arr.arrayConfig?.count).toBe(3)
+    // The outer array's copies are themselves arrays (nested arrayConfig).
+    const copies = arr.instances.filter((i) => i.def.kind === 'composite')
+    expect(copies).toHaveLength(3)
+    expect(copies.every((c) => (c.def as CompositeDef).arrayConfig?.count === 4)).toBe(true)
   })
 
   it('applies a vertical orientation from the dialog and via the store', () => {

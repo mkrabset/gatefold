@@ -405,12 +405,17 @@ class Generator {
       if (kind === 'fan-out') {
         const input = inputPorts(ports)[0]
         const outputs = outputPorts(ports)
-        outputs.forEach((p, i) => {
-          let rhs = `${net(input.id)}[${i}]`
+        let offset = 0
+        for (const p of outputs) {
+          const w = netWidthByName.get(net(p.id)) ?? 1
+          const lo = offset
+          const hi = offset + w - 1
+          offset += w
+          let rhs = w === 1 ? `${net(input.id)}[${lo}]` : `${net(input.id)}[${hi}:${lo}]`
           if (input.inverted) rhs = `~(${rhs})`
           if (p.inverted) rhs = `~(${rhs})`
           stmts.push(`assign ${net(p.id)} = ${rhs};`)
-        })
+        }
         return
       }
 

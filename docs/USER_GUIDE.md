@@ -195,9 +195,13 @@ composite** (e.g. a full-adder) and press **Array** in the toolbar:
 The array is a normal composite: its box shows a `×N` badge, you can descend into it (showing the
 copies), and its **Count** appears in the properties panel — changing it regenerates the copies
 while keeping the external wiring. Editing the source template and applying it ("Apply to all" in
-the library panel) updates every copy, since the copies share the template's lineage. *Note:*
-chaining currently supports single-wire terminals only, and arraying a component that is itself a
-bus-array is not yet supported.
+the library panel) updates every copy, since the copies share the template's lineage.
+
+Arrays can be **nested**: select an array and press **Array** again — the dialog then shows a
+**New layer** checkbox. Leave it unchecked to edit the array in place (its count/chains/orientation
+are pre-filled); check it to wrap the array in a new layer (the fields reset to fresh defaults for
+the outer layer). This builds an array-of-arrays, e.g. an 8×4 ripple adder from 8 copies of a 4-bit
+adder. *Note:* chaining supports single-wire terminals only.
 
 ### Terminal inversion
 

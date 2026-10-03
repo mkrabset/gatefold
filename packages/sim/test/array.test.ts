@@ -209,3 +209,49 @@ describe('array common input (word mux)', () => {
     expect(sim.signalOf('arr', 'out:0')).toEqual([0, 0, 0, 0, 0, 0, 0, 0]) // all A
   })
 })
+
+describe('array of a bus-width template', () => {
+  it('splits and merges sub-buses across the copies', () => {
+    const arr = arrayComposite(busTemplate(4), 3, [], new Set())
+    const instances: Instance[] = [inst('arr', arr), inst('sw', switchBus)]
+    const connections: Connection[] = [conn('c', iref('sw', 'out:0'), iref('arr', 'in:0'))]
+    const main: CompositeDef = { id: 'main', name: 'main', kind: 'composite', ports: [], instances, connections }
+    const sim = new Simulation({ version: 2, root: main, library: {} })
+    sim.step()
+
+    // 12 bits, LSB-first: [1,0,1,0, 1,1,0,0, 0,1,1,1].
+    sim.setSwitchLanes('sw', [1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1])
+    sim.step()
+    expect(sim.signalOf('arr', 'out:0')).toEqual([1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1])
+  })
+})
+
+/** A composite with a single `w`-wide bus input/output (a `bus` primitive passthrough). */
+function busTemplate(w: number): CompositeDef {
+  const busFork: ChildDef = {
+    kind: 'fork',
+    primitive: 'bus',
+    ports: [
+      { id: 'in:0', name: 'A', direction: 'input' },
+      { id: 'out:0', name: 'Y', direction: 'output' },
+    ],
+  }
+  return {
+    kind: 'composite',
+    id: 'bus-t',
+    name: 'bus-t',
+    ports: [
+      { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
+      { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+    ],
+    instances: [
+      inst('in', INPUT_PORT),
+      { id: 'b', name: 'b', def: busFork, pos: { x: 0, y: 0 }, props: { lanes: w } },
+      inst('out', OUTPUT_PORT),
+    ],
+    connections: [
+      conn('c1', iref('in', 'in:0'), iref('b', 'in:0')),
+      conn('c2', iref('b', 'out:0'), iref('out', 'out:0')),
+    ],
+  }
+}

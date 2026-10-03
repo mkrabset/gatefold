@@ -899,4 +899,38 @@ describe('exportVerilog', () => {
     expect(source).toContain('output [3:0] Sum')
     expect(source).toContain('module fa_array')
   })
+
+  it('emits sub-bus slicing for a fan-out over a bus-width template array', () => {
+    const busT: CompositeDef = {
+      id: 'bus-t', name: 'bus-t', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [
+        pgIn(),
+        { id: 'b', name: 'b', def: forkOf('bus'), pos: { x: 0, y: 0 }, props: { lanes: 4 } },
+        pgOut(),
+      ],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const arr = arrayComposite(busT, 3, [], new Set())
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), pgOut(), composite('arr', arr)],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('arr', 'in:0') },
+        { id: 'c2', from: iref('arr', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source, issues } = exportVerilog(jsonOf(main))
+    expect(issues.filter((i) => i.level === 'error')).toEqual([])
+    expect(source).toContain('input [11:0] A')
+    expect(source).toContain('output [11:0] Y')
+    // The fan-out slices the 12-bit bus into three 4-bit sub-buses.
+    expect(source).toMatch(/\[3:0\]/)
+    expect(source).toMatch(/\[7:4\]/)
+    expect(source).toMatch(/\[11:8\]/)
+  })
 })

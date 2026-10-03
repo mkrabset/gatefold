@@ -243,9 +243,10 @@ design.root.instances = [
   `instanceBodySize` stays a dot), `hitTestPort`'s `prefer` role disambiguates press (source) vs
   drop (sink), and the router collapses a wire's nearest control point onto the dot.
 - **Buses**: a terminal's *width* (wire count) is derived, never stored. `portWidth` reports
-  a primitive's intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
+  a primitive's nominal intrinsic width (fan-in output / fan-out input = arity, else 1); the model's
   `widths.ts` solves the full width graph by fixpoint propagation (connection equalities,
-  composite-terminal mirrors, and the `×2`/equality relations of `bus-split`/`bus-merge`/
+  composite-terminal mirrors, the sum relations of `fan-in`/`fan-out` — bus = Σ lane widths,
+  single-wire lanes defaulting to 1 — and the `×2`/equality relations of `bus-split`/`bus-merge`/
   `compare` via `Primitive.deriveWidth`). `deriveWidth` takes the instance `props` too, so
   the split/merge relations can be made **uneven**: the `firstLanes` property (default `0`,
   i.e. even) fixes the first output/input to `firstLanes` lanes and gives the other side the
@@ -693,10 +694,12 @@ and one pure generator, `arrayComposite(template, count, chains, usedIds, orient
   into a vertical column (no overlap) and the port groups/fan columns are vertically centred on
   the array.
 - **Parallel bundling** — each *non-chained, non-common* input port gets an internal FAN-OUT
-  instance (bus → `count` single-wire lanes to the copies) and each *non-chained* output port an
-  internal FAN-IN instance (the copies' lanes → bus), so the width solver resolves those terminals
-  to `count`-wide buses with no special width code. The simulator (`transfer` concat/slice) and the
-  Verilog generator (concat/slicing) consume them unchanged.
+  instance (bus → `count` lanes, one per copy) and each *non-chained* output port an internal
+  FAN-IN instance (the copies' lanes → bus). Because FAN-IN/FAN-OUT now bundle/split **sub-buses**
+  (their bus width is the sum of the lanes' widths), the width solver resolves the boundary to
+  `count × lane-width` with no special width code — so a template with bus-width ports arrays
+  cleanly. The simulator (`transfer` concat/width-aware slice) and the Verilog generator
+  (concat/range slicing) consume them unchanged.
 - **Common inputs** — a port in `arrayConfig.common` is a single wire routed through a **NODE
   join-point** (a `builtin` placed in the fan-out column) and fanned out to every copy, so its width
   stays 1 and all copies' wires converge on one dot. This shares one signal across all copies — e.g.
@@ -711,10 +714,10 @@ and one pure generator, `arrayComposite(template, count, chains, usedIds, orient
   internals from it (no stored prototype, no library lookup). `cloneComposite`/serialization
   round-trip `arrayConfig`; `applyTemplateToAll` still reaches the copies through their shared
   `uuid`.
-- **Limitation** — FAN-IN/FAN-OUT bundle single-wire lanes, so a template whose *parallel* ports
-  are themselves buses (arraying an already-arrayed component) is not yet supported; a common port
-  is a direct fan-out and works regardless of width. An N-bit ripple adder is built as `Array(N)`
-  of a single-bit full-adder; a word mux as `Array(N)` of a bit mux with `common: ['Sel']`.
+- **Limitation** — a *common* port is routed through a single-wire NODE, so it must itself be
+  single-wire (a bus-width common input is not supported). Parallel ports support bus-width lanes.
+  An N-bit ripple adder is built as `Array(N)` of a single-bit full-adder; a word mux as `Array(N)`
+  of a bit mux with `common: ['Sel']`.
 
 The store's `openArrayDialog`/`confirmArray` promote the source to a library template (or reuse
 its origin) and swap the instance's def for the array; `setArrayCount`/`setArrayChains` regenerate

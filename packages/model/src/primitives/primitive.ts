@@ -108,10 +108,18 @@ export interface Primitive {
    *  this pin's width or null (undetermined). May return a non-integer to flag an
    *  invalid configuration (the solver reports it). Only consulted for unconnected pins.
    *  `props` is the instance's property record, for relations that depend on a
-   *  per-instance value (e.g. a bus-split/bus-merge `firstLanes`). */
-  deriveWidth?(port: Port, siblings: ReadonlyMap<string, number>, props?: Record<string, PropertyValue>): number | null
-  /** Validation error for a resolved pin width, or null when valid. */
-  widthError?(port: Port, width: number): string | null
+   *  per-instance value (e.g. a bus-split/bus-merge `firstLanes`). `ports` is the
+   *  instance's full port list, for relations that depend on arity (e.g. a fan-in's
+   *  output width is the sum of its input widths). */
+  deriveWidth?(port: Port, siblings: ReadonlyMap<string, number>, props?: Record<string, PropertyValue>, ports?: Port[]): number | null
+  /** Validation error for a resolved pin width, or null when valid. `siblings` is the
+   *  resolved widths of the instance's other pins, for relations that must hold across
+   *  all of them (e.g. a fan-out's input width must equal the sum of its outputs). */
+  widthError?(port: Port, width: number, siblings?: ReadonlyMap<string, number>): string | null
+  /** A soft fallback width for `port` when the width solver leaves it undetermined
+   *  (applied *after* the main fixpoint, so a bus-connected lane keeps its real width).
+   *  Returns null when there is no sensible default (e.g. a fan-out's derived bus input). */
+  defaultWidth?(port: Port): number | null
   /** Hover hint shown when this pin's width is undetermined, or null. */
   undeterminedHint?(port: Port): string | null
 
@@ -126,9 +134,11 @@ export interface Primitive {
    * output-terminal inversion is applied). Sources (no inputs) and sinks (no outputs)
    * are driven/consumed by the simulator and return `[]`. `props` is the instance's
    * property record, for primitives whose behaviour depends on per-instance values
-   * (e.g. the ROM's stored memory).
+   * (e.g. the ROM's stored memory). `outputWidths` is each output net's resolved width
+   * (in output order), for primitives that reshape a bus into sub-buses (e.g. a
+   * fan-out splitting its input into per-lane chunks).
    */
-  transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][]
+  transfer(inputs: Signal[][], props?: Record<string, PropertyValue>, outputWidths?: number[]): Signal[][]
 
   /** Custom properties declared by this primitive (schema + defaults). */
   properties(): PropertySpec[]

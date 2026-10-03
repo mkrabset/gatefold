@@ -23,6 +23,7 @@ function ArrayForm({ pendingArray }: { pendingArray: PendingArray }) {
   const setChains = useEditorStore((s) => s.setArrayDialogChains)
   const setOrientation = useEditorStore((s) => s.setArrayDialogOrientation)
   const setCommon = useEditorStore((s) => s.setArrayDialogCommon)
+  const setNewLayer = useEditorStore((s) => s.setArrayDialogNewLayer)
   const confirmArray = useEditorStore((s) => s.confirmArray)
   const cancelArray = useEditorStore((s) => s.cancelArray)
   const countRef = useRef<HTMLInputElement>(null)
@@ -33,6 +34,7 @@ function ArrayForm({ pendingArray }: { pendingArray: PendingArray }) {
   const template = inst?.def
   const outputs = template && template.kind === 'composite' ? outputPorts(template.ports) : []
   const inputs = template && template.kind === 'composite' ? inputPorts(template.ports) : []
+  const isArray = !!template && template.kind === 'composite' && !!template.arrayConfig
 
   useEffect(() => {
     const el = countRef.current
@@ -73,6 +75,12 @@ function ArrayForm({ pendingArray }: { pendingArray: PendingArray }) {
         }}
       >
         <div className="dialog-title">Array</div>
+        {isArray && (
+          <label className="dialog-input-mode" style={{ marginBottom: 8 }} title="Wrap this array in a new array layer instead of editing it in place">
+            <input type="checkbox" checked={pendingArray.newLayer} onChange={(e) => setNewLayer(e.target.checked)} />
+            New layer
+          </label>
+        )}
         <div className="dialog-section">
           <div className="dialog-section-title">Count</div>
           <input

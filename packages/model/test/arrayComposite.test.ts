@@ -174,4 +174,45 @@ describe('arrayComposite', () => {
     const clone = cloneComposite(arr, new Set())
     expect(clone.arrayConfig).toEqual({ count: 4, chains: [{ from: 'out:1', to: 'in:2' }], orientation: 'vertical', common: ['in:0'] })
   })
+
+  it('arrays a bus-width template into a wider bus', () => {
+    const busT = busTemplate(4)
+    const arr = arrayComposite(busT, 3, [], new Set())
+    // 3 copies × 4-bit bus → 12-bit boundary bus.
+    expect(widthOf(arr, 'in:0')).toBe(12)
+    expect(widthOf(arr, 'out:0')).toBe(12)
+  })
+
+  it('nests: an array of arrays multiplies the widths', () => {
+    const inner = arrayComposite(makeAdderTemplate(), 4, [{ from: 'out:1', to: 'in:2' }], new Set())
+    const outer = arrayComposite(inner, 8, [{ from: 'out:1', to: 'in:2' }], new Set())
+
+    // 8 copies of the 4-bit inner array → 32-bit buses; carry stays width 1.
+    expect(widthOf(outer, 'in:0')).toBe(32)
+    expect(widthOf(outer, 'out:0')).toBe(32)
+    expect(widthOf(outer, 'in:2')).toBe(1)
+    expect(widthOf(outer, 'out:1')).toBe(1)
+  })
 })
+
+/** A template with a single 4-bit bus input/output (a `bus` primitive passthrough). */
+function busTemplate(w: number): CompositeDef {
+  return {
+    kind: 'composite',
+    id: 'bus-t',
+    name: 'bus-t',
+    ports: [
+      { id: 'in:0', name: 'A', direction: 'input', terminal: { instanceId: 'in', pinId: 'in:0' } },
+      { id: 'out:0', name: 'Y', direction: 'output', terminal: { instanceId: 'out', pinId: 'out:0' } },
+    ],
+    instances: [
+      inst('in', INPUT_PORT, -100, 0),
+      { id: 'b', name: 'b', def: { kind: 'fork', primitive: 'bus', ports: [{ id: 'in:0', name: 'A', direction: 'input' }, { id: 'out:0', name: 'Y', direction: 'output' }] }, pos: { x: 0, y: 0 }, props: { lanes: w } },
+      inst('out', OUTPUT_PORT, 100, 0),
+    ],
+    connections: [
+      conn('c1', iRef('in', 'in:0'), iRef('b', 'in:0')),
+      conn('c2', iRef('b', 'out:0'), iRef('out', 'out:0')),
+    ],
+  }
+}

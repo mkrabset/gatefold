@@ -92,6 +92,8 @@ export interface PendingArray {
   orientation: ArrayOrientation
   /** Input port ids delivered as one shared wire to every copy (not a bus). */
   common: string[]
+  /** Wrap the selected instance in a *new* array layer (instead of editing it in place). */
+  newLayer: boolean
 }
 
 /** The deletion scope chosen in the "clear everything" dialog. */
@@ -185,6 +187,7 @@ interface EditorState {
   setArrayDialogChains: (chains: ArrayChain[]) => void
   setArrayDialogOrientation: (orientation: ArrayOrientation) => void
   setArrayDialogCommon: (common: string[]) => void
+  setArrayDialogNewLayer: (newLayer: boolean) => void
   confirmArray: () => void
   cancelArray: () => void
   setArrayCount: (instanceId: string, count: number) => void
@@ -591,6 +594,7 @@ export const useEditorStore = create<EditorState>()(
             chains: existing ? existing.chains.map((c) => ({ from: c.from, to: c.to })) : [],
             orientation: existing?.orientation ?? 'horizontal',
             common: existing ? [...existing.common] : [],
+            newLayer: false,
           }
         }),
       setArrayDialogCount: (count) =>
@@ -609,6 +613,19 @@ export const useEditorStore = create<EditorState>()(
         set((s) => {
           if (s.pendingArray) s.pendingArray.common = [...common]
         }),
+      setArrayDialogNewLayer: (newLayer) =>
+        set((s) => {
+          const p = s.pendingArray
+          if (!p) return
+          p.newLayer = newLayer
+          if (newLayer) {
+            // A new layer is configured fresh, not from the wrapped array's config.
+            p.count = 2
+            p.chains = []
+            p.common = []
+            p.orientation = 'horizontal'
+          }
+        }),
       confirmArray: () =>
         set((s) => {
           const p = s.pendingArray
@@ -618,7 +635,7 @@ export const useEditorStore = create<EditorState>()(
           if (!def || def.kind !== 'composite') return
           const inst = def.instances.find((i) => i.id === p.instanceId)
           if (!inst || inst.def.kind !== 'composite') return
-          if (inst.def.arrayConfig) {
+          if (inst.def.arrayConfig && !p.newLayer) {
             // Re-configuring an existing array: regenerate its internals in place
             // (rather than nesting another array around it).
             regenerateArray(s, inst, p.count, p.chains, p.orientation, p.common)

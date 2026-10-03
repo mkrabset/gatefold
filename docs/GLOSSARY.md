@@ -212,8 +212,10 @@ authoritative — update this when a term's meaning changes.
 
 - **Bus** — a terminal/wire carrying more than one wire.
 - **Width / arity** — the number of wires a terminal carries (`1` = single wire, `n` = bus).
-- **Fan-in** — primitive with `n` single-wire inputs → `1` bus output (width `n`).
-- **Fan-out** — primitive with `1` bus input (width `n`) → `n` single-wire outputs.
+- **Fan-in** — primitive with `n` inputs → `1` bus output whose width is the **sum** of the
+  inputs' widths (single-wire lanes by default, or sub-buses).
+- **Fan-out** — primitive with `1` bus input → `n` outputs whose widths **sum** to the input's
+  width (single-wire lanes by default, or sub-buses).
 - **Bus-split** — primitive with `1` bus input (width `n`) → `2` bus outputs. By default the
   split is even (`Y1`/`Y2` each `n/2`); the `firstLanes` property fixes `Y1` to that many lanes
   and gives `Y2` the remainder (`n − firstLanes`). `firstLanes = 0` (the default) means "split
@@ -230,7 +232,7 @@ authoritative — update this when a term's meaning changes.
 - **Neutral port** — a terminal whose width is undetermined (no constant reaches it); it
   *adopts* the width of whatever bus it is connected to. Rendered as a thin dashed wire.
 - **Width solver** — the fixpoint that derives every terminal's width from fan-in/fan-out
-  arity constants, connection equalities, composite-terminal mirrors, split/merge/compare
+  sum relations, connection equalities, composite-terminal mirrors, split/merge/compare
   relations, and property-driven intrinsic widths (the `bus` primitive's `lanes`). It solves
   the whole subtree rooted at the **width root** (the edited template, else the design root),
   and a composite terminal mirror is **bidirectional**, so an external bus connection fixes an

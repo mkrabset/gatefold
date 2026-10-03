@@ -145,42 +145,69 @@ function resolve(model: SheetModel): SheetWidths {
 
   for (const [key, w] of model.seeds) set(key, w)
 
-  let changed = true
-  while (changed && !invalid) {
-    changed = false
-    for (const [a, b] of model.equalities) {
-      const wa = widths.get(a)
-      const wb = widths.get(b)
-      if (wa !== undefined && wb !== undefined) {
-        if (wa !== wb) {
-          invalid = true
-          reason = reason ?? 'conflict'
-        }
-      } else if (wa !== undefined) {
-        set(b, wa)
-        changed = true
-      } else if (wb !== undefined) {
-        set(a, wb)
-        changed = true
-      }
-    }
-    for (const rel of model.relations) {
-      for (let i = 0; i < rel.ports.length; i++) {
-        const key = rel.keys[i]
-        if (widths.has(key)) continue
-        const siblings = new Map<string, number>()
-        for (let j = 0; j < rel.ports.length; j++) {
-          if (j === i) continue
-          const w = widths.get(rel.keys[j])
-          if (w !== undefined) siblings.set(rel.ports[j].id, w)
-        }
-        const derived = rel.prim.deriveWidth!(rel.ports[i], siblings, rel.props)
-        if (derived !== null) {
-          set(key, derived)
+  // One pass of the equalities + relations until stable.
+  const fixpoint = (): void => {
+    let changed = true
+    while (changed && !invalid) {
+      changed = false
+      for (const [a, b] of model.equalities) {
+        const wa = widths.get(a)
+        const wb = widths.get(b)
+        if (wa !== undefined && wb !== undefined) {
+          if (wa !== wb) {
+            invalid = true
+            reason = reason ?? 'conflict'
+          }
+        } else if (wa !== undefined) {
+          set(b, wa)
+          changed = true
+        } else if (wb !== undefined) {
+          set(a, wb)
           changed = true
         }
       }
+      for (const rel of model.relations) {
+        for (let i = 0; i < rel.ports.length; i++) {
+          const key = rel.keys[i]
+          if (widths.has(key)) continue
+          const siblings = new Map<string, number>()
+          for (let j = 0; j < rel.ports.length; j++) {
+            if (j === i) continue
+            const w = widths.get(rel.keys[j])
+            if (w !== undefined) siblings.set(rel.ports[j].id, w)
+          }
+          const derived = rel.prim.deriveWidth!(rel.ports[i], siblings, rel.props, rel.ports)
+          if (derived !== null) {
+            set(key, derived)
+            changed = true
+          }
+        }
+      }
     }
+  }
+
+  fixpoint()
+
+  // Soft defaults: a relation primitive may give an undetermined pin a fallback width
+  // (e.g. a fan-in/out lane defaults to a single wire). Applied only after the main
+  // fixpoint converges, so a bus-connected lane keeps its real width. Each application
+  // re-propagates through the equalities/relations.
+  let defaulting = true
+  while (defaulting && !invalid) {
+    defaulting = false
+    for (const rel of model.relations) {
+      if (!rel.prim.defaultWidth) continue
+      for (let i = 0; i < rel.ports.length; i++) {
+        const key = rel.keys[i]
+        if (widths.has(key)) continue
+        const w = rel.prim.defaultWidth(rel.ports[i])
+        if (w !== null) {
+          set(key, w)
+          defaulting = true
+        }
+      }
+    }
+    if (defaulting) fixpoint()
   }
 
   // Apply per-primitive width constraints (e.g. 7-seg must be a multiple of 4).
@@ -188,7 +215,13 @@ function resolve(model: SheetModel): SheetWidths {
     for (let i = 0; i < ch.ports.length; i++) {
       const w = widths.get(ch.keys[i])
       if (w === undefined) continue
-      const err = ch.prim.widthError!(ch.ports[i], w)
+      const siblings = new Map<string, number>()
+      for (let j = 0; j < ch.ports.length; j++) {
+        if (j === i) continue
+        const sw = widths.get(ch.keys[j])
+        if (sw !== undefined) siblings.set(ch.ports[j].id, sw)
+      }
+      const err = ch.prim.widthError!(ch.ports[i], w, siblings)
       if (err) {
         invalid = true
         reason = reason ?? 'constraint'

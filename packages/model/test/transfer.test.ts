@@ -53,6 +53,14 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(primitiveOf('fan-out').transfer([[1, 0, 1]])).toEqual([[1], [0], [1]])
   })
 
+  it('FAN-OUT splits a bus into sub-buses given output widths', () => {
+    expect(primitiveOf('fan-out').transfer([[1, 0, 1, 1]], {}, [2, 2])).toEqual([[1, 0], [1, 1]])
+  })
+
+  it('FAN-IN concatenates sub-bus inputs into one bus', () => {
+    expect(primitiveOf('fan-in').transfer([[1, 0], [1, 1]])).toEqual([[1, 0, 1, 1]])
+  })
+
   it('BUS-SPLIT splits a bus into two halves', () => {
     expect(primitiveOf('bus-split').transfer([[1, 0, 1, 0]])).toEqual([[1, 0], [1, 0]])
   })

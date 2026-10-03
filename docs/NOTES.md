@@ -13,6 +13,16 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **FAN-IN/FAN-OUT support sub-buses** — the fan-in/fan-out primitives were generalized from
+  single-wire bundling to bus↔sub-buses, so a composite with bus-width ports can now be used as an
+  array template (an N×W bus splits into N lanes of width W and merges back). This touched three
+  layers in lockstep: (1) the width solver — fan-in/out gained a `deriveWidth` sum relation
+  (bus = Σ lane widths), a `defaultWidth` soft fallback (a floating lane is a single wire, applied
+  only *after* the main fixpoint so a bus-connected lane keeps its real width), and a
+  `widthError` check (bus must equal the lane sum); (2) `transfer` gained an optional `outputWidths`
+  arg so fan-out can split its input into width-sized chunks; (3) the Verilog fan-out now emits
+  per-lane range slices (`bus[hi:lo]`). No padding is needed — the bus width is exactly the sum of
+  its sub-bus widths.
 - **Array composites (parameterized duplication)** — a Blender-array-inspired way to avoid
   repetitive work: select a single composite (e.g. a full-adder) and **Array** it `count` times.
   Non-chained terminals become `count`-wide buses (via internal FAN-IN/FAN-OUT), an optional
@@ -23,9 +33,9 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
   generator* (no new node type): a pure `arrayComposite` in `@gatefold/model` produces an ordinary
   composite whose `arrayConfig = { count, chains, orientation, common }` is stamped on it; the
   store regenerates the internals when the config changes (source = the first copy), keeping the
-  ports and external wiring intact. See `ARCHITECTURE.md` §6d. *Limitation*: FAN-IN/FAN-OUT bundle
-  single-wire lanes, so arraying an already-arrayed (bus-lane) *parallel* port is not yet
-  supported; common ports are direct fan-out and work regardless of width.
+  ports and external wiring intact. Arrays can be **nested** (array-of-arrays) via a **New layer**
+  checkbox in the array dialog — unchecked edits the array in place, checked wraps it in a new
+  layer. See `ARCHITECTURE.md` §6d.
 - **Uneven bus-split / bus-merge (`firstLanes`)** — the split/merge primitives gained an optional
   `firstLanes` property (number, default `0` = even split, 0–64) so a bus can be divided unevenly
   (e.g. a 64-lane bus with `firstLanes = 10` splits into 10 + 54 lanes). The default behaviour is

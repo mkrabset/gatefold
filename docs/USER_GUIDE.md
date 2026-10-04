@@ -194,7 +194,7 @@ composite** (e.g. a full-adder) and press **Array** in the toolbar:
 - **Count** — how many copies to place. Each *non-chained* terminal becomes a `count`-wide bus
   (e.g. a full-adder's `A`/`B`/`Sum` become 4-bit buses for `Count = 4`).
 - **Orientation** — lay the **copies** out horizontally (left to right) or vertically (top to
-  bottom). The surrounding flow — input port, fan-outs, the copies, fan-ins, output port — is
+  bottom; the default). The surrounding flow — input port, fan-outs, the copies, fan-ins, output port — is
   always left-to-right; orientation only affects how the copies are arranged among themselves.
 - **Inputs** — for each input, choose **Parallel (bus)** (one wire per copy, the default) or
   **Common (shared)** (one wire delivered to every copy, routed through a NODE join-point). Use

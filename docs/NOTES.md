@@ -13,7 +13,26 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
-- **New component from scratch (toolbar "+")** — a new **+** button (left of **Group**) opens a
+- **Array dialog defaults to vertical orientation** — `openArrayDialog` now seeds a fresh array's
+  `orientation` to `'vertical'` (and the array dialog's **New layer** reset does the same); editing
+  an existing array still pre-fills its stored orientation. Touched `editorStore.ts`; test
+  expectations updated in `editorStore.test.ts`.
+
+- **Switch-array `compact` now defaults to true** — newly placed switches render as a compact
+  value box by default (the led-array stays non-compact by default). Only the property default
+  in `primitives/switch-array.ts` changed (`default: true`); existing saved switches keep their
+  stored `compact` value, and the `props.compact === true` reads are unchanged. Docs updated
+  (`GLOSSARY.md`, `ARCHITECTURE.md`), test expectation updated (`array.test.ts`).
+
+- **Fix: set-value dialog in the Testing tab did nothing** — the dialog's commit always
+  dispatched the *designer* `setSwitchValue`, which prefixes the instance id with the
+  simulation `path` (`$main.`) and runs the `viewingLive` gate. A test-bench switch lives at
+  the wrapper's top level (raw id), so the prefix produced `$main.<switchId>` and
+  `engine.setSwitchLanes` silently no-oped — most visible for a **compact** switch, where the
+  `#` dialog is the *only* way to set a value. `switchDialog` now carries a `test` flag
+  (`openTestSwitchDialog` sets it, `openSwitchDialog` doesn't), and `SwitchValueDialog` commits
+  through `setTestSwitchValue` (raw id) for test-bench switches and `setSwitchValue` otherwise.
+  Regression test in `simStore.test.ts`. — a new **+** button (left of **Group**) opens a
   `NewComponentDialog` for naming a brand-new empty component. `confirmNewComponent` places a
   bare empty `CompositeDef` (no library entry, no lineage `uuid`) as a live copy at the viewport
   center and selects it; the user descends to add ports/internal components, then selects it and

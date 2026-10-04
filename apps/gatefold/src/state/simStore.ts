@@ -40,8 +40,10 @@ interface SimState {
   /** Simulated-time per real-time multiplier (1 = real-time). */
   timeScale: number
   settingsOpen: boolean
-  /** The set-value dialog target (a switch-array), or null when closed. */
-  switchDialog: { instanceId: string; size: number; lanes: Signal[]; format: ValueFormat; order: ValueOrder } | null
+  /** The set-value dialog target (a switch-array), or null when closed. `test` marks a
+   *  test-bench switch (committed via the raw id), vs a designer switch (committed via
+   *  the `path`-prefixed id). */
+  switchDialog: { instanceId: string; size: number; lanes: Signal[]; format: ValueFormat; order: ValueOrder; test: boolean } | null
   toggleMode: () => void
   run: () => void
   step: () => void
@@ -183,7 +185,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       if (!engine || !viewingLive()) return
       const lanes = engine.switchLanesOf(flatId(instanceId))
       if (!lanes) return
-      set({ switchDialog: { instanceId, size, lanes, format, order } })
+      set({ switchDialog: { instanceId, size, lanes, format, order, test: false } })
     },
 
     closeSwitchDialog: () => set({ switchDialog: null }),
@@ -209,7 +211,7 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       if (!engine) return
       const lanes = engine.switchLanesOf(instanceId)
       if (!lanes) return
-      set({ switchDialog: { instanceId, size, lanes, format, order } })
+      set({ switchDialog: { instanceId, size, lanes, format, order, test: true } })
     },
 
     setTestSwitchValue: (instanceId, lanes) => {

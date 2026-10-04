@@ -37,7 +37,7 @@ export class SwitchArray extends ArrayPrimitive {
         name: 'compact',
         label: 'Compact',
         type: 'boolean',
-        default: false,
+        default: true,
         tooltip: 'Render as a single box showing the value instead of individual switches.',
       },
     ]

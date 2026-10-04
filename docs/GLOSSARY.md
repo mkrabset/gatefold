@@ -98,12 +98,13 @@ authoritative — update this when a term's meaning changes.
   compact box — and an `order` (`asc`/`desc`) picking which end of the bus is the
   least-significant bit. The switch's `exported` (boolean, default false) marks
   a main-scope switch as an external module input in Verilog export (nested switches are always
-  constants). Each array's `compact` (boolean, default false) renders it as a box showing its
+  constants). Each array's `compact` (boolean) renders it as a box showing its
   current value (in `valueFormat`) instead of one circle per lane — the box follows the
   lane-distance setting for its terminal (so it is at least as tall as that terminal, like other
   boxes) and widens to fit the longest value in the instance's radix. A compact switch shows its
   initial value in design mode; a compact LED (a sink with no signal yet) shows a `?` placeholder
-  until simulated.
+  until simulated. The switch-array's `compact` defaults to `true` (compact by default); the
+  led-array's defaults to `false`.
 - **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`/`BINARY`) used to enter/display a
   multi-bit value. Shared by the 7-seg display's `mode` and the switch-array/led-array
   `valueFormat`; the single `ValueFormat` type lives in the model's `value.ts`.

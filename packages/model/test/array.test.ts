@@ -21,7 +21,7 @@ describe('array primitives', () => {
     expect(la.ports.map((p) => p.id)).toEqual(['in:0'])
     expect(la.ports[0].direction).toBe('input')
 
-    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'bus', initialValue: '0', exported: false, valueFormat: 'HEX', order: 'asc', compact: false })
+    expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'bus', initialValue: '0', exported: false, valueFormat: 'HEX', order: 'asc', compact: true })
     expect(primitiveOf('switch-array').properties().map((p) => p.name)).toEqual(['terminalType', 'initialValue', 'exported', 'valueFormat', 'order', 'compact'])
 
     expect(defaultPropsOf('led-array')).toEqual({ terminalType: 'bus', valueFormat: 'HEX', order: 'asc', compact: false })

@@ -19,9 +19,10 @@ export function SwitchValueDialog() {
 function SwitchValueForm({
   dialog,
 }: {
-  dialog: { instanceId: string; size: number; lanes: Signal[]; format: ValueFormat; order: 'asc' | 'desc' }
+  dialog: { instanceId: string; size: number; lanes: Signal[]; format: ValueFormat; order: 'asc' | 'desc'; test: boolean }
 }) {
   const setSwitchValue = useSimStore((s) => s.setSwitchValue)
+  const setTestSwitchValue = useSimStore((s) => s.setTestSwitchValue)
   const closeSwitchDialog = useSimStore((s) => s.closeSwitchDialog)
   const [mode, setMode] = useState<ValueFormat>(dialog.format)
   const [text, setText] = useState(() => formatSwitchValue(applyValueOrder(dialog.lanes, dialog.order), dialog.format))
@@ -49,7 +50,9 @@ function SwitchValueForm({
       setError(`Not a valid ${dialog.size}-bit value`)
       return
     }
-    setSwitchValue(dialog.instanceId, applyValueOrder(bits, dialog.order))
+    const lanes = applyValueOrder(bits, dialog.order)
+    if (dialog.test) setTestSwitchValue(dialog.instanceId, lanes)
+    else setSwitchValue(dialog.instanceId, lanes)
   }
 
   const changeMode = (next: ValueFormat) => {

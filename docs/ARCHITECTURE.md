@@ -452,7 +452,8 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog.
   A **compact** array (`props.compact`, on the switch-array or led-array) renders as a single box
   showing its value (`formatSwitchValue` in the instance's `valueFormat`/`order`) instead of
-  indicator circles: `instanceBodySize` follows the active lane distance for its terminal (so the
+  indicator circles — the switch-array defaults to compact (`compact: true`), the led-array to
+  non-compact: `instanceBodySize` follows the active lane distance for its terminal (so the
   box is at least as tall as the terminal side, like other boxes) and widens to fit the longest
   value in the instance's radix (`maxSwitchValueText`), and the canvas skips per-lane toggle
   clicks for it. A compact switch shows its initial value in design mode; a compact LED (a sink)

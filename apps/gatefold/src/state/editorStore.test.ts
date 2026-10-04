@@ -677,7 +677,7 @@ describe('array', () => {
     const store = useEditorStore.getState()
     store.setSelection(['ha1'])
     store.openArrayDialog()
-    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [], newLayer: false })
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'vertical', common: [], newLayer: false })
 
     store.setArrayDialogCount(4)
     store.setArrayDialogChains([{ from: 'out:1', to: 'in:1' }])
@@ -686,14 +686,14 @@ describe('array', () => {
     const ha = mainInstances().find((i) => i.id === 'ha1')!
     expect(ha.def.kind).toBe('composite')
     const arr = ha.def as CompositeDef
-    expect(arr.arrayConfig).toEqual({ count: 4, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'horizontal', common: [] })
+    expect(arr.arrayConfig).toEqual({ count: 4, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'vertical', common: [] })
     // 4 copies plus the port groups and fan-in/out plumbing.
     expect(arr.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(4)
 
     // Change count: the internals regenerate while the interface is preserved.
     store.setArrayCount('ha1', 2)
     const arr2 = mainInstances().find((i) => i.id === 'ha1')!.def as CompositeDef
-    expect(arr2.arrayConfig).toEqual({ count: 2, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'horizontal', common: [] })
+    expect(arr2.arrayConfig).toEqual({ count: 2, chains: [{ from: 'out:1', to: 'in:1' }], orientation: 'vertical', common: [] })
     expect(arr2.instances.filter((i) => i.def.kind === 'composite')).toHaveLength(2)
 
     useEditorStore.temporal.getState().undo()
@@ -725,7 +725,7 @@ describe('array', () => {
     // (not wrap another array around it).
     store.setSelection(['ha1'])
     store.openArrayDialog()
-    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 4, chains: [], orientation: 'horizontal', common: [], newLayer: false })
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 4, chains: [], orientation: 'vertical', common: [], newLayer: false })
     store.setArrayDialogCount(3)
     store.confirmArray()
 
@@ -748,7 +748,7 @@ describe('array', () => {
     store.setSelection(['ha1'])
     store.openArrayDialog()
     store.setArrayDialogNewLayer(true)
-    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'horizontal', common: [], newLayer: true })
+    expect(useEditorStore.getState().pendingArray).toEqual({ instanceId: 'ha1', count: 2, chains: [], orientation: 'vertical', common: [], newLayer: true })
 
     store.setArrayDialogCount(3)
     store.confirmArray()

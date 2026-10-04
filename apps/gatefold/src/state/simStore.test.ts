@@ -116,3 +116,49 @@ describe('signal coloring at inverted terminals', () => {
     expect(testColorOf('b', 'out:0', undefined, true)).toBe(signalColor(0, theme))
   })
 })
+
+/** A test-bench switch (wire mode, 4 lanes) driving nothing — used to exercise the
+ *  set-value dialog's test-bench commit path. */
+function testbenchSwitchDesign(): Design {
+  const swFork: ChildDef = {
+    kind: 'fork',
+    primitive: 'switch-array',
+    ports: [
+      { id: 'out:0', name: 'Y0', direction: 'output' },
+      { id: 'out:1', name: 'Y1', direction: 'output' },
+      { id: 'out:2', name: 'Y2', direction: 'output' },
+      { id: 'out:3', name: 'Y3', direction: 'output' },
+    ],
+  }
+  const main: CompositeDef = { id: 'main', name: 'main', kind: 'composite', ports: [], instances: [], connections: [] }
+  return {
+    version: 2,
+    root: main,
+    library: {},
+    testbench: {
+      main: { pos: { x: 0, y: 0 } },
+      instances: [{ id: 'sw', name: 'sw', def: swFork, pos: { x: 0, y: 0 } }],
+      connections: [],
+    },
+  }
+}
+
+describe('set-value dialog commits to the right switch', () => {
+  it('updates a test-bench switch via its raw id', () => {
+    useEditorStore.setState({ design: testbenchSwitchDesign(), navStack: [{ kind: 'root' }], selectedIds: [] })
+    useSimStore.setState({ mode: 'design', engine: null, history: null, running: false, path: [] })
+
+    useSimStore.getState().toggleMode()
+    const engine = useSimStore.getState().engine
+    expect(engine).not.toBeNull()
+
+    useSimStore.getState().openTestSwitchDialog('sw', 4, 'HEX', 'asc')
+    const dialog = useSimStore.getState().switchDialog
+    expect(dialog).not.toBeNull()
+    expect(dialog!.test).toBe(true)
+
+    useSimStore.getState().setTestSwitchValue('sw', [1, 0, 1, 0])
+    expect(engine!.switchLanesOf('sw')).toEqual([1, 0, 1, 0])
+    expect(useSimStore.getState().switchDialog).toBeNull()
+  })
+})

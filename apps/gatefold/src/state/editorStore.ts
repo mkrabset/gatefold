@@ -616,7 +616,7 @@ export const useEditorStore = create<EditorState>()(
             instanceId: inst.id,
             count: existing?.count ?? 2,
             chains: existing ? existing.chains.map((c) => ({ from: c.from, to: c.to })) : [],
-            orientation: existing?.orientation ?? 'horizontal',
+            orientation: existing?.orientation ?? 'vertical',
             common: existing ? [...existing.common] : [],
             newLayer: false,
           }
@@ -647,7 +647,7 @@ export const useEditorStore = create<EditorState>()(
             p.count = 2
             p.chains = []
             p.common = []
-            p.orientation = 'horizontal'
+            p.orientation = 'vertical'
           }
         }),
       confirmArray: () =>

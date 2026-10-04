@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-03 (Array composites — parameterized duplication).
+Last updated: 2026-10-04 (Compact/value-format LEDs + BINARY for switches).
 
 ## Where we are
 
@@ -12,6 +12,19 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **LEDS `compact` + `valueFormat`/`order`, and `BINARY` for switches** — the led-array gained
+  the switch-array's display properties: `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`/`BINARY`),
+  `order` (`asc`/`desc`), and `compact` (boolean). A compact LED renders as a single box showing
+  its input's current value during simulation, and a `?` placeholder in design mode (a sink has
+  no signal yet); it follows the active lane-distance setting and widens to fit the longest value
+  in its radix, exactly like a compact switch. The switch-array's `valueFormat` options also grew
+  `BINARY` so both arrays offer the same radix set. Touched: `led-array.ts` (new `properties()`),
+  `switch-array.ts` (options), `geometry.ts` (`laneDistanceFor`/`instanceBodySize` generalize the
+  compact-array exemption to both kinds), `draw/probes.ts` (`drawCompactValue` reads a LED's input
+  from the sim; `?` before simulation, no `#` badge). Tests in `array.test.ts` (LED default
+  props + shared radix set) and `geometry.test.ts` (compact LED body sizing); docs updated
+  (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **FAN-IN/FAN-OUT support sub-buses** — the fan-in/fan-out primitives were generalized from
   single-wire bundling to bus↔sub-buses, so a composite with bus-width ports can now be used as an

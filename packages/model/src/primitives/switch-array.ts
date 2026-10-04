@@ -31,7 +31,7 @@ export class SwitchArray extends ArrayPrimitive {
         default: false,
         tooltip: 'Expose this switch as a module input in the Verilog export. Only applies to a switch at the main scope.',
       },
-      { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC'] },
+      { name: 'valueFormat', label: 'Value format', type: 'select', default: 'HEX', options: ['HEX', 'DEC', 'SIGNED DEC', 'BINARY'] },
       { name: 'order', label: 'Order', type: 'select', default: 'asc', options: ['asc', 'desc'] },
       {
         name: 'compact',

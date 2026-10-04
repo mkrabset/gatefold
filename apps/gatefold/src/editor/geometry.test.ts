@@ -339,6 +339,21 @@ function makeSwitchDesign(n: number, compact: boolean): Design {
   return { version: 2, root: main, library: {} }
 }
 
+function makeLedDesign(n: number, compact: boolean): Design {
+  const main: CompositeDef = {
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances: [
+      { id: 'fi', name: 'fi', def: makeFanIn(n), pos: { x: 0, y: 0 } },
+      { id: 'led', name: 'led', def: forkOf('led-array'), pos: { x: 120, y: 0 }, props: { compact } },
+    ],
+    connections: [{ id: 'w', from: iref('fi', 'out:0'), to: iref('led', 'in:0') }],
+  }
+  return { version: 2, root: main, library: {} }
+}
+
 describe('compact switch array body', () => {
   afterEach(() => setLaneDistance(DEFAULT_LANE_DISTANCE))
 
@@ -376,6 +391,37 @@ describe('compact switch array body', () => {
     const main = design.root
     const sw = main.instances.find((i) => i.id === 'sw')!
     expect(instanceBodySize(main, main, sw, sw.def).h).toBeGreaterThan(defBodySize(sw.def).h)
+  })
+})
+
+describe('compact led array body', () => {
+  afterEach(() => setLaneDistance(DEFAULT_LANE_DISTANCE))
+
+  it('follows the active lane distance instead of the array default', () => {
+    const compact = makeLedDesign(8, true)
+    const plain = makeLedDesign(8, false)
+    setLaneDistance(2)
+    const cled = compact.root.instances.find((i) => i.id === 'led')!
+    const pled = plain.root.instances.find((i) => i.id === 'led')!
+    // Compact LED follows d=2: side height 12 + 2·8 = 28 → body capped at base 40.
+    expect(instanceBodySize(compact.root, compact.root, cled, cled.def).h).toBe(40)
+    // Non-compact array keeps the default distance (12 + 2·28 = 68).
+    expect(instanceBodySize(plain.root, plain.root, pled, pled.def).h).toBe(68)
+  })
+
+  it('is at least as tall as its terminal marker side', () => {
+    const design = makeLedDesign(8, true)
+    const main = design.root
+    const led = main.instances.find((i) => i.id === 'led')!
+    expect(pinWidth(main, main, iref('led', 'in:0'))).toBe(8)
+    expect(instanceBodySize(main, main, led, led.def).h).toBe(68)
+  })
+
+  it('widens to fit the maximum value in the instance radix', () => {
+    const design = makeLedDesign(32, true)
+    const main = design.root
+    const led = main.instances.find((i) => i.id === 'led')!
+    expect(instanceBodySize(main, main, led, led.def).w).toBe(2 * COMPACT_VALUE_PAD + 8 * COMPACT_VALUE_CHAR_W)
   })
 })
 

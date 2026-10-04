@@ -73,12 +73,12 @@ export function currentLaneDistance(): number {
 }
 
 /** The lane spacing that should apply to a def's terminals. Arrays keep the default
- *  (their indicator rows are unreadable when compressed), except a compact switch-array,
- *  which follows the active setting like any other bus terminal; everything else uses the
- *  active setting. */
+ *  (their indicator rows are unreadable when compressed), except a compact switch-array
+ *  or led-array, which follows the active setting like any other bus terminal; everything
+ *  else uses the active setting. */
 export function laneDistanceFor(def: ChildDef, instance?: Instance): number {
-  const compactSwitch = childPrimitive(def) === 'switch-array' && instance?.props?.compact === true
-  return isArrayDef(def) && !compactSwitch ? DEFAULT_LANE_DISTANCE : laneDistance
+  const compactArray = isArrayDef(def) && instance?.props?.compact === true
+  return isArrayDef(def) && !compactArray ? DEFAULT_LANE_DISTANCE : laneDistance
 }
 
 /** Pin marker half-height in world units (pre-zoom) for a terminal of the given width,
@@ -182,8 +182,8 @@ export function instanceBodySize(
     // A composite renders its name centered inside the box: widen it so the name fits.
     w = Math.max(w, 2 * COMPOSITE_NAME_PAD + def.name.length * COMPOSITE_NAME_CHAR_W)
   }
-  if (k === 'switch-array' && instance.props?.compact === true) {
-    // A compact switch renders a value: make the box wide enough for the longest value
+  if (isArrayDef(def) && instance.props?.compact === true) {
+    // A compact array renders a value: make the box wide enough for the longest value
     // in the instance's radix (the height below is at least the terminal side height).
     const n = arrayLaneCount(root, parentDef, instance, def)
     if (n !== null) {

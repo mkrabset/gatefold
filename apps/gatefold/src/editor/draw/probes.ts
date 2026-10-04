@@ -97,7 +97,7 @@ export function drawArrayBody(
 ) {
   const kind = childPrimitive(def)
   const isSwitch = kind === 'switch-array'
-  const compact = isSwitch && instance.props?.compact === true
+  const compact = (isSwitch || kind === 'led-array') && instance.props?.compact === true
 
   drawRoundedBox(ctx, cx - w / 2, cy - h / 2, w, h, 6, p.gateFill, p.gateStroke)
 
@@ -107,8 +107,13 @@ export function drawArrayBody(
       drawUndetermined(ctx, cx, cy, h, p)
       return
     }
-    drawCompactSwitchValue(ctx, instance, def, cx, cy, w, n, vp, p, sim)
-    if (sim) {
+    // A compact LED is a sink with no value before simulation: show the placeholder.
+    if (!isSwitch && !sim) {
+      drawUndetermined(ctx, cx, cy, h, p)
+      return
+    }
+    drawCompactValue(ctx, instance, def, cx, cy, w, n, vp, p, isSwitch, sim)
+    if (isSwitch && sim) {
       const badge = switchValueBadge(root, parentDef, instance, def, cw, ch, vp)
       if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
     }
@@ -149,8 +154,8 @@ export function drawArrayBody(
   }
 }
 
-/** Draw the value of a compact switch-array, centered and fitted to the box width. */
-function drawCompactSwitchValue(
+/** Draw the value of a compact switch-array or led-array, centered and fitted to the box width. */
+function drawCompactValue(
   ctx: CanvasRenderingContext2D,
   instance: Instance,
   def: ChildDef,
@@ -160,6 +165,7 @@ function drawCompactSwitchValue(
   n: number,
   vp: Viewport,
   p: Palette,
+  isSwitch: boolean,
   sim?: SimView,
 ) {
   const ports = childPorts(def)
@@ -177,7 +183,7 @@ function drawCompactSwitchValue(
       if (port?.inverted) vec = vec.map(invertSignal)
     }
   } else {
-    vec = switchInitialLanes(instance.props, n)
+    vec = isSwitch ? switchInitialLanes(instance.props, n) : Array.from({ length: n }, () => 0 as Signal)
   }
   const text = formatSwitchValue(applyValueOrder(vec, valueOrderOf(instance.props)), valueFormatOf(instance.props))
 

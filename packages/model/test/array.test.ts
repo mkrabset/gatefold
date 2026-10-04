@@ -23,6 +23,18 @@ describe('array primitives', () => {
 
     expect(defaultPropsOf('switch-array')).toEqual({ terminalType: 'bus', initialValue: '0', exported: false, valueFormat: 'HEX', order: 'asc', compact: false })
     expect(primitiveOf('switch-array').properties().map((p) => p.name)).toEqual(['terminalType', 'initialValue', 'exported', 'valueFormat', 'order', 'compact'])
+
+    expect(defaultPropsOf('led-array')).toEqual({ terminalType: 'bus', valueFormat: 'HEX', order: 'asc', compact: false })
+    expect(primitiveOf('led-array').properties().map((p) => p.name)).toEqual(['terminalType', 'valueFormat', 'order', 'compact'])
+  })
+
+  it('offers the same value-format radices for switches and LEDs', () => {
+    const formats = ['HEX', 'DEC', 'SIGNED DEC', 'BINARY']
+    for (const kind of ['switch-array', 'led-array'] as const) {
+      const spec = primitiveOf(kind).properties().find((p) => p.name === 'valueFormat')!
+      expect(spec.type).toBe('select')
+      expect((spec as { options?: string[] }).options).toEqual(formats)
+    }
   })
 
   it('arrayPorts produces wire lanes or a single bus', () => {

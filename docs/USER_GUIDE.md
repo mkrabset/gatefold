@@ -444,7 +444,7 @@ its properties, and what it does.
   **Order** selects which end of the bus is the least-significant bit.
 
 ### SWITCHES
-- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (text, default `0`), **Value format** (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default off)
+- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (text, default `0`), **Value format** (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default off)
 - A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
   mode a single bus output carries one lane per wire. Every lane starts at the **Initial value**
   when simulation starts (and shows that state, colored, in design mode). In simulate mode,
@@ -457,9 +457,13 @@ its properties, and what it does.
   are set via the **#** badge / set-value dialog rather than individual clicks.
 
 ### LEDS
-- **Inputs:** 1+ · **Outputs:** none · Property **Terminal type** (`wire` / `bus`, default `bus`)
+- **Inputs:** 1+ · **Outputs:** none · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Value format** (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default off)
 - A multi-lane lamp. In `wire` mode each input terminal is one LED; in `bus` mode a single bus
   input lights one LED per lane. Each lane lights when its signal is `1`.
+- **Compact** renders the LED as a single small box showing the current value of its input (in
+  the instance's **Value format**) instead of one circle per lane — useful for wide buses. The
+  value updates during simulation; in design mode (no signal yet) it shows a `?` placeholder.
+  **Order** picks which end of the bus is the least-significant bit for the display.
 
 ### PROBE
 - **Inputs:** 1 (`IN`) · **Outputs:** none · Properties none

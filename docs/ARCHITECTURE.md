@@ -296,8 +296,8 @@ design.root.instances = [
   (`arrayPorts`) and prunes orphaned connections when the type changes (or a wire terminal is
   added/removed via the ports editor). In `bus` mode the single port is **neutral**
   (intrinsic `null`), adopting the connected width and rendering a `?` while undetermined.
-- **Value entry** (`value.ts`): a `ValueFormat` (`HEX`/`DEC`/`SIGNED DEC`) shared by the 7-seg
-  `mode` and the switch-array `valueFormat`, plus `ValueOrder` (`asc`/`desc`). Pure, BigInt-based
+- **Value entry** (`value.ts`): a `ValueFormat` (`HEX`/`DEC`/`SIGNED DEC`/`BINARY`) shared by the
+  7-seg `mode` and the switch-array/led-array `valueFormat`, plus `ValueOrder` (`asc`/`desc`). Pure, BigInt-based
   `parseSwitchValue`/`formatSwitchValue` (LSB-first bits) and `applyValueOrder` (desc reverses)
   back the switch-array's **set-value dialog**; the switch's `valueFormat` is the dialog's initial
   radix and its `order` maps typed values onto lanes (asc = lane 0 is the LSB). `SevenSegMode` is
@@ -450,11 +450,13 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme. A
   switch-array also draws a small **`#` badge** in its body's top-left corner while simulating
   (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog.
-  A **compact** switch-array (`props.compact`) renders as a single box showing its value
-  (`formatSwitchValue` in the instance's `valueFormat`/`order`) instead of indicator circles:
-  `instanceBodySize` follows the active lane distance for its terminal (so the box is at least
-  as tall as the terminal side, like other boxes) and widens to fit the longest value in the
-  instance's radix (`maxSwitchValueText`), and the canvas skips per-lane toggle clicks for it.
+  A **compact** array (`props.compact`, on the switch-array or led-array) renders as a single box
+  showing its value (`formatSwitchValue` in the instance's `valueFormat`/`order`) instead of
+  indicator circles: `instanceBodySize` follows the active lane distance for its terminal (so the
+  box is at least as tall as the terminal side, like other boxes) and widens to fit the longest
+  value in the instance's radix (`maxSwitchValueText`), and the canvas skips per-lane toggle
+  clicks for it. A compact switch shows its initial value in design mode; a compact LED (a sink)
+  shows a `?` placeholder until simulated.
 - **Inversion**: an inverted terminal draws hollow ring(s) shifted just outside the edge
   (touching the component at the pin). A single-wire terminal gets one bubble; a bus gets one
   small bubble per lane (aligned with each individual wire). Inversion is instance-level

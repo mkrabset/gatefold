@@ -34,7 +34,13 @@ see §7), and *Testing* (the test-bench sheet — see §6b).
 Left to right:
 
 * *Group* — turn the current selection into a named composite component
-(enabled only with a selection).
+(enabled only with a selection). With a single selected custom component
+it _promotes_ it into the library.
+* *New component ({plus})* — create a new, empty custom component from
+scratch: name it and it is placed on the canvas (not yet in the
+library). Double-click it to descend and add inputs/outputs and internal
+components; then select it and press *Group* to add it to the library
+(see §3).
 * *Simulate / Exit* — switch between _design_ and _simulate_ mode.
 * *Run / Step / Stop / Reset* — simulation controls (see §7). *Run* also
 enters simulate mode from design mode and starts running; *Space*
@@ -229,6 +235,18 @@ when placed, so editing one instance never affects the template or other
 instances.
 . *Edit internals* — double-click any component (composite or gate) to
 descend into it.
+
+==== New component (from scratch)
+
+Instead of grouping existing components, you can start with an empty
+shell: press *{plus}* in the toolbar, enter a name, and *Create*. A new
+empty component is placed on the canvas (at the center of the current
+view) — it is _not_ added to the library yet. Double-click it to descend
+and build it up: add inputs/outputs in the *Ports* panel (which create
+the port-group pins) and place internal components and wires as usual.
+When you are done, go back up, select the component, and press *Group*
+to _promote_ it into the library so it can be reused and edited as a
+template.
 
 ==== Array (duplicating a component)
 
@@ -594,8 +612,9 @@ end of the bus is the least-significant bit.
 
 * *Inputs:* none · *Outputs:* 1{plus} · Properties *Terminal type*
 (`wire` / `bus`, default `bus`), *Initial value* (text, default `0`),
-*Value format* (`HEX` / `DEC` / `SIGNED DEC`, default `HEX`), *Order*
-(`asc` / `desc`, default `asc`), and *Compact* (boolean, default off)
+*Value format* (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`),
+*Order* (`asc` / `desc`, default `asc`), and *Compact* (boolean, default
+off)
 * A multi-lane interactive source. In `wire` mode each output terminal
 is one switch; in `bus` mode a single bus output carries one lane per
 wire. Every lane starts at the *Initial value* when simulation starts
@@ -612,11 +631,19 @@ dialog rather than individual clicks.
 
 ==== LEDS
 
-* *Inputs:* 1{plus} · *Outputs:* none · Property *Terminal type* (`wire`
-/ `bus`, default `bus`)
+* *Inputs:* 1{plus} · *Outputs:* none · Properties *Terminal type*
+(`wire` / `bus`, default `bus`), *Value format* (`HEX` / `DEC` /
+`SIGNED DEC` / `BINARY`, default `HEX`), *Order* (`asc` / `desc`,
+default `asc`), and *Compact* (boolean, default off)
 * A multi-lane lamp. In `wire` mode each input terminal is one LED; in
 `bus` mode a single bus input lights one LED per lane. Each lane lights
 when its signal is `1`.
+* *Compact* renders the LED as a single small box showing the current
+value of its input (in the instance’s *Value format*) instead of one
+circle per lane — useful for wide buses. The value updates during
+simulation; in design mode (no signal yet) it shows a `?` placeholder.
+*Order* picks which end of the bus is the least-significant bit for the
+display.
 
 ==== PROBE
 

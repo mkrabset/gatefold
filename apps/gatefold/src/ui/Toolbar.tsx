@@ -71,6 +71,12 @@ const GroupIcon = () => (
   </svg>
 )
 
+const PlusIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M8 3v10M3 8h10" />
+  </svg>
+)
+
 const ArrayIcon = () => (
   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="1.5" y="2.5" width="8" height="8" rx="1" />
@@ -115,6 +121,7 @@ export function Toolbar() {
   const openGlobalSettings = useUiStore((s) => s.openSettings)
   const selectedIds = useEditorStore((s) => s.selectedIds)
   const openGroupDialog = useEditorStore((s) => s.openGroupDialog)
+  const openNewComponentDialog = useEditorStore((s) => s.openNewComponentDialog)
   const openArrayDialog = useEditorStore((s) => s.openArrayDialog)
   const canArray = useEditorStore((s) => {
     const def = resolveNav(s.design, s.navStack)
@@ -168,6 +175,10 @@ export function Toolbar() {
       </div>
 
       <div className="tb-divider" />
+
+      <IconButton title="New component" disabled={mode === 'simulate'} onClick={openNewComponentDialog}>
+        <PlusIcon />
+      </IconButton>
 
       <IconButton title="Group into component" disabled={selectedIds.length === 0} onClick={openGroupDialog}>
         <GroupIcon />

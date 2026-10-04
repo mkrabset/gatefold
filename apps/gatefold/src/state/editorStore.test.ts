@@ -22,6 +22,7 @@ function reset() {
     navStack: [{ kind: 'root' }],
     pendingGroup: null,
     pendingArray: null,
+    pendingNewComponent: false,
     pendingDelete: null,
     pendingClearAll: false,
     viewport: { x: 400, y: 250, zoom: 1 },
@@ -434,6 +435,34 @@ describe('editorStore undo/redo + clipboard', () => {
     const templateXor = template!.instances.find((i) => i.id === 'ha-xor')!
     const instanceXor = instanceDef.instances.find((i) => i.id === 'ha-xor')!
     expect(templateXor.def).not.toBe(instanceXor.def)
+  })
+
+  it('creates a new empty component from scratch and promotes it to the library via group', () => {
+    reset()
+    const state = useEditorStore.getState()
+    const libraryBefore = Object.keys(state.design.library).length
+
+    state.openNewComponentDialog()
+    expect(useEditorStore.getState().pendingNewComponent).toBe(true)
+    state.confirmNewComponent('  Adder  ')
+
+    const s = useEditorStore.getState()
+    expect(s.pendingNewComponent).toBe(false)
+
+    // A bare empty composite instance is placed at the viewport center, not in the library.
+    const inst = mainInstances().find((i) => i.def.kind === 'composite' && i.def.name === 'Adder')!
+    expect(inst).toBeDefined()
+    expect(inst.pos).toEqual({ x: 400, y: 250 })
+    expect(inst.def).toMatchObject({ kind: 'composite', ports: [], instances: [], connections: [] })
+    expect((inst.def as CompositeDef).uuid).toBeUndefined()
+    expect(Object.keys(s.design.library)).toHaveLength(libraryBefore)
+
+    // Selecting and grouping the single component promotes it to the library.
+    s.setSelection([inst.id])
+    s.openGroupDialog()
+    s.setGroupName('Adder')
+    s.confirmGroup()
+    expect(Object.values(useEditorStore.getState().design.library).some((d) => d.name === 'Adder')).toBe(true)
   })
 
   it('grouping deep-copies nested components so the instance is independent of the template', () => {

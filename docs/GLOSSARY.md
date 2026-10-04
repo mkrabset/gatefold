@@ -116,6 +116,9 @@ authoritative — update this when a term's meaning changes.
   *property-driven*: changing it regenerates the instance's fork-def ports.
 - **Composite / custom component** — a user-defined component whose behavior is its
   internal circuit (instances + connections). "Custom component" is our everyday synonym.
+  A component can be created **from scratch** (the toolbar **+** button) as an empty live copy
+  with no library template and no lineage `uuid`; it becomes a template only when it is
+  *promoted* (selected and grouped).
 - **Template** — a component definition that lives in the **library** (`design.library`) and is
   shown in the "My components" panel. Placed via drag; edited by double-clicking its library
   card; never mutated by editing an instance. An **origin template** is one that is not itself an

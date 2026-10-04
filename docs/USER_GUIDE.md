@@ -27,7 +27,10 @@ sheet — see §6b).
 Left to right:
 
 - **Group** — turn the current selection into a named composite component (enabled only with
-  a selection).
+  a selection). With a single selected custom component it *promotes* it into the library.
+- **New component (+)** — create a new, empty custom component from scratch: name it and it is
+  placed on the canvas (not yet in the library). Double-click it to descend and add inputs/outputs
+  and internal components; then select it and press **Group** to add it to the library (see §3).
 - **Simulate / Exit** — switch between *design* and *simulate* mode.
 - **Run / Step / Stop / Reset** — simulation controls (see §7). **Run** also enters simulate
   mode from design mode and starts running; **Space** toggles run/pause while simulating.
@@ -172,6 +175,16 @@ Wire several nearby components at once instead of drawing each wire by hand:
    extra terminals. Components are *copied* when placed, so editing one instance never
    affects the template or other instances.
 5. **Edit internals** — double-click any component (composite or gate) to descend into it.
+
+### New component (from scratch)
+
+Instead of grouping existing components, you can start with an empty shell: press **+** in the
+toolbar, enter a name, and **Create**. A new empty component is placed on the canvas (at the
+center of the current view) — it is *not* added to the library yet. Double-click it to descend
+and build it up: add inputs/outputs in the **Ports** panel (which create the port-group pins)
+and place internal components and wires as usual. When you are done, go back up, select the
+component, and press **Group** to *promote* it into the library so it can be reused and edited
+as a template.
 
 ### Array (duplicating a component)
 

@@ -506,7 +506,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
 > Note: the contents of the side panels are provisional and will likely change
 > significantly — treat the specifics below as placeholders, not a stable contract.
 
-- **Toolbar** — brand, group action, **simulate/exit toggle** + Run/Step/Stop/Reset +
+- **Toolbar** — brand, a **New component** button (creates an empty composite via
+  `confirmNewComponent`), the group action, **simulate/exit toggle** + Run/Step/Stop/Reset +
   settings (gear), breadcrumb navigation, save/open JSON, a **global Settings** gear, and the
   theme toggle. Icon buttons carry `title` tooltips.
 - **Sidebar** (left) — component tree (double-click any component to descend; Escape exits),
@@ -521,6 +522,8 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   place a deep copy; embedded copies are not listed as templates). The "My components" grid
   scrolls independently when it overflows.
 - **GroupDialog** — names the inferred ports before creating a composite.
+- **NewComponentDialog** — names a brand-new empty composite; `confirmNewComponent` places it
+  as a live copy with no template/uuid (promoted to the library by grouping later).
 - **SimSettingsDialog** — modal for simulation settings: default gate delay (ps) and the
   step mode (`quiescent` / `clock-edge`).
 - **SettingsDialog** — modal for global settings (currently the **lane distance** numeric

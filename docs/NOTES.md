@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-04 (Compact/value-format LEDs + BINARY for switches).
+Last updated: 2026-10-04 (New-from-scratch component, compact/value-format LEDs).
 
 ## Where we are
 
@@ -12,6 +12,17 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **New component from scratch (toolbar "+")** — a new **+** button (left of **Group**) opens a
+  `NewComponentDialog` for naming a brand-new empty component. `confirmNewComponent` places a
+  bare empty `CompositeDef` (no library entry, no lineage `uuid`) as a live copy at the viewport
+  center and selects it; the user descends to add ports/internal components, then selects it and
+  presses **Group** to *promote* it into the library (reusing the existing single-composite
+  promote path). Touched: `editorStore.ts` (`pendingNewComponent` + `openNewComponentDialog`/
+  `closeNewComponentDialog`/`confirmNewComponent`), new `ui/NewComponentDialog.tsx`, `Toolbar.tsx`
+  (PlusIcon + button, disabled while simulating), `App.tsx` (mount). Test in `editorStore.test.ts`
+  (empty composite placed at viewport center, no uuid, not in library, then promoted via group);
+  docs updated (`ARCHITECTURE.md`, `GLOSSARY.md`, `USER_GUIDE.md`).
 
 - **LEDS `compact` + `valueFormat`/`order`, and `BINARY` for switches** — the led-array gained
   the switch-array's display properties: `valueFormat` (`HEX`/`DEC`/`SIGNED DEC`/`BINARY`),

@@ -156,6 +156,8 @@ interface EditorState {
   fitToken: number
   pendingGroup: PendingGroup | null
   pendingArray: PendingArray | null
+  /** True while the "new component" (create-from-scratch) dialog is open. */
+  pendingNewComponent: boolean
   pendingDelete: string | null
   /** True while the "delete everything" confirmation dialog is open. */
   pendingClearAll: boolean
@@ -182,6 +184,9 @@ interface EditorState {
   setGroupOutputName: (index: number, name: string) => void
   confirmGroup: () => void
   cancelGroup: () => void
+  openNewComponentDialog: () => void
+  closeNewComponentDialog: () => void
+  confirmNewComponent: (name: string) => void
   openArrayDialog: () => void
   setArrayDialogCount: (count: number) => void
   setArrayDialogChains: (chains: ArrayChain[]) => void
@@ -389,6 +394,7 @@ export const useEditorStore = create<EditorState>()(
       fitToken: initialDesign ? 1 : 0,
       pendingGroup: null,
       pendingArray: null,
+      pendingNewComponent: false,
       pendingDelete: null,
       pendingClearAll: false,
       pendingCategoryDelete: false,
@@ -580,6 +586,24 @@ export const useEditorStore = create<EditorState>()(
           s.selectedIds = last ? [last.id] : []
         }),
       cancelGroup: () => set((s) => void (s.pendingGroup = null)),
+      openNewComponentDialog: () => set((s) => void (s.pendingNewComponent = true)),
+      closeNewComponentDialog: () => set((s) => void (s.pendingNewComponent = false)),
+      confirmNewComponent: (name) =>
+        set((s) => {
+          s.pendingNewComponent = false
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          // A from-scratch component is a bare empty composite placed as a live copy (no
+          // library template, no lineage uuid). Grouping it later promotes it to a template.
+          const trimmed = name.trim() || 'component'
+          const usedIds = allCompositeIds(s.design)
+          const defId = uniqueAgainst(usedIds, trimmed)
+          usedIds.add(defId)
+          const emptyDef: CompositeDef = { id: defId, name: trimmed, kind: 'composite', ports: [], instances: [], connections: [] }
+          const instId = uniqueAgainst(new Set(def.instances.map((i) => i.id)), trimmed)
+          def.instances.push({ id: instId, name: '', def: emptyDef, pos: { x: s.viewport.x, y: s.viewport.y } })
+          s.selectedIds = [instId]
+        }),
       openArrayDialog: () =>
         set((s) => {
           const def = currentDef(s)

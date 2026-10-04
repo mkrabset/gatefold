@@ -46,7 +46,7 @@ export {
 export { newUuid, uniqueId, UnionFind } from './util'
 
 // Value entry / formatting (switch-array, 7-seg, and ROM memory).
-export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, switchInitialLanes, maxSwitchValueText, parseMemoryContents, formatMemoryContents } from './value'
+export { toValueFormat, valueFormatOf, valueOrderOf, parseSwitchValue, formatSwitchValue, applyValueOrder, incrementSwitchLanes, switchInitialLanes, maxSwitchValueText, parseMemoryContents, formatMemoryContents } from './value'
 export type { ValueFormat, ValueOrder } from './value'
 
 // Bus-width resolution.

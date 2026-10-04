@@ -457,17 +457,19 @@ its properties, and what it does.
   **Order** selects which end of the bus is the least-significant bit.
 
 ### SWITCHES
-- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (text, default `0`), **Value format** (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default off)
+- **Inputs:** none · **Outputs:** 1+ · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Initial value** (text, default `0`), **Value format** (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default on)
 - A multi-lane interactive source. In `wire` mode each output terminal is one switch; in `bus`
   mode a single bus output carries one lane per wire. Every lane starts at the **Initial value**
   when simulation starts (and shows that state, colored, in design mode). In simulate mode,
-  click an indicator circle to toggle its lane.
+  click an indicator circle to toggle its lane, or use the **−**/**+** step buttons to increment
+  or decrement the whole value.
 - **Initial value** is a number entered in the current **Value format** (signed or unsigned
   decimal, or hex); **Order** decides how the typed value maps onto the lanes. In Verilog export
   a non-exported switch becomes a constant fixed at this value.
 - **Compact** renders the switch as a single small box showing its current value (in the
   instance's **Value format**) instead of one circle per lane — useful for wide buses. Its lanes
-  are set via the **#** badge / set-value dialog rather than individual clicks.
+  are set via the **#** badge / set-value dialog or the **−**/**+** buttons rather than
+  individual clicks.
 
 ### LEDS
 - **Inputs:** 1+ · **Outputs:** none · Properties **Terminal type** (`wire` / `bus`, default `bus`), **Value format** (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`), **Order** (`asc` / `desc`, default `asc`), and **Compact** (boolean, default off)
@@ -508,8 +510,8 @@ them to the design itself.
 - Editing works like the designer: drag components, marquee/Shift-click to select, **Delete** to
   remove a component, and pan (Shift+drag) / zoom (mouse wheel).
 - In **simulate** mode the test-bench components drive and read `main`: toggle a **SWITCHES** lane
-  by clicking it (or use its `#` badge to type a whole value), and watch **LEDS**/**7-SEG**/probe
-  outputs update. The designer still shows the same simulation, one level down inside `main`.
+  by clicking it (or use its `#` badge to type a whole value, or the **−**/**+** buttons to
+  step the value), and watch **LEDS**/**7-SEG**/probe outputs update. The designer still shows the same simulation, one level down inside `main`.
 - The test bench is saved with your project JSON, but it is **ignored by the Verilog export** — it
   never affects the generated `.v`, the component library, or the design's own interface.
 
@@ -607,6 +609,11 @@ and an input pre-filled with the current value (selected, so typing replaces it)
 - The radix chosen in the dialog only affects that dialog — it does not change the
   instance's *Value format*. The instance's *Order* is applied when the typed value is
   mapped onto the lanes.
+
+Every **SWITCHES** component also shows two small step buttons (**−** and **+**) in its
+top-right corner while simulating. They increment or decrement the switch's whole binary
+value by one, wrapping around at `0` and the maximum (`2^n − 1`) — a quick way to cycle a
+bus through its states without typing.
 
 ### Step mode
 

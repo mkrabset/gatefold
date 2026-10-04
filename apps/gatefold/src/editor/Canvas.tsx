@@ -3,7 +3,7 @@ import { currentDef, currentWidthRoot, useEditorStore } from '../state/editorSto
 import { beginMoveTransaction, endMoveTransaction } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, simColorOf, simValueOf, simSignalOf } from '../state/simStore'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, setLaneDistance } from './geometry'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, switchStepBadges, setLaneDistance } from './geometry'
 import { drawScene } from './renderer'
 import { findJoinpointWire, findWireAtLine, findWiresAtLine } from './wireSearch'
 import { computeAutoConnectMatches } from './autoconnect'
@@ -173,6 +173,20 @@ export function Canvas() {
               const size = arrayLaneCount(widthRoot(), def, inst, inst.def)
               if (size !== null) {
                 useSimStore.getState().openSwitchDialog(inst.id, size, valueFormatOf(inst.props), valueOrderOf(inst.props))
+              }
+              return
+            }
+          }
+        }
+        // The "−"/"+" step buttons (top-right corner) increment/decrement the value.
+        for (const inst of [...instances].reverse()) {
+          if (def && inst.def.kind !== 'composite' && childPrimitiveKind(inst) === 'switch-array') {
+            const badges = switchStepBadges(widthRoot(), def, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
+            if (!badges) continue
+            const inRect = (b: { x: number; y: number; s: number }) => sx >= b.x && sx <= b.x + b.s && sy >= b.y && sy <= b.y + b.s
+            if (inRect(badges.dec) || inRect(badges.inc)) {
+              if (arrayLaneCount(widthRoot(), def, inst, inst.def) !== null) {
+                useSimStore.getState().stepSwitch(inst.id, inRect(badges.inc) ? 1 : -1)
               }
               return
             }
@@ -463,14 +477,20 @@ export function Canvas() {
       const def = currentScope()
       const instances = def?.instances ?? []
       // In simulate mode, double-clicking a switch-array indicator just toggles it
-      // again (handled on pointerdown); do not enter the array component scope.
+      // again (handled on pointerdown); do not enter the array component scope. The
+      // same applies to the "#" badge and the "−"/"+" step buttons, which also act on
+      // pointerdown — a fast double-click must not descend into the primitive scope.
       if (useSimStore.getState().mode === 'simulate') {
+        const sx = e.clientX - rect.left
+        const sy = e.clientY - rect.top
+        const inRect = (b: { x: number; y: number; s: number }) => sx >= b.x && sx <= b.x + b.s && sy >= b.y && sy <= b.y + b.s
         for (const inst of [...instances].reverse()) {
-          if (def && childPrimitiveKind(inst) === 'switch-array' && inst.props?.compact !== true) {
-            if (hitArrayIndicator(widthRoot(), w.x, w.y, def, inst, inst.def, state.viewport.zoom) !== null) {
-              return
-            }
-          }
+          if (!def || childPrimitiveKind(inst) !== 'switch-array') continue
+          const steps = switchStepBadges(widthRoot(), def, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
+          if (steps && (inRect(steps.dec) || inRect(steps.inc))) return
+          const badge = switchValueBadge(widthRoot(), def, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
+          if (badge && inRect(badge)) return
+          if (inst.props?.compact !== true && hitArrayIndicator(widthRoot(), w.x, w.y, def, inst, inst.def, state.viewport.zoom) !== null) return
         }
       }
       if (!def) return

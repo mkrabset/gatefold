@@ -104,7 +104,9 @@ authoritative — update this when a term's meaning changes.
   boxes) and widens to fit the longest value in the instance's radix. A compact switch shows its
   initial value in design mode; a compact LED (a sink with no signal yet) shows a `?` placeholder
   until simulated. The switch-array's `compact` defaults to `true` (compact by default); the
-  led-array's defaults to `false`.
+  led-array's defaults to `false`. In simulate mode every switch-array shows **step buttons**
+  (`−`/`+`, in the body's top-right corner) that increment/decrement its whole binary value by
+  one, wrapping modulo `2^n` lanes — on the Designer canvas and the Testing sheet alike.
 - **Value format** — the radix (`HEX`/`DEC`/`SIGNED DEC`/`BINARY`) used to enter/display a
   multi-bit value. Shared by the 7-seg display's `mode` and the switch-array/led-array
   `valueFormat`; the single `ValueFormat` type lives in the model's `value.ts`.

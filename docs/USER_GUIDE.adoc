@@ -258,9 +258,10 @@ in the toolbar:
 becomes a `count`-wide bus (e.g. a full-adder’s `A`/`B`/`Sum` become
 4-bit buses for `Count = 4`).
 * *Orientation* — lay the *copies* out horizontally (left to right) or
-vertically (top to bottom). The surrounding flow — input port, fan-outs,
-the copies, fan-ins, output port — is always left-to-right; orientation
-only affects how the copies are arranged among themselves.
+vertically (top to bottom; the default). The surrounding flow — input
+port, fan-outs, the copies, fan-ins, output port — is always
+left-to-right; orientation only affects how the copies are arranged
+among themselves.
 * *Inputs* — for each input, choose *Parallel (bus)* (one wire per copy,
 the default) or *Common (shared)* (one wire delivered to every copy,
 routed through a NODE join-point). Use _Common_ for a signal all copies
@@ -614,12 +615,13 @@ end of the bus is the least-significant bit.
 (`wire` / `bus`, default `bus`), *Initial value* (text, default `0`),
 *Value format* (`HEX` / `DEC` / `SIGNED DEC` / `BINARY`, default `HEX`),
 *Order* (`asc` / `desc`, default `asc`), and *Compact* (boolean, default
-off)
+on)
 * A multi-lane interactive source. In `wire` mode each output terminal
 is one switch; in `bus` mode a single bus output carries one lane per
 wire. Every lane starts at the *Initial value* when simulation starts
 (and shows that state, colored, in design mode). In simulate mode, click
-an indicator circle to toggle its lane.
+an indicator circle to toggle its lane, or use the *−*/*{plus}* step
+buttons to increment or decrement the whole value.
 * *Initial value* is a number entered in the current *Value format*
 (signed or unsigned decimal, or hex); *Order* decides how the typed
 value maps onto the lanes. In Verilog export a non-exported switch
@@ -627,7 +629,7 @@ becomes a constant fixed at this value.
 * *Compact* renders the switch as a single small box showing its current
 value (in the instance’s *Value format*) instead of one circle per lane
 — useful for wide buses. Its lanes are set via the *#* badge / set-value
-dialog rather than individual clicks.
+dialog or the *−*/*{plus}* buttons rather than individual clicks.
 
 ==== LEDS
 
@@ -685,8 +687,9 @@ to select, *Delete* to remove a component, and pan (Shift{plus}drag) /
 zoom (mouse wheel).
 * In *simulate* mode the test-bench components drive and read `main`:
 toggle a *SWITCHES* lane by clicking it (or use its `#` badge to type a
-whole value), and watch *LEDS*/*7-SEG*/probe outputs update. The
-designer still shows the same simulation, one level down inside `main`.
+whole value, or the *−*/*{plus}* buttons to step the value), and watch
+*LEDS*/*7-SEG*/probe outputs update. The designer still shows the same
+simulation, one level down inside `main`.
 * The test bench is saved with your project JSON, but it is *ignored by
 the Verilog export* — it never affects the generated `.v`, the component
 library, or the design’s own interface.
@@ -803,6 +806,12 @@ and stays open.
 * The radix chosen in the dialog only affects that dialog — it does not
 change the instance’s _Value format_. The instance’s _Order_ is applied
 when the typed value is mapped onto the lanes.
+
+Every *SWITCHES* component also shows two small step buttons (*−* and
+*{plus}*) in its top-right corner while simulating. They increment or
+decrement the switch’s whole binary value by one, wrapping around at `0`
+and the maximum (`2^n − 1`) — a quick way to cycle a bus through its
+states without typing.
 
 ==== Step mode
 

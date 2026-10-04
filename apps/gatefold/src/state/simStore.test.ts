@@ -161,4 +161,18 @@ describe('set-value dialog commits to the right switch', () => {
     expect(engine!.switchLanesOf('sw')).toEqual([1, 0, 1, 0])
     expect(useSimStore.getState().switchDialog).toBeNull()
   })
+
+  it('steps a test-bench switch value by its raw id', () => {
+    useEditorStore.setState({ design: testbenchSwitchDesign(), navStack: [{ kind: 'root' }], selectedIds: [] })
+    useSimStore.setState({ mode: 'design', engine: null, history: null, running: false, path: [] })
+
+    useSimStore.getState().toggleMode()
+    const engine = useSimStore.getState().engine
+
+    useSimStore.getState().stepTestSwitch('sw', 1)
+    expect(engine!.switchLanesOf('sw')).toEqual([1, 0, 0, 0])
+
+    useSimStore.getState().stepTestSwitch('sw', -1)
+    expect(engine!.switchLanesOf('sw')).toEqual([0, 0, 0, 0])
+  })
 })

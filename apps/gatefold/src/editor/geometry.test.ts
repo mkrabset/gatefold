@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChildDef, CompositeDef, Design, Port } from '@gatefold/model'
 import { builtinOf, connectionError, forkOf } from '@gatefold/model'
-import { COMPACT_VALUE_CHAR_W, COMPACT_VALUE_PAD, COMPOSITE_NAME_CHAR_W, COMPOSITE_NAME_PAD, DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset } from './geometry'
+import { COMPACT_VALUE_CHAR_W, COMPACT_VALUE_PAD, COMPOSITE_NAME_CHAR_W, COMPOSITE_NAME_PAD, DEFAULT_LANE_DISTANCE, MIN_PIN_RADIUS, busWireOffsets, currentLaneDistance, defBodySize, instanceBodySize, isNeutralPin, laneDistanceFor, pinRadiusWorld, pinRadiusWorldAt, pinWidth, portPosition, setLaneDistance, sideHeight, sidePinOffset, switchStepBadges } from './geometry'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 const gate = (id: string, kind: Parameters<typeof forkOf>[0], x = 0, y = 0) => ({ id, name: id, def: forkOf(kind), pos: { x, y } })
@@ -453,5 +453,43 @@ describe('composite name width', () => {
     const expected = 2 * COMPOSITE_NAME_PAD + name.length * COMPOSITE_NAME_CHAR_W
     expect(expected).toBeGreaterThan(defBodySize(c.def).w)
     expect(instanceBodySize(main, main, c, c.def).w).toBe(expected)
+  })
+})
+
+describe('switchStepBadges', () => {
+  function switchDesign(): Design {
+    const main: CompositeDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [gate('sw', 'switch-array')],
+      connections: [],
+    }
+    return { version: 2, root: main, library: {} }
+  }
+
+  it('places the dec badge left of the inc badge in the top-right corner', () => {
+    const design = switchDesign()
+    const sw = design.root.instances.find((i) => i.id === 'sw')!
+    const badges = switchStepBadges(design.root, design.root, sw, sw.def, 800, 600, { x: 0, y: 0, zoom: 1 })
+    expect(badges).not.toBeNull()
+    expect(badges!.dec.y).toBe(badges!.inc.y)
+    expect(badges!.dec.s).toBe(badges!.inc.s)
+    expect(badges!.inc.x).toBe(badges!.dec.x + badges!.dec.s + 3)
+  })
+
+  it('returns null for a non-switch def', () => {
+    const main: CompositeDef = {
+      id: 'main',
+      name: 'main',
+      kind: 'composite',
+      ports: [],
+      instances: [gate('b', 'buffer')],
+      connections: [],
+    }
+    const design: Design = { version: 2, root: main, library: {} }
+    const b = design.root.instances.find((i) => i.id === 'b')!
+    expect(switchStepBadges(design.root, design.root, b, b.def, 800, 600, { x: 0, y: 0, zoom: 1 })).toBeNull()
   })
 })

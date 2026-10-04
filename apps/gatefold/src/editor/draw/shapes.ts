@@ -99,6 +99,16 @@ export function drawExportBadge(ctx: CanvasRenderingContext2D, x: number, y: num
   ctx.fillText('▸', x + s / 2, y + s / 2 + 0.5)
 }
 
+/** Draw a switch-array's step button (a small badge labeled with `label`, e.g. "−"/"+"). */
+export function drawStepBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, label: string, p: Palette) {
+  drawRoundedBox(ctx, x, y, s, s, 3, p.gateFill, p.gateStroke, 1.5)
+  ctx.fillStyle = p.text
+  ctx.font = `${Math.round(s * 0.72)}px system-ui, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, x + s / 2, y + s / 2 + 0.5)
+}
+
 /** Stroke a dashed rectangle (selection / marquee outline). */
 export function strokeDashedRect(
   ctx: CanvasRenderingContext2D,

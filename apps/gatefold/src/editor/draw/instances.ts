@@ -315,7 +315,8 @@ function drawInstance(
       drawArrayBody(ctx, root, parentDef, instance, def, s.x, s.y, w * vp.zoom, h * vp.zoom, cw, ch, vp, p, sim)
       // A main-scope switch with `exported` set becomes a module input; mark it with a
       // small badge in the body's top-right corner (mirroring the "#" badge at top-left).
-      if (kind === 'switch-array' && atRoot && instance.props?.exported === true) {
+      // Design mode only — in simulate mode that corner holds the step buttons.
+      if (kind === 'switch-array' && !sim && atRoot && instance.props?.exported === true) {
         const badgeSize = 16
         drawExportBadge(ctx, s.x + (w * vp.zoom) / 2 - 4 - badgeSize, s.y - (h * vp.zoom) / 2 + 4, badgeSize, p)
       }

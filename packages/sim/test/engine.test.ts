@@ -825,6 +825,35 @@ describe('Simulation engine', () => {
     expect(sim.switchLanesOf('nope')).toBeUndefined()
   })
 
+  it("increments and decrements a switch-array's value, wrapping modulo its width", () => {
+    const sim = new Simulation(mkDesign([inst('sa', switchArray4)], []))
+    expect(sim.switchLanesOf('sa')).toEqual([0, 0, 0, 0])
+
+    sim.incrementSwitch('sa', 1)
+    sim.step()
+    expect(sim.switchLanesOf('sa')).toEqual([1, 0, 0, 0])
+
+    sim.incrementSwitch('sa', -1)
+    sim.step()
+    expect(sim.switchLanesOf('sa')).toEqual([0, 0, 0, 0])
+
+    // Wraps below zero and above the maximum.
+    sim.incrementSwitch('sa', -1)
+    sim.step()
+    expect(sim.switchLanesOf('sa')).toEqual([1, 1, 1, 1])
+    sim.incrementSwitch('sa', 1)
+    sim.step()
+    expect(sim.switchLanesOf('sa')).toEqual([0, 0, 0, 0])
+  })
+
+  it('increments a switch-array respecting the desc order', () => {
+    const sim = new Simulation(mkDesign([inst('sa', switchArray4, { order: 'desc' })], []))
+    sim.setSwitchLanes('sa', [0, 0, 0, 1]) // value 1 (lane 3 is the LSB in desc order)
+    sim.incrementSwitch('sa', 1)
+    sim.step()
+    expect(sim.switchLanesOf('sa')).toEqual([0, 0, 1, 0]) // value 2
+  })
+
   it('passes a fixed-width bus through the BUS primitive', () => {
     const sim = new Simulation(
       mkDesign(

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { CompositeDef, Instance } from '@gatefold/model'
 import { MAIN_INSTANCE_ID, childPrimitive, findConnectionTo, pinRefEquals, primitiveOf, valueFormatOf, valueOrderOf } from '@gatefold/model'
 import { drawScene } from '../editor/renderer'
-import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, setLaneDistance } from '../editor/geometry'
+import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, switchStepBadges, setLaneDistance } from '../editor/geometry'
 import { s2w } from '../editor/viewport'
 import { darkPalette, lightPalette } from '../editor/palette'
 import { formatSpeed } from '../util/format'
@@ -131,6 +131,19 @@ function TestingCanvas() {
               const size = arrayLaneCount(comp, comp, inst, inst.def)
               if (size !== null) {
                 useSimStore.getState().openTestSwitchDialog(inst.id, size, valueFormatOf(inst.props), valueOrderOf(inst.props))
+              }
+              return
+            }
+          }
+        }
+        for (const inst of [...insts].reverse()) {
+          if (childPrimitive(inst.def) === 'switch-array') {
+            const badges = switchStepBadges(comp, comp, inst, inst.def, wrap.clientWidth, wrap.clientHeight, state.viewport)
+            if (!badges) continue
+            const inRect = (b: { x: number; y: number; s: number }) => sx >= b.x && sx <= b.x + b.s && sy >= b.y && sy <= b.y + b.s
+            if (inRect(badges.dec) || inRect(badges.inc)) {
+              if (arrayLaneCount(comp, comp, inst, inst.def) !== null) {
+                useSimStore.getState().stepTestSwitch(inst.id, inRect(badges.inc) ? 1 : -1)
               }
               return
             }

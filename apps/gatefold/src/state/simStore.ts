@@ -50,10 +50,12 @@ interface SimState {
   stop: () => void
   reset: () => void
   toggleSwitch: (instanceId: string, lane?: number) => void
+  stepSwitch: (instanceId: string, delta: number) => void
   openSwitchDialog: (instanceId: string, size: number, format: ValueFormat, order: ValueOrder) => void
   closeSwitchDialog: () => void
   setSwitchValue: (instanceId: string, lanes: Signal[]) => void
   toggleTestSwitch: (instanceId: string, lane?: number) => void
+  stepTestSwitch: (instanceId: string, delta: number) => void
   openTestSwitchDialog: (instanceId: string, size: number, format: ValueFormat, order: ValueOrder) => void
   setTestSwitchValue: (instanceId: string, lanes: Signal[]) => void
   descend: (instanceId: string) => void
@@ -180,6 +182,14 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       set((s) => ({ version: s.version + 1 }))
     },
 
+    stepSwitch: (instanceId, delta) => {
+      const { engine } = get()
+      if (!engine || !viewingLive()) return
+      engine.incrementSwitch(flatId(instanceId), delta)
+      engine.step()
+      set((s) => ({ version: s.version + 1 }))
+    },
+
     openSwitchDialog: (instanceId, size, format, order) => {
       const { engine } = get()
       if (!engine || !viewingLive()) return
@@ -202,6 +212,14 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       const { engine } = get()
       if (!engine) return
       engine.toggleSwitch(instanceId, lane)
+      engine.step()
+      set((s) => ({ version: s.version + 1 }))
+    },
+
+    stepTestSwitch: (instanceId, delta) => {
+      const { engine } = get()
+      if (!engine) return
+      engine.incrementSwitch(instanceId, delta)
       engine.step()
       set((s) => ({ version: s.version + 1 }))
     },

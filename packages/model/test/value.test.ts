@@ -4,6 +4,7 @@ import {
   applyValueOrder,
   formatMemoryContents,
   formatSwitchValue,
+  incrementSwitchLanes,
   maxSwitchValueText,
   parseMemoryContents,
   parseSwitchValue,
@@ -201,6 +202,36 @@ describe('applyValueOrder', () => {
     expect(applyValueOrder(bits, 'desc')).toEqual([0, 1, 0, 1])
     expect(bits).toEqual([1, 0, 1, 0]) // unchanged
     expect(asc).not.toBe(bits) // a fresh array
+  })
+})
+
+describe('incrementSwitchLanes', () => {
+  it('increments an ascending (LSB-first) lane vector', () => {
+    expect(incrementSwitchLanes([0, 0, 0, 0], 'asc', 1)).toEqual([1, 0, 0, 0])
+    expect(incrementSwitchLanes([1, 0, 0, 0], 'asc', 1)).toEqual([0, 1, 0, 0])
+    expect(incrementSwitchLanes([1, 1, 0, 0], 'asc', 1)).toEqual([0, 0, 1, 0])
+  })
+
+  it('decrements an ascending lane vector', () => {
+    expect(incrementSwitchLanes([0, 0, 0, 0], 'asc', -1)).toEqual([1, 1, 1, 1])
+    expect(incrementSwitchLanes([0, 1, 0, 0], 'asc', -1)).toEqual([1, 0, 0, 0])
+  })
+
+  it('wraps modulo 2^width', () => {
+    expect(incrementSwitchLanes([1, 1, 1, 1], 'asc', 1)).toEqual([0, 0, 0, 0])
+    expect(incrementSwitchLanes([0, 0, 0, 0], 'asc', -1)).toEqual([1, 1, 1, 1])
+  })
+
+  it('is order-agnostic: desc lanes increment to the same numeric value', () => {
+    // Value 1 in desc order is [0,0,0,1] (lane 0 is the MSB).
+    expect(incrementSwitchLanes([0, 0, 0, 1], 'desc', 1)).toEqual([0, 0, 1, 0]) // value 2
+    expect(incrementSwitchLanes([0, 0, 0, 0], 'desc', -1)).toEqual([1, 1, 1, 1]) // wrap to 15
+  })
+
+  it('handles a single-bit vector and returns the input unchanged for zero lanes', () => {
+    expect(incrementSwitchLanes([0], 'asc', 1)).toEqual([1])
+    expect(incrementSwitchLanes([1], 'asc', 1)).toEqual([0])
+    expect(incrementSwitchLanes([], 'asc', 1)).toEqual([])
   })
 })
 

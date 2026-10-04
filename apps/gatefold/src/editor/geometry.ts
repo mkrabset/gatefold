@@ -421,6 +421,45 @@ export function switchValueBadge(
   }
 }
 
+/** Screen size (px) of a switch-array's decrement/increment step buttons. */
+const SWITCH_STEP_BADGE = 16
+/** Gap (px) between the two step buttons. */
+const SWITCH_STEP_GAP = 3
+
+/** A screen-space square badge (top-left corner + side length). */
+export interface BadgeRect {
+  x: number
+  y: number
+  s: number
+}
+
+/**
+ * Screen-space rects of a switch-array's "−" (decrement) and "+" (increment) buttons,
+ * laid out side by side in the body's top-right corner, or null when `def` is not a
+ * switch-array. `dec` sits left of `inc`. Single source of truth for the button
+ * geometry, shared by the renderer and the canvas hit-testing.
+ */
+export function switchStepBadges(
+  root: CompositeDef,
+  parentDef: CompositeDef,
+  instance: Instance,
+  def: ChildDef,
+  cw: number,
+  ch: number,
+  vp: Viewport,
+): { dec: BadgeRect; inc: BadgeRect } | null {
+  if (childPrimitive(def) !== 'switch-array') return null
+  const c = w2s(instance.pos.x, instance.pos.y, cw, ch, vp)
+  const size = instanceBodySize(root, parentDef, instance, def)
+  const inc: BadgeRect = {
+    x: c.x + (size.w * vp.zoom) / 2 - 4 - SWITCH_STEP_BADGE,
+    y: c.y - (size.h * vp.zoom) / 2 + 4,
+    s: SWITCH_STEP_BADGE,
+  }
+  const dec: BadgeRect = { x: inc.x - SWITCH_STEP_BADGE - SWITCH_STEP_GAP, y: inc.y, s: SWITCH_STEP_BADGE }
+  return { dec, inc }
+}
+
 /** World-space bounding box of everything inside a composite def, or null when empty. */
 export function defContentsBounds(root: CompositeDef, def: CompositeDef): Bounds | null {
   const insts = def.instances

@@ -1,5 +1,5 @@
 import type { Design, Signal } from '@gatefold/model'
-import { primitiveOf, periodOf, switchInitialLanes } from '@gatefold/model'
+import { incrementSwitchLanes, primitiveOf, periodOf, switchInitialLanes, valueOrderOf } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
 import { clockValue, equalVectors, incrementVector, invert, invertVector } from './signals'
@@ -552,6 +552,16 @@ export class Simulation {
     for (let i = 0; i < lanes; i++) state.push(bits[i] ?? 0)
     this.switchState.set(id, state)
     this.driveSource(inst, this.timeValue)
+  }
+
+  /** Step a switch source's binary value by `delta` (e.g. `+1`/`-1`), wrapping modulo its
+   *  lane count. Order-aware: the stored lanes are interpreted per the instance's `order`. */
+  incrementSwitch(id: string, delta: number): void {
+    const inst = this.instances.find((i) => i.id === id)
+    if (!inst) return
+    const lanes = this.switchLanesOf(id)
+    if (!lanes) return
+    this.setSwitchLanes(id, incrementSwitchLanes(lanes, valueOrderOf(inst.props), delta))
   }
 
   /** The current raw lane vector of a switch source (its switch settings), or undefined. */

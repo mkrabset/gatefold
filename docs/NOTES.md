@@ -13,6 +13,22 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 
 ## Latest (this session)
 
+- **Fix: fast-clicking a switch's −/+ buttons descended into the component** — the Designer
+  canvas's `dblclick` handler only guarded the non-compact indicator circles, so a rapid second
+  click on a `−`/`+` (or `#`) button also triggered `dblclick`, whose `hitTest` found the
+  switch-array and descended into its primitive scope. The simulate-mode guard now short-circuits
+  on the step buttons and the `#` badge too (`Canvas.tsx` `onDblClick`).
+
+- **Switch inc/dec step buttons (sim mode)** — every switch-array now shows small **−**/**+**
+  buttons in its body's top-right corner while simulating, stepping its whole binary value by
+  ±1 and wrapping modulo `2^n` lanes (order-agnostic). Model: pure `incrementSwitchLanes(lanes,
+  order, delta)` in `value.ts`. Sim: `engine.incrementSwitch(id, delta)` (reads `valueOrderOf(props)`,
+  reuses `setSwitchLanes`). Store: `stepSwitch`/`stepTestSwitch`. Renderer: `switchStepBadges`
+  (geometry) + `drawStepBadge` (shapes), drawn in `drawArrayBody` for compact and non-compact
+  switches; the exported `▸` badge gained a `!sim` guard so it no longer overlaps the buttons.
+  Hit-testing in `Canvas.tsx` (designer) and `TestingView.tsx` (test bench). Tests in
+  `value.test.ts`, `engine.test.ts`, `simStore.test.ts`, `geometry.test.ts`; docs updated.
+
 - **Array dialog defaults to vertical orientation** — `openArrayDialog` now seeds a fresh array's
   `orientation` to `'vertical'` (and the array dialog's **New layer** reset does the same); editing
   an existing array still pre-fills its stored orientation. Touched `editorStore.ts`; test

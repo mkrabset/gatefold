@@ -10,10 +10,11 @@ import {
   SEVEN_SEG_GAP,
   SEVEN_SEG_PAD,
   sevenSegLaneCount,
+  switchStepBadges,
   switchValueBadge,
 } from '../geometry'
 import { w2s } from '../viewport'
-import { drawRoundedBox, drawSwitchValueBadge, drawUndetermined, fillPolygon } from './shapes'
+import { drawRoundedBox, drawStepBadge, drawSwitchValueBadge, drawUndetermined, fillPolygon } from './shapes'
 import type { SimView, Viewport } from '../types'
 
 /**
@@ -78,6 +79,24 @@ export function drawSevenSegBody(
   }
 }
 
+/** Draw a switch-array's "−"/"+" step buttons (simulate mode only) in the body's top-right. */
+function drawSwitchStepButtons(
+  ctx: CanvasRenderingContext2D,
+  root: CompositeDef,
+  parentDef: CompositeDef,
+  instance: Instance,
+  def: ChildDef,
+  cw: number,
+  ch: number,
+  vp: Viewport,
+  p: Palette,
+) {
+  const badges = switchStepBadges(root, parentDef, instance, def, cw, ch, vp)
+  if (!badges) return
+  drawStepBadge(ctx, badges.dec.x, badges.dec.y, badges.dec.s, '−', p)
+  drawStepBadge(ctx, badges.inc.x, badges.inc.y, badges.inc.s, '+', p)
+}
+
 /** Draw an array body (row of LEDs or switches), or a "?" box when its bus width is undetermined. */
 export function drawArrayBody(
   ctx: CanvasRenderingContext2D,
@@ -116,6 +135,7 @@ export function drawArrayBody(
     if (isSwitch && sim) {
       const badge = switchValueBadge(root, parentDef, instance, def, cw, ch, vp)
       if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
+      drawSwitchStepButtons(ctx, root, parentDef, instance, def, cw, ch, vp, p)
     }
     return
   }
@@ -151,6 +171,7 @@ export function drawArrayBody(
   if (isSwitch && sim) {
     const badge = switchValueBadge(root, parentDef, instance, def, cw, ch, vp)
     if (badge) drawSwitchValueBadge(ctx, badge.x, badge.y, badge.s, p)
+    drawSwitchStepButtons(ctx, root, parentDef, instance, def, cw, ch, vp, p)
   }
 }
 

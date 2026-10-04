@@ -100,6 +100,26 @@ export function applyValueOrder<T>(bits: T[], order: ValueOrder): T[] {
   return order === 'desc' ? [...bits].reverse() : [...bits]
 }
 
+/**
+ * Step a switch-array's lane vector by `delta` (e.g. `+1`/`-1`), wrapping modulo
+ * `2^width`. `lanes` is the stored lane vector (lane 0 first, per the instance's
+ * `order`), so it is reinterpreted as least-significant-first via `applyValueOrder`
+ * before the arithmetic and mapped back afterwards — the increment is order-agnostic
+ * (an unknown bit is treated conservatively as `0`). Returns the new lane vector.
+ */
+export function incrementSwitchLanes(lanes: Signal[], order: ValueOrder, delta: number): Signal[] {
+  const width = lanes.length
+  if (width === 0) return lanes
+  const lsb = applyValueOrder(lanes, order)
+  let value = 0n
+  for (let i = 0; i < width; i++) if (lsb[i] === 1) value |= 1n << BigInt(i)
+  const mod = 1n << BigInt(width)
+  const next = ((value + BigInt(Math.trunc(delta))) % mod + mod) % mod
+  const bits: Signal[] = new Array(width)
+  for (let i = 0; i < width; i++) bits[i] = ((next >> BigInt(i)) & 1n) === 1n ? 1 : 0
+  return applyValueOrder(bits, order)
+}
+
 /** The longest string a `width`-bit value can render as in `format` (used to size the
  *  compact switch box). For `SIGNED DEC` the most-negative value is the longest. */
 export function maxSwitchValueText(width: number, format: ValueFormat): string {

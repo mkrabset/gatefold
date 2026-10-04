@@ -449,7 +449,11 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
   leftmost, honoring its `order` property; its body/border/segment colors come from the palette
   (`sevenSegFill`/`sevenSegStroke`/`sevenSegOff`/`sevenSegOn`), so they differ per theme. A
   switch-array also draws a small **`#` badge** in its body's top-left corner while simulating
-  (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog.
+  (via `switchValueBadge`, the shared geometry for its hit-test), opening the set-value dialog,
+  and a **`−`/`+` step pair** in its top-right corner (via `switchStepBadges`) that increments or
+  decrements the whole value (wrapping modulo `2^n`) — both hit-tested in `Canvas.tsx` and
+  `TestingView.tsx` and dispatched through `simStore.stepSwitch`/`stepTestSwitch`. The exported
+  `▸` badge is now design-mode-only so it never overlaps the step buttons in simulate mode.
   A **compact** array (`props.compact`, on the switch-array or led-array) renders as a single box
   showing its value (`formatSwitchValue` in the instance's `valueFormat`/`order`) instead of
   indicator circles — the switch-array defaults to compact (`compact: true`), the led-array to
@@ -613,8 +617,10 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
     one clock edge then settle), `advanceTo(t)` (advance *through* all events up to `t`),
     `settle()` (flush pending gate events, stopping at the next clock edge — public so `run()`
     can leave the circuit settled each tick), `nextClockEdgeDelta()`, `setSwitch(id, value)` /
-    `toggleSwitch(id, lane)` (per-lane switch state for `switch-array`), `signalOf(id, portId)` /
-    `signal(id, portId)`.
+    `toggleSwitch(id, lane)` (per-lane switch state for `switch-array`), `setSwitchLanes(id, bits)`
+    / `switchLanesOf(id)` / `incrementSwitch(id, delta)` (whole-vector switch editing — the last
+    steps the binary value by `delta` modulo `2^lanes`, order-aware via `valueOrderOf(props)`),
+    `signalOf(id, portId)` / `signal(id, portId)`.
   - **Event-driven clock**: each clock source keeps one pending edge event; when it fires the
     clock's net flips and the next edge is scheduled at `now + half` (`Instance.props.period`/2).
     So time advance is bounded ("process events ≤ t") rather than "settle until the queue is
@@ -928,7 +934,7 @@ beside the data they operate on.
 | `connections.ts` | Pin/connection helpers | `pinRefEquals`, `pinKey`, `findConnectionTo`, `nextConnectionId` |
 | `composite.ts` | Composite tree walks + template queries | `walkComposites`, `allCompositeIds`, `findComposite`, `isTemplateDef`, `templateNames`, `templateCategory` |
 | `util.ts` | Generic helpers | `newUuid`, `uniqueId`, `UnionFind` |
-| `value.ts` | Value entry/formatting (radix, order, ROM memory) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `maxSwitchValueText`, `parseMemoryContents`, `formatMemoryContents` |
+| `value.ts` | Value entry/formatting (radix, order, ROM memory, switch stepping) | `ValueFormat`, `parseSwitchValue`, `formatSwitchValue`, `applyValueOrder`, `incrementSwitchLanes`, `maxSwitchValueText`, `parseMemoryContents`, `formatMemoryContents` |
 | `widths.ts` | Bus-width fixpoint solver (global, bidirectional) | `pinWidth`, `isNeutralPin`, `resolvedPinWidth`, `connectionError` |
 | `group.ts` | Grouping into composites + deep-clone | `inferGroup`, `applyGroup`, `cloneComposite`, `cloneDesign`, `cloneChildDef` |
 | `clipboard.ts` | Copy/paste | `captureClipboard`, `instantiateClipboard` |

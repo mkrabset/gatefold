@@ -10,10 +10,18 @@ export const REGISTER_DEFAULT_WIDTH = 8
 /** Maximum number of single-wire data inputs/outputs (WIRE terminal type). */
 export const REGISTER_MAX_WIDTH = 32
 
-/** Resolve an instance's register width from its `width` property, clamped to `[1, 32]`. */
+/** Resolve an instance's register width from its `width` property, clamped to `[1, 32]`.
+ *  A `width` below 1 (unset, zero, or non-numeric) falls back to the default. */
 export function registerWidthOf(props: Record<string, PropertyValue> | undefined): number {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : REGISTER_DEFAULT_WIDTH
-  return Math.max(1, Math.min(REGISTER_MAX_WIDTH, w))
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(REGISTER_MAX_WIDTH, w) : REGISTER_DEFAULT_WIDTH
+}
+
+/** The fixed bus width of a register's `DATA`/`Q` buses, or null when they adopt the
+ *  connected width (`width` unset, zero, or non-numeric). Used only in BUS terminal type. */
+export function registerBusWidth(props: Record<string, PropertyValue> | undefined): number | null {
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(REGISTER_MAX_WIDTH, w) : null
 }
 
 /**
@@ -46,8 +54,9 @@ export function registerPorts(terminalType: 'wire' | 'bus', width: number): Port
  * asserted `RST` clears it to zero — synchronously (on the clock edge) or asynchronously
  * (immediately), per the `resetStyle` property. A *stateful* primitive (evaluated by the
  * simulator's sequential path), with a `Q` bus output (BUS) or `width` single-wire
- * `Q0…` outputs (WIRE). The `DATA` and `Q` buses are neutral and adopt the same width
- * (coupled via `deriveWidth`), so a register's data-in and data-out never disagree.
+ * `Q0…` outputs (WIRE). The `DATA` and `Q` buses always share one width (coupled via
+ * `deriveWidth`): it is adopted from the connection when `width` is 0, else fixed to
+ * `width` (pinned, so a mismatched connection conflicts).
  */
 export class Register extends Gate {
   readonly kind = 'register' as const
@@ -84,7 +93,7 @@ export class Register extends Gate {
     return [
       { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
       { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'bus', options: ['wire', 'bus'] },
-      { name: 'width', label: 'Width', type: 'number', default: REGISTER_DEFAULT_WIDTH, min: 1, max: REGISTER_MAX_WIDTH, tooltip: 'Number of register bits (and wire data/output terminals). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+      { name: 'width', label: 'Width', type: 'number', default: 0, min: 0, max: REGISTER_MAX_WIDTH, tooltip: '0 = auto (the DATA/Q buses adopt the connected width; a WIRE register uses the default count). Otherwise the fixed register width (and, in WIRE mode, the number of data/output terminals).' },
     ]
   }
 
@@ -94,6 +103,13 @@ export class Register extends Gate {
     if (port.name === 'DATA') return siblings.get('out:0') ?? null
     if (port.name === 'Q') return siblings.get('in:2') ?? null
     return 1
+  }
+
+  pinnedWidth(port: Port, props?: Record<string, PropertyValue>): number | null {
+    // In BUS mode a `width` ≥ 1 pins both the DATA and Q buses (they always agree), so a
+    // mismatched connection conflicts rather than being adopted.
+    if (port.name === 'DATA' || port.name === 'Q') return registerBusWidth(props)
+    return null
   }
 
   undeterminedHint(port: Port): string | null {

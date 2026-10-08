@@ -7,6 +7,7 @@ import {
   builtinOf,
   CLOCK_DEFAULT_PERIOD,
   counterPorts,
+  counterBusWidth,
   counterWidthOf,
   defaultPropsOf,
   forkOf,
@@ -20,6 +21,7 @@ import {
   portWidth,
   primitiveOf,
   registerPorts,
+  registerBusWidth,
   registerWidthOf,
   romAddressWidthOf,
   romDataWidthOf,
@@ -262,9 +264,9 @@ describe('model primitives', () => {
     expect(prim.properties()).toEqual([
       { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
       { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
-      { name: 'width', label: 'Width', type: 'number', default: 4, min: 1, max: 32, tooltip: 'Number of counting bits (and wire outputs). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+      { name: 'width', label: 'Width', type: 'number', default: 0, min: 0, max: 32, tooltip: '0 = auto (a BUS output adopts the connected width; a WIRE output uses the default count). Otherwise the fixed counting width (and, in WIRE mode, the number of outputs).' },
     ])
-    expect(defaultPropsOf('counter')).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 4 })
+    expect(defaultPropsOf('counter')).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 0 })
   })
 
   it('builds counter ports for wire and bus terminal types', () => {
@@ -282,22 +284,29 @@ describe('model primitives', () => {
       ['in:1', 'RST', 'input'],
       ['out:0', 'Q', 'output'],
     ])
-    // Width is clamped to [1, 32] and only shapes the WIRE output count.
-    expect(counterWidthOf({ width: 0 })).toBe(1)
+    // Width is clamped to [1, 32] and only shapes the WIRE output count; 0 = default.
+    expect(counterWidthOf({ width: 0 })).toBe(4)
     expect(counterWidthOf({ width: 40 })).toBe(32)
     expect(counterWidthOf({})).toBe(4)
-    expect(counterPorts('wire', 0)).toHaveLength(3) // CLK + RST + 1 wire
+    expect(counterPorts('wire', 0)).toHaveLength(3) // counterPorts clamps 0 → 1 wire
     expect(counterPorts('wire', 40)).toHaveLength(2 + 32)
+    // Bus width: 0/unset is neutral; a positive width is pinned (clamped).
+    expect(counterBusWidth({ width: 0 })).toBeNull()
+    expect(counterBusWidth({})).toBeNull()
+    expect(counterBusWidth({ width: 5 })).toBe(5)
+    expect(counterBusWidth({ width: 40 })).toBe(32)
   })
 
-  it('derives counter terminal widths: Q bus neutral, others single-wire', () => {
+  it('derives counter terminal widths: Q bus pinned by width, others single-wire', () => {
     const prim = primitiveOf('counter')
     const wireOut = outP('counter')[0]
     expect(prim.intrinsicWidth(def('counter').ports, wireOut)).toBe(1)
     expect(prim.intrinsicWidth(def('counter').ports, inP('counter')[0])).toBe(1)
-    // The BUS output (named Q) is neutral, adopting the connected width.
+    // The BUS output (named Q) is neutral (adopts the connected width) when width is 0…
     const bus = counterPorts('bus', 4)
-    expect(prim.intrinsicWidth(bus, bus[2])).toBeNull()
+    expect(prim.intrinsicWidth(bus, bus[2], { width: 0 })).toBeNull()
+    // …and pinned to the width property when it is ≥ 1.
+    expect(prim.intrinsicWidth(bus, bus[2], { width: 7 })).toBe(7)
     expect(portWidth(def('counter'), wireOut)).toBe(1)
   })
 
@@ -320,9 +329,9 @@ describe('model primitives', () => {
     expect(prim.properties()).toEqual([
       { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
       { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'bus', options: ['wire', 'bus'] },
-      { name: 'width', label: 'Width', type: 'number', default: 8, min: 1, max: 32, tooltip: 'Number of register bits (and wire data/output terminals). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+      { name: 'width', label: 'Width', type: 'number', default: 0, min: 0, max: 32, tooltip: '0 = auto (the DATA/Q buses adopt the connected width; a WIRE register uses the default count). Otherwise the fixed register width (and, in WIRE mode, the number of data/output terminals).' },
     ])
-    expect(defaultPropsOf('register')).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 8 })
+    expect(defaultPropsOf('register')).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 0 })
   })
 
   it('builds register ports for wire and bus terminal types', () => {
@@ -342,11 +351,16 @@ describe('model primitives', () => {
       ['in:2', 'DATA', 'input'],
       ['out:0', 'Q', 'output'],
     ])
-    expect(registerWidthOf({ width: 0 })).toBe(1)
+    expect(registerWidthOf({ width: 0 })).toBe(8)
     expect(registerWidthOf({ width: 40 })).toBe(32)
     expect(registerWidthOf({})).toBe(8)
-    expect(registerPorts('wire', 0)).toHaveLength(4) // CLK + RST + 1 data wire + 1 output wire
+    expect(registerPorts('wire', 0)).toHaveLength(4) // registerPorts clamps 0 → 1 data wire + 1 output
     expect(registerPorts('wire', 40)).toHaveLength(2 + 32 + 32)
+    // Bus width: 0/unset is neutral; a positive width is pinned (clamped).
+    expect(registerBusWidth({ width: 0 })).toBeNull()
+    expect(registerBusWidth({})).toBeNull()
+    expect(registerBusWidth({ width: 6 })).toBe(6)
+    expect(registerBusWidth({ width: 40 })).toBe(32)
   })
 
   it('couples register DATA and Q widths via deriveWidth, others single-wire', () => {
@@ -362,6 +376,22 @@ describe('model primitives', () => {
     expect(derive(clk, new Map())).toBe(1)
     expect(primitiveOf('register').undeterminedHint!(data)).toBe('?')
     expect(primitiveOf('register').undeterminedHint!(clk)).toBeNull()
+  })
+
+  it('pins register DATA and Q widths via pinnedWidth when width is set', () => {
+    const pin = primitiveOf('register').pinnedWidth!
+    const bus = registerPorts('bus', 4)
+    const data = bus.find((p) => p.name === 'DATA')!
+    const q = bus.find((p) => p.name === 'Q')!
+    const clk = bus.find((p) => p.name === 'CLK')!
+    // Both buses pin to the width property when it is ≥ 1, and stay neutral otherwise.
+    expect(pin(data, { width: 6 })).toBe(6)
+    expect(pin(q, { width: 6 })).toBe(6)
+    expect(pin(data, { width: 0 })).toBeNull()
+    expect(pin(q, { width: 0 })).toBeNull()
+    expect(pin(data, {})).toBeNull()
+    // CLK/RST are never pinned.
+    expect(pin(clk, { width: 6 })).toBeNull()
   })
 
   it('marks ordinary gates as non-sequential', () => {

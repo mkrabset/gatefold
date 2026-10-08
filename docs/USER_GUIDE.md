@@ -335,16 +335,17 @@ its properties, and what it does.
   rather than floating.
 
 ### COUNTER
-- **Inputs:** `CLK`, `RST` · **Outputs:** `Q` bus, or `Q0…` single wires · Properties **Reset** (`sync` / `async`, default `sync`), **Terminal type** (`wire` / `bus`, default `wire`), **Width** (1–32, default 4, wire mode only)
+- **Inputs:** `CLK`, `RST` · **Outputs:** `Q` bus, or `Q0…` single wires · Properties **Reset** (`sync` / `async`, default `sync`), **Terminal type** (`wire` / `bus`, default `wire`), **Width** (0–32, default 0)
 - A binary counter. On each rising edge of `CLK` the count increments by one, wrapping at
   its width. `Q0` is the least-significant bit.
 - **Reset** selects when an asserted `RST` (active-high) clears the count to zero:
   - **sync** — on the clock edge while `RST` is held high;
   - **async** — immediately when `RST` goes high.
 - **Terminal type** picks the output shape: `wire` gives one single-wire output per counting
-  bit (`Q0…Q(n-1)`), with the count set by **Width**; `bus` gives one `Q` bus whose width is
-  adopted from the connected bus (the **Width** property is ignored). Changing the terminal
-  type keeps `CLK`/`RST` wiring but disconnects the output wires.
+  bit (`Q0…Q(n-1)`), with the count set by **Width** (0 uses the default count); `bus` gives
+  one `Q` bus whose width is adopted from the connected bus when **Width** is 0, and pinned
+  to **Width** lanes otherwise. Changing the terminal type keeps `CLK`/`RST` wiring but
+  disconnects the output wires.
 - `RST` is pulled **down** by default, so an unconnected reset reads inactive.
 - In Verilog export this becomes an `always @(posedge clk …)` counter (with `if (rst)` for the
   chosen reset style) — the FPGA gets real synchronous counting logic rather than a
@@ -353,7 +354,7 @@ its properties, and what it does.
 ### REGISTER
 - **Inputs:** `CLK`, `RST`, `DATA` (bus) or `D0…` (single wires) · **Outputs:** `Q` bus, or `Q0…`
   single wires · Properties **Reset** (`sync` / `async`, default `sync`), **Terminal type**
-  (`wire` / `bus`, default `bus`), **Width** (1–32, default 8, wire mode only)
+  (`wire` / `bus`, default `bus`), **Width** (0–32, default 0)
 - An n-bit register (an array of 1-bit memory cells). On each rising edge of `CLK` the register
   samples `DATA` into `Q` (after a clk-to-q delay); between edges `Q` holds its value. `D0`/`Q0` is
   the least-significant bit.
@@ -361,10 +362,10 @@ its properties, and what it does.
   - **sync** — on the clock edge while `RST` is held high;
   - **async** — immediately when `RST` goes high.
 - **Terminal type** picks the data shape: `bus` gives one `DATA` bus input and one `Q` bus output
-  whose width is adopted from the connected bus (the **Width** property is ignored, but `DATA` and
-  `Q` always share the same width); `wire` gives one single-wire `D0…`/`Q0…` per bit, with the bit
-  count set by **Width**. Changing the terminal type keeps `CLK`/`RST` wiring but disconnects the
-  data and output wires.
+  (always the same width — adopted from the connected bus when **Width** is 0, and pinned to
+  **Width** lanes otherwise); `wire` gives one single-wire `D0…`/`Q0…` per bit, with the bit
+  count set by **Width** (0 uses the default count). Changing the terminal type keeps `CLK`/`RST`
+  wiring but disconnects the data and output wires.
 - `RST` is pulled **down** by default, so an unconnected reset reads inactive.
 - In Verilog export this becomes `always @(posedge clk …) q <= data` (with `if (rst)` for the chosen
   reset style) — a real synchronous register the FPGA can map to flip-flops.

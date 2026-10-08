@@ -119,14 +119,14 @@ describe('editorStore undo/redo + clipboard', () => {
       const def = counter().def
       return def.kind === 'fork' ? def.ports : []
     }
-    expect(counter().props).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 4 })
+    expect(counter().props).toEqual({ resetStyle: 'sync', terminalType: 'wire', width: 0 })
     expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0', 'out:1', 'out:2', 'out:3'])
 
     // Width change (wire mode) shrinks to two outputs, keeping CLK/RST.
     useEditorStore.getState().setInstanceProp(counter().id, 'width', 2)
     expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0', 'out:1'])
 
-    // Switch to BUS: a single neutral Q output; width is ignored.
+    // Switch to BUS: a single Q output (its width is pinned by the width property, 2 here).
     useEditorStore.getState().setInstanceProp(counter().id, 'terminalType', 'bus')
     expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'out:0'])
     expect(portsOf().map((p) => p.name)).toEqual(['CLK', 'RST', 'Q'])
@@ -160,7 +160,7 @@ describe('editorStore undo/redo + clipboard', () => {
       const def = register().def
       return def.kind === 'fork' ? def.ports : []
     }
-    expect(register().props).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 8 })
+    expect(register().props).toEqual({ resetStyle: 'sync', terminalType: 'bus', width: 0 })
     expect(portsOf().map((p) => p.id)).toEqual(['in:0', 'in:1', 'in:2', 'out:0'])
     expect(portsOf().map((p) => p.name)).toEqual(['CLK', 'RST', 'DATA', 'Q'])
 

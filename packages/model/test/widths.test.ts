@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CompositeDef, Design, Instance } from '../src/types'
-import { builtinOf, forkOf, isNeutralPin, pinWidth } from '../src/index'
+import { builtinOf, connectionError, counterPorts, forkOf, isNeutralPin, pinWidth } from '../src/index'
 
 const iref = (instanceId: string, portId: string) => ({ instanceId, portId })
 
@@ -100,5 +100,65 @@ describe('global width resolution across composite boundaries', () => {
     expect(pinWidth(root, root, iref('bs', 'out:1'))).toBe(54)
     expect(isNeutralPin(root, root, iref('bs', 'out:0'))).toBe(false)
     expect(isNeutralPin(root, root, iref('bs', 'out:1'))).toBe(false)
+  })
+})
+
+describe('register/counter bus width pinned by the width property', () => {
+  const mainWith = (instances: Instance[], connections: CompositeDef['connections']): CompositeDef => ({
+    id: 'main',
+    name: 'main',
+    kind: 'composite',
+    ports: [],
+    instances,
+    connections,
+  })
+
+  /** A counter fork with BUS-mode ports (a single neutral `Q`). */
+  const busCounter = (): Instance['def'] => {
+    const f = forkOf('counter')
+    f.ports = counterPorts('bus', 0)
+    return f
+  }
+
+  it('pins a counter Q bus to the width property, and stays neutral at width 0', () => {
+    const root = mainWith([inst('cnt', busCounter(), 0, 0, { width: 5 })], [])
+    expect(pinWidth(root, root, iref('cnt', 'out:0'))).toBe(5)
+    expect(isNeutralPin(root, root, iref('cnt', 'out:0'))).toBe(false)
+
+    const neutral = mainWith([inst('cnt', busCounter(), 0, 0, { width: 0 })], [])
+    expect(isNeutralPin(neutral, neutral, iref('cnt', 'out:0'))).toBe(true)
+  })
+
+  it('pins a register DATA and Q buses to the width property', () => {
+    const root = mainWith([inst('reg', forkOf('register'), 0, 0, { width: 6 })], [])
+    expect(pinWidth(root, root, iref('reg', 'in:2'))).toBe(6)
+    expect(pinWidth(root, root, iref('reg', 'out:0'))).toBe(6)
+    expect(isNeutralPin(root, root, iref('reg', 'in:2'))).toBe(false)
+    expect(isNeutralPin(root, root, iref('reg', 'out:0'))).toBe(false)
+  })
+
+  it('still couples a register DATA and Q bus from the connection when width is 0', () => {
+    const root = mainWith(
+      [inst('bus8', forkOf('bus'), 0, 0, { lanes: 8 }), inst('reg', forkOf('register'), 0, 0, { width: 0 })],
+      [{ id: 'w', from: iref('bus8', 'out:0'), to: iref('reg', 'in:2') }],
+    )
+    expect(pinWidth(root, root, iref('reg', 'in:2'))).toBe(8)
+    expect(pinWidth(root, root, iref('reg', 'out:0'))).toBe(8)
+  })
+
+  it('rejects a mismatched connection to a pinned counter Q bus', () => {
+    const root = mainWith(
+      [inst('cnt', busCounter(), 0, 0, { width: 5 }), inst('bus4', forkOf('bus'), 0, 0, { lanes: 4 })],
+      [],
+    )
+    expect(connectionError(root, root, iref('cnt', 'out:0'), iref('bus4', 'in:0'))).toBe('Bus width mismatch')
+  })
+
+  it('rejects a mismatched connection to a pinned register DATA bus', () => {
+    const root = mainWith(
+      [inst('bus4', forkOf('bus'), 0, 0, { lanes: 4 }), inst('reg', forkOf('register'), 0, 0, { width: 6 })],
+      [],
+    )
+    expect(connectionError(root, root, iref('bus4', 'out:0'), iref('reg', 'in:2'))).toBe('Bus width mismatch')
   })
 })

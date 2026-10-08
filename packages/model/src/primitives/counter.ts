@@ -10,10 +10,18 @@ export const COUNTER_DEFAULT_WIDTH = 4
 /** Maximum number of single-wire outputs (WIRE terminal type). */
 export const COUNTER_MAX_WIDTH = 32
 
-/** Resolve an instance's counter width from its `width` property, clamped to `[1, 32]`. */
+/** Resolve an instance's counter width from its `width` property, clamped to `[1, 32]`.
+ *  A `width` below 1 (unset, zero, or non-numeric) falls back to the default. */
 export function counterWidthOf(props: Record<string, PropertyValue> | undefined): number {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : COUNTER_DEFAULT_WIDTH
-  return Math.max(1, Math.min(COUNTER_MAX_WIDTH, w))
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(COUNTER_MAX_WIDTH, w) : COUNTER_DEFAULT_WIDTH
+}
+
+/** The fixed bus width of a counter's `Q` bus, or null when the bus adopts the connected
+ *  width (`width` unset, zero, or non-numeric). Used only in BUS terminal type. */
+export function counterBusWidth(props: Record<string, PropertyValue> | undefined): number | null {
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(COUNTER_MAX_WIDTH, w) : null
 }
 
 /**
@@ -38,11 +46,13 @@ export function counterPorts(terminalType: 'wire' | 'bus', width: number): Port[
 }
 
 /**
- * A binary counter: on each rising `CLK` edge the count increments by one (wrapping at
+ * An n-bit counter: on each rising `CLK` edge the count increments by one (wrapping at
  * 2^width), and an asserted `RST` resets it to zero — synchronously (on the clock edge)
  * or asynchronously (immediately), per the `resetStyle` property. A *stateful* primitive
  * (evaluated by the simulator's sequential path), with a `Q` bus output (BUS) or `width`
- * single-wire `Q0…` outputs (WIRE). Maps 1:1 to a `always @(posedge clk)` counter in Verilog.
+ * single-wire `Q0…` outputs (WIRE). In BUS mode the `Q` width is adopted from the
+ * connection when `width` is 0, else fixed to `width`. Maps 1:1 to a `always @(posedge
+ * clk)` counter in Verilog.
  */
 export class Counter extends Gate {
   readonly kind = 'counter' as const
@@ -79,13 +89,15 @@ export class Counter extends Gate {
     return [
       { name: 'resetStyle', label: 'Reset', type: 'select', default: 'sync', options: ['sync', 'async'], tooltip: 'SYNC resets on the clock edge while RST is high; ASYNC resets immediately on RST.' },
       { name: 'terminalType', label: 'Terminal type', type: 'select', default: 'wire', options: ['wire', 'bus'] },
-      { name: 'width', label: 'Width', type: 'number', default: COUNTER_DEFAULT_WIDTH, min: 1, max: COUNTER_MAX_WIDTH, tooltip: 'Number of counting bits (and wire outputs). Only used when the terminal type is WIRE; in BUS mode the width is adopted from the connected bus.' },
+      { name: 'width', label: 'Width', type: 'number', default: 0, min: 0, max: COUNTER_MAX_WIDTH, tooltip: '0 = auto (a BUS output adopts the connected width; a WIRE output uses the default count). Otherwise the fixed counting width (and, in WIRE mode, the number of outputs).' },
     ]
   }
 
-  intrinsicWidth(_ports: Port[], port: Port): number | null {
-    // The BUS terminal adopts the connected width (neutral); CLK/RST and WIRE outputs are width 1.
-    return port.name === 'Q' ? null : 1
+  intrinsicWidth(_ports: Port[], port: Port, props?: Record<string, PropertyValue>): number | null {
+    // The BUS terminal is pinned to the `width` property when it is ≥ 1, else neutral
+    // (adopts the connected width); CLK/RST and WIRE outputs are width 1.
+    if (port.name === 'Q') return counterBusWidth(props)
+    return 1
   }
 
   transfer(): Signal[][] {

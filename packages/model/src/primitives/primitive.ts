@@ -112,6 +112,12 @@ export interface Primitive {
    *  instance's full port list, for relations that depend on arity (e.g. a fan-in's
    *  output width is the sum of its input widths). */
   deriveWidth?(port: Port, siblings: ReadonlyMap<string, number>, props?: Record<string, PropertyValue>, ports?: Port[]): number | null
+  /** A per-pin width seeded *in addition to* a `deriveWidth` relation, when a property
+   *  pins a terminal to a specific width (e.g. a register/counter's `width` in BUS mode).
+   *  Seeded as a hard value, so a mismatched connection conflicts; returns null to leave
+   *  the pin to its relation/neutral adoption. Only relation primitives that can be
+   *  pinned by a property need implement this. */
+  pinnedWidth?(port: Port, props?: Record<string, PropertyValue>): number | null
   /** Validation error for a resolved pin width, or null when valid. `siblings` is the
    *  resolved widths of the instance's other pins, for relations that must hold across
    *  all of them (e.g. a fan-out's input width must equal the sum of its outputs). */

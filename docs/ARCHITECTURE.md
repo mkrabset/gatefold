@@ -210,16 +210,18 @@ design.root.instances = [
    no bubble), driven by the engine's
    sequential path and exported as `assign !Q = ~Q;`. The **REGISTER** is an n-bit D-type register
    (`CLK`, `RST`, `DATA`/`D0…` → `Q`/`Q0…`) that samples its data input(s) on the rising `CLK` edge,
-   with `resetStyle` (`sync`/`async`), `terminalType` (`wire`/`bus`), and `width` (wire mode only)
+   with `resetStyle` (`sync`/`async`), `terminalType` (`wire`/`bus`), and `width` (0–32, default 0)
    properties; `registerPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus a
    `DATA` bus in / `Q` bus out, or `width` `D0…`/`Q0…` wires, and its `deriveWidth` couples the
    `DATA` and `Q` buses (adopting the same width, like COMPARE's inputs) so a register's data-in
-   and data-out never disagree. The **COUNTER** counts up by one per clock
+   and data-out never disagree. In BUS mode `pinnedWidth` additionally seeds both buses to the
+   `width` property when it is ≥ 1 (so a mismatched connection conflicts); `width` 0 keeps them
+   neutral/coupled. The **COUNTER** counts up by one per clock
    edge (wrapping at its width), with `resetStyle` (`sync`/`async`), `terminalType`
-   (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (wire mode only)
+   (`wire`/`bus`, regenerating its output ports like the arrays), and `width` (0–32, default 0)
    properties; its `counterPorts(terminalType, width)` returns the fixed `CLK`/`RST` inputs plus
-     a neutral `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral only on the bus
-      output. The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
+     a `Q` bus or `width` `Q0…` wires, and its `intrinsicWidth` is neutral on the bus output only
+      when `width` is 0 (otherwise it pins `Q` to `width`). The **ROM** is a read-only memory: an `ADDR` address-bus input and a `DATA` data-bus
      output whose widths are fixed by the `busWidth`/`dataWidth` properties. Its `access` property
      picks the read timing: `async` (default) reads combinationally — `transfer` returns `mem[ADDR]`
      (any `x` address bit → all-`x` data, addresses past the stored contents read `0`) after the
@@ -254,9 +256,12 @@ design.root.instances = [
   subtree rooted at the width root (the edited template, else `design.root`), and a composite's
   `Port.terminal` mirror is **bidirectional** — so an external bus connection determines an
   otherwise-undetermined (neutral) bus *inside* a component, and vice versa.
-  `Primitive.intrinsicWidth(ports, port, props?)` takes the instance props so a primitive can
-  fix its width from a property (the `bus` primitive returns `lanes`).
-  An undetermined pin is neutral; a conflict, a non-integer result (an odd bus into an even
+   `Primitive.intrinsicWidth(ports, port, props?)` takes the instance props so a primitive can
+   fix its width from a property (the `bus` primitive returns `lanes`). A relation primitive
+   that also wants a *pinned* width seeds it via `Primitive.pinnedWidth(port, props?)` — a hard
+   value seeded alongside `deriveWidth` (so a mismatched connection conflicts) rather than a
+   soft fallback.
+   An undetermined pin is neutral; a conflict, a non-integer result (an odd bus into an even
   splitter, or a `firstLanes` larger than the bus),
   or a failed `Primitive.widthError` constraint marks the sheet invalid — `widthError` carries
   a per-primitive validation message (e.g. the 7-seg requires a width divisible by 4 and ≤ 64).

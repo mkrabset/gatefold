@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-04 (New-from-scratch component, compact/value-format LEDs).
+Last updated: 2026-10-08 (Register/counter bus width pinned by the `width` property).
 
 ## Where we are
 
@@ -12,6 +12,22 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Register/counter `width` pins the bus output** — previously the `width` property only shaped
+  WIRE mode, and a BUS-mode register/counter always adopted the connected bus width. Now `width`
+  is `0–32` (default `0`): in BUS mode `width = 0` keeps the bus derived/adopted (the register's
+  `DATA`↔`Q` coupling unchanged), and `width ≥ 1` *pins* the bus(es) to that many lanes — so a
+  mismatched connection is rejected at wiring time. `width` 0 in WIRE mode falls back to the
+  canonical default count (register 8, counter 4).
+  - Model: `counterBusWidth`/`registerBusWidth` helpers (null = neutral); `counterWidthOf`/
+    `registerWidthOf` now map `< 1` → default instead of clamping to 1; the counter's
+    `intrinsicWidth` reads `props`, and the register gains `pinnedWidth` (seeding `DATA` and `Q`
+    when `width ≥ 1`) alongside its existing `deriveWidth` coupling. New `Primitive.pinnedWidth`
+    hook, applied by `widths.ts` for relation primitives *in addition to* `deriveWidth`, so a
+    pinned width is a hard seed (conflicts on mismatch) rather than a soft fallback.
+  - Tests: `primitives.test.ts` (helpers, `properties()`, `pinnedWidth`), `widths.test.ts`
+    (pin/neutral/coupled + `connectionError` rejection), `editorStore.test.ts` (default `width: 0`).
+  - Docs: ARCHITECTURE/GLOSSARY/USER_GUIDE updated.
 
 - **Fix: fast-clicking a switch's −/+ buttons descended into the component** — the Designer
   canvas's `dblclick` handler only guarded the non-compact indicator circles, so a rapid second

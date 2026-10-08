@@ -107,6 +107,15 @@ function collect(root: CompositeDef): SheetModel {
       const keys = ports.map((p) => pinKeyAt(path, inst.id, p.id))
       if (prim.deriveWidth) {
         model.relations.push({ ports, keys, prim, props: inst.props })
+        // A relation primitive may also pin some terminals to a fixed width (e.g. a
+        // register's `width` in BUS mode). Those are seeded as hard values alongside the
+        // relation, so a mismatched connection conflicts rather than being adopted.
+        if (prim.pinnedWidth) {
+          for (let i = 0; i < ports.length; i++) {
+            const w = prim.pinnedWidth(ports[i], inst.props)
+            if (w !== null) model.seeds.set(keys[i], w)
+          }
+        }
       } else {
         for (let i = 0; i < ports.length; i++) {
           const w = prim.intrinsicWidth(ports, ports[i], inst.props)

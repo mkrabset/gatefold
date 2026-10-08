@@ -479,7 +479,17 @@ class Generator {
       if (kind === 'bus') {
         const input = inputPorts(ports)[0]
         const output = outputPorts(ports)[0]
-        let rhs = inv(input, net(input.id))
+        const inputNet = net(input.id)
+        // A `flip` reverses the lane order (input LSB → output MSB): a width-n bus emits
+        // the LSB-first concatenation `{in[0], in[1], …, in[n-1]}`.
+        let rhs: string
+        if (inst.props?.flip === true && (netWidthByName.get(inputNet) ?? 1) > 1) {
+          const n = netWidthByName.get(inputNet)!
+          rhs = `{${Array.from({ length: n }, (_, i) => `${inputNet}[${i}]`).join(', ')}}`
+        } else {
+          rhs = inputNet
+        }
+        if (input.inverted) rhs = `~(${rhs})`
         if (output.inverted) rhs = `~(${rhs})`
         stmts.push(`assign ${net(output.id)} = ${rhs};`)
         return

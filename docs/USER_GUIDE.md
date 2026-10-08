@@ -427,6 +427,8 @@ its properties, and what it does.
 - **Inputs:** 1 (`A`) · **Outputs:** 1 (`Y`)
 - A passthrough that **fixes** the bus width. Property **Lanes** (default 8, 1–64) sets the
   width of both terminals; use it to pin a bus to a specific width regardless of its source.
+  Property **Flip** (default off) reverses the lane order, so the input's LSB becomes the
+  output's MSB (the width is unchanged).
 
 ### COMPARE
 - **Inputs:** 2 (`A`, `B`, equal derived width) · **Outputs:** 1 (`EQ`)

@@ -590,6 +590,20 @@ describe('exportVerilog', () => {
     expect(source).toContain('assign EQ = (b1_Y == b2_Y);')
   })
 
+  it('reverses the lane order when a BUS has flip', () => {
+    const main: CompositeDef = {
+      id: 'main', name: 'main', kind: 'composite',
+      ports: [input('in:0', 'A'), output('out:0', 'Y')],
+      instances: [pgIn(), prim('b', 'bus', { lanes: 4, flip: true }), pgOut()],
+      connections: [
+        { id: 'c1', from: iref('pi', 'in:0'), to: iref('b', 'in:0') },
+        { id: 'c2', from: iref('b', 'out:0'), to: iref('po', 'out:0') },
+      ],
+    }
+    const { source } = exportVerilog(jsonOf(main))
+    expect(source).toContain('assign Y = {A[0], A[1], A[2], A[3]};')
+  })
+
   it('emits slicing for a bus-split fed by a fan-in bus', () => {
     const main: CompositeDef = {
       id: 'main', name: 'main', kind: 'composite',

@@ -235,7 +235,9 @@ authoritative — update this when a term's meaning changes.
   inputs are equal (each `m`); the `firstLanes` property fixes `A` to that many lanes and gives
   `B` the remainder (`output − firstLanes`). `firstLanes = 0` (the default) means "merge evenly".
 - **Bus (primitive)** — a passthrough (single bus in → single bus out) whose `lanes` property
-  fixes the width of both terminals, used to pin a bus to a specific width.
+  fixes the width of both terminals, used to pin a bus to a specific width. Its `flip`
+  property (boolean, default false) reverses the lane order — the input LSB becomes the output
+  MSB — so a bus can also reorder bits (width is unchanged).
 - **Compare** — a primitive with two bus inputs of **equal derived width** and one single-wire
   output (`EQ`) that is `1` when the two input vectors match, `0` when they differ, and `x`
   when either carries an unknown bit. The two inputs adopt the same width (neither is fixed),

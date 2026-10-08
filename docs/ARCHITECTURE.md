@@ -679,7 +679,8 @@ actually changes (in `drainEvents` — covering clock toggles and gate/DFF event
 `Primitive.transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][]` is the
 per-kind combinational function
 (3-state; `0` dominates AND, `1` dominates OR, `x` propagates; fan-in concatenates, fan-out
-splits, split/merge reshape; the ROM indexes its stored memory by the address vector). The
+splits, split/merge reshape; the BUS's `flip` property reverses the lane order; the ROM indexes
+its stored memory by the address vector). The
 engine passes each gate's instance `props`, so property-driven behaviour (the ROM's `contents`)
 is available. `Port.inverted` is applied by the engine at pin boundaries, so
 NOT = buffer with an inverted output. Sources (CLOCK/SWITCH-ARRAY) and sinks
@@ -871,7 +872,7 @@ input ports and read its outputs — without polluting the design or its Verilog
 ## 9. Testing
 
 - `packages/model/test/primitives.test.ts` — library contents, arity, port ids, port defs,
-  property defaults (clock `period`, bus `lanes`, 7-seg `order`, ROM `busWidth`/`dataWidth`/
+  property defaults (clock `period`, bus `lanes`/`flip`, 7-seg `order`, ROM `busWidth`/`dataWidth`/
   `access`/`valueFormat`), `widthError` cases, the ROM's ADDR/DATA/CLK terminals, `romPorts`/
   `romAccessOf`, and `transfer` lookup (`x` address, zero-padding), plus `isArrayDef`/
   `arrayDirection`, `sevenSegModeOf`, and `periodOf`.

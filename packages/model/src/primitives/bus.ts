@@ -26,6 +26,7 @@ export class Bus extends Gate {
   properties(): PropertySpec[] {
     return [
       { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 64 },
+      { name: 'flip', label: 'Flip', type: 'boolean', default: false, tooltip: 'Reverse the lane order: the input LSB becomes the output MSB.' },
     ]
   }
 
@@ -34,8 +35,9 @@ export class Bus extends Gate {
     return Math.max(1, Math.floor(lanes))
   }
 
-  transfer(inputs: Signal[][]): Signal[][] {
-    return [inputs[0] ?? []]
+  transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][] {
+    const v = inputs[0] ?? []
+    return [props?.flip === true ? v.slice().reverse() : v]
   }
 
   bodySize(): { w: number; h: number } {

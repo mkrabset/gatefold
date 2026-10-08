@@ -872,6 +872,23 @@ describe('Simulation engine', () => {
     expect(sim.signal('fo', 'out:3')).toBe(1)
   })
 
+  it('reverses the lane order through a flipped BUS primitive', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('sa', switchBus), inst('b', bus2, { lanes: 4, flip: true }), inst('fo', fanOut4)],
+        [
+          conn('c1', iref('sa', 'out:0'), iref('b', 'in:0')),
+          conn('c2', iref('b', 'out:0'), iref('fo', 'in:0')),
+        ],
+      ),
+    )
+    sim.toggleSwitch('sa', 0)
+    sim.step()
+    expect(sim.signalOf('b', 'in:0')).toEqual([1, 0, 0, 0])
+    expect(sim.signalOf('b', 'out:0')).toEqual([0, 0, 0, 1])
+    expect(sim.signal('fo', 'out:3')).toBe(1)
+  })
+
   it('resolves the seven-seg bus input to the fixed source width', () => {
     const sim = new Simulation(
       mkDesign(

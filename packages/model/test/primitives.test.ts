@@ -153,13 +153,14 @@ describe('model primitives', () => {
     expect(defaultPropsOf('clock')).toEqual({ period: 10_000_000 })
   })
 
-  it('declares the bus lanes property and fixes the terminal width to it', () => {
+  it('declares the bus lanes/flip properties and fixes the terminal width to lanes', () => {
     expect(inP('bus')).toHaveLength(1)
     expect(outP('bus')).toHaveLength(1)
     expect(primitiveOf('bus').properties()).toEqual([
       { name: 'lanes', label: 'Lanes', type: 'number', default: 8, min: 1, max: 64 },
+      { name: 'flip', label: 'Flip', type: 'boolean', default: false, tooltip: 'Reverse the lane order: the input LSB becomes the output MSB.' },
     ])
-    expect(defaultPropsOf('bus')).toEqual({ lanes: 8 })
+    expect(defaultPropsOf('bus')).toEqual({ lanes: 8, flip: false })
 
     const prim = primitiveOf('bus')
     const ports = def('bus').ports

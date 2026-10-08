@@ -77,6 +77,17 @@ describe('primitive transfer (combinational 3-state logic)', () => {
     expect(primitiveOf('bus-merge').transfer([[1, 0], [0, 1, 1]])).toEqual([[1, 0, 0, 1, 1]])
   })
 
+  it('BUS passes through unchanged by default', () => {
+    expect(primitiveOf('bus').transfer([[1, 0, 1, 1]])).toEqual([[1, 0, 1, 1]])
+  })
+
+  it('BUS flips the lane order when flip is set', () => {
+    const bus = primitiveOf('bus').transfer
+    expect(bus([[1, 0, 1, 1]], { flip: true })).toEqual([[1, 1, 0, 1]])
+    expect(bus([[1, 0, 1, 1]], { flip: false })).toEqual([[1, 0, 1, 1]])
+    expect(bus([[1]], { flip: true })).toEqual([[1]])
+  })
+
   it('COMPARE reports equality (1), difference (0), or unknown (x)', () => {
     const cmp = primitiveOf('compare').transfer
     expect(cmp([[1, 0], [1, 0]])).toEqual([[1]])

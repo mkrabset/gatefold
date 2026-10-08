@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-08 (Register/counter bus width pinned by the `width` property).
+Last updated: 2026-10-08 (BUS `flip` property; DRY refactor of the sequential/generator/store layers).
 
 ## Where we are
 
@@ -12,6 +12,23 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **BUS `flip` property** — the BUS primitive gained a boolean `flip` property (default `false`)
+  that reverses the lane order, so the input LSB becomes the output MSB (width is unchanged).
+  - **Model** (`primitives/bus.ts`) — `flip` added to `properties()`; `transfer(inputs, props)`
+    returns the reversed vector when `props.flip === true`.
+  - **Verilog** (`verilog.ts`) — a flipped BUS emits the LSB-first concatenation
+    `{in[0], in[1], …, in[n-1]}`, with input/output inversion applied afterwards (a 1-lane bus
+    flips to itself).
+  - Tests in `primitives.test.ts`/`transfer.test.ts`, `engine.test.ts` (sim propagation), and
+    `verilog.test.ts`; docs updated (`GLOSSARY.md`, `USER_GUIDE.md`, `ARCHITECTURE.md`).
+
+- **DRY refactor (session earlier today)** — consolidated duplicated logic without changing
+  behavior: `simStore` designer/testbench switch & signal actions and the sequentials'
+  `SequentialGate` base + shared `resolveFixedWidth`/`resolveBusWidth`, the register/counter
+  Verilog emitter (`emitEdgeTriggeredReg`), `portEdit.regeneratePorts`, the editor store's
+  `tryAppendConnection`/`tryRetargetConnection`/`instantiateChild`, and the fan-in/out
+  `sumLaneWidths`/`sumResolvedWidths` helpers.
 
 - **Register/counter `width` pins the bus output** — previously the `width` property only shaped
   WIRE mode, and a BUS-mode register/counter always adopted the connected bus width. Now `width`

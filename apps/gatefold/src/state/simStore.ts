@@ -104,6 +104,28 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
     set({ mode: 'simulate', engine, history, probeOrder: null, path: [MAIN_INSTANCE_ID], version: get().version + 1 })
   }
 
+  /** Apply a switch mutation (toggle / increment / set-lanes) at the resolved id, then
+   *  step and bump the redraw version. `test` selects the test-bench (raw id) vs designer
+   *  (path-prefixed, live-gated) target; `closeDialog` also closes the set-value dialog. */
+  const applySwitchAction = (test: boolean, instanceId: string, run: (engine: Simulation, id: string) => void, closeDialog = false): void => {
+    const id = switchId(test, instanceId)
+    if (id === null) return
+    const { engine } = get()
+    run(engine!, id)
+    engine!.step()
+    set((s) => ({ ...(closeDialog ? { switchDialog: null } : {}), version: s.version + 1 }))
+  }
+
+  /** Open the set-value dialog for a switch-array, reading its current lanes at the
+   *  resolved id. The dialog stores the raw instance id (flattened again on commit). */
+  const openSwitchDialogInternal = (test: boolean, instanceId: string, size: number, format: ValueFormat, order: ValueOrder): void => {
+    const id = switchId(test, instanceId)
+    if (id === null) return
+    const lanes = get().engine!.switchLanesOf(id)
+    if (!lanes) return
+    set({ switchDialog: { instanceId, size, lanes, format, order, test } })
+  }
+
   return {
     mode: 'design',
     running: false,
@@ -172,73 +194,23 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       set({ engine, history, probeOrder: null, version: get().version + 1 })
     },
 
-    toggleSwitch: (instanceId, lane = 0) => {
-      const { engine } = get()
-      if (!engine) return
-      if (!viewingLive()) return
-      const id = flatId(instanceId)
-      engine.toggleSwitch(id, lane)
-      engine.step()
-      set((s) => ({ version: s.version + 1 }))
-    },
+    toggleSwitch: (instanceId, lane = 0) => applySwitchAction(false, instanceId, (engine, id) => engine.toggleSwitch(id, lane)),
 
-    stepSwitch: (instanceId, delta) => {
-      const { engine } = get()
-      if (!engine || !viewingLive()) return
-      engine.incrementSwitch(flatId(instanceId), delta)
-      engine.step()
-      set((s) => ({ version: s.version + 1 }))
-    },
+    stepSwitch: (instanceId, delta) => applySwitchAction(false, instanceId, (engine, id) => engine.incrementSwitch(id, delta)),
 
-    openSwitchDialog: (instanceId, size, format, order) => {
-      const { engine } = get()
-      if (!engine || !viewingLive()) return
-      const lanes = engine.switchLanesOf(flatId(instanceId))
-      if (!lanes) return
-      set({ switchDialog: { instanceId, size, lanes, format, order, test: false } })
-    },
+    openSwitchDialog: (instanceId, size, format, order) => openSwitchDialogInternal(false, instanceId, size, format, order),
 
     closeSwitchDialog: () => set({ switchDialog: null }),
 
-    setSwitchValue: (instanceId, lanes) => {
-      const { engine } = get()
-      if (!engine || !viewingLive()) return
-      engine.setSwitchLanes(flatId(instanceId), lanes)
-      engine.step()
-      set((s) => ({ switchDialog: null, version: s.version + 1 }))
-    },
+    setSwitchValue: (instanceId, lanes) => applySwitchAction(false, instanceId, (engine, id) => engine.setSwitchLanes(id, lanes), true),
 
-    toggleTestSwitch: (instanceId, lane = 0) => {
-      const { engine } = get()
-      if (!engine) return
-      engine.toggleSwitch(instanceId, lane)
-      engine.step()
-      set((s) => ({ version: s.version + 1 }))
-    },
+    toggleTestSwitch: (instanceId, lane = 0) => applySwitchAction(true, instanceId, (engine, id) => engine.toggleSwitch(id, lane)),
 
-    stepTestSwitch: (instanceId, delta) => {
-      const { engine } = get()
-      if (!engine) return
-      engine.incrementSwitch(instanceId, delta)
-      engine.step()
-      set((s) => ({ version: s.version + 1 }))
-    },
+    stepTestSwitch: (instanceId, delta) => applySwitchAction(true, instanceId, (engine, id) => engine.incrementSwitch(id, delta)),
 
-    openTestSwitchDialog: (instanceId, size, format, order) => {
-      const { engine } = get()
-      if (!engine) return
-      const lanes = engine.switchLanesOf(instanceId)
-      if (!lanes) return
-      set({ switchDialog: { instanceId, size, lanes, format, order, test: true } })
-    },
+    openTestSwitchDialog: (instanceId, size, format, order) => openSwitchDialogInternal(true, instanceId, size, format, order),
 
-    setTestSwitchValue: (instanceId, lanes) => {
-      const { engine } = get()
-      if (!engine) return
-      engine.setSwitchLanes(instanceId, lanes)
-      engine.step()
-      set((s) => ({ switchDialog: null, version: s.version + 1 }))
-    },
+    setTestSwitchValue: (instanceId, lanes) => applySwitchAction(true, instanceId, (engine, id) => engine.setSwitchLanes(id, lanes), true),
 
     descend: (instanceId) => set((s) => ({ path: [...s.path, instanceId] })),
     ascend: () => set((s) => ({ path: s.path.slice(0, -1) })),
@@ -270,6 +242,20 @@ function flatId(instanceId: string): string {
 }
 
 /**
+ * Resolve the flattened switch-instance id for a designer/test-bench switch action. A
+ * test-bench switch uses its raw id (the test bench is the simulation root); a designer
+ * switch uses the path-prefixed id and is only live when the currently-viewed def is part
+ * of the running simulation. Returns null when the action should no-op.
+ */
+function switchId(test: boolean, instanceId: string): string | null {
+  const { engine } = useSimStore.getState()
+  if (!engine) return null
+  if (test) return instanceId
+  if (!viewingLive()) return null
+  return flatId(instanceId)
+}
+
+/**
  * Whether the currently-viewed def (top of `navStack`) is the live def at the current
  * `path`. When the user navigates into a def that is not part of the running simulation
  * (e.g. a library template), the signal/pin ids no longer correspond to flattened netlist
@@ -289,12 +275,13 @@ function viewingLive(): boolean {
   return resolveNav(editor.design, editor.navStack) === def
 }
 
-/** The full bit-vector signal for a flattened pin, or undefined when not simulating. */
-function rawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
+/** The full bit-vector signal for a pin, or undefined when not simulating. `test`
+ *  selects the test-bench (raw id) vs designer (path-prefixed, live-gated) target. */
+function rawSignalOf(test: boolean, instanceId: string, portId: string): Signal[] | undefined {
   const { engine, mode } = useSimStore.getState()
   if (mode !== 'simulate' || !engine) return undefined
-  if (!viewingLive()) return undefined
-  return engine.signalOf(flatId(instanceId), portId)
+  if (!test && !viewingLive()) return undefined
+  return engine.signalOf(test ? instanceId : flatId(instanceId), portId)
 }
 
 /** Theme-aware color for a 3-state signal value (shared by the canvas and timeline). */
@@ -304,54 +291,46 @@ export function signalColor(signal: Signal, theme: string): string {
 
 /** Resolve a wire/marker color for a pin (optionally a specific bus lane, or the logical
  *  value at an inverted terminal via `inverted`). */
-export function simColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
-  const sig = rawSignalOf(instanceId, portId)
-  if (!sig) return undefined
-  const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
-  if (bit === undefined) return undefined
-  const theme = useUiStore.getState().theme
-  return signalColor(inverted ? invertSignal(bit) : bit, theme)
-}
-
-/** Resolve a single-bit signal for a pin (probe state), or undefined. */
-export function simValueOf(instanceId: string, portId: string): Signal | undefined {
-  const sig = rawSignalOf(instanceId, portId)
-  return sig && sig.length === 1 ? sig[0] : undefined
-}
-
-/** Resolve the full bit-vector signal for a pin, or undefined. */
-export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
-  return rawSignalOf(instanceId, portId)
-}
-
-/**
- * Resolve a signal at the test-bench top level (the "Testing" tab). Unlike the designer,
- * the test-bench sheet is always live (it is the simulation root), so there is no
- * `viewingLive` gate and no `path` prefix — the instance id is the flattened id as-is.
- */
-function testRawSignalOf(instanceId: string, portId: string): Signal[] | undefined {
-  const { engine, mode } = useSimStore.getState()
-  if (mode !== 'simulate' || !engine) return undefined
-  return engine.signalOf(instanceId, portId)
-}
-
-/** Theme-aware wire/marker color for a test-bench pin (optionally a specific lane, or the
- *  logical value at an inverted terminal via `inverted`). */
-export function testColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
-  const sig = testRawSignalOf(instanceId, portId)
+function colorOf(test: boolean, instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
+  const sig = rawSignalOf(test, instanceId, portId)
   if (!sig) return undefined
   const bit = lane !== undefined ? sig[lane] : sig.length === 1 ? sig[0] : undefined
   if (bit === undefined) return undefined
   return signalColor(inverted ? invertSignal(bit) : bit, useUiStore.getState().theme)
 }
 
-/** Single-bit signal on a test-bench pin, or undefined. */
-export function testValueOf(instanceId: string, portId: string): Signal | undefined {
-  const sig = testRawSignalOf(instanceId, portId)
+/** Resolve a single-bit signal for a pin (probe state), or undefined. */
+function valueOf(test: boolean, instanceId: string, portId: string): Signal | undefined {
+  const sig = rawSignalOf(test, instanceId, portId)
   return sig && sig.length === 1 ? sig[0] : undefined
 }
 
-/** Full bit-vector signal on a test-bench pin, or undefined. */
+/** Designer (path-prefixed) signal helpers, used by the schematic canvas. */
+export function simColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
+  return colorOf(false, instanceId, portId, lane, inverted)
+}
+
+export function simValueOf(instanceId: string, portId: string): Signal | undefined {
+  return valueOf(false, instanceId, portId)
+}
+
+export function simSignalOf(instanceId: string, portId: string): Signal[] | undefined {
+  return rawSignalOf(false, instanceId, portId)
+}
+
+/**
+ * Test-bench signal helpers (the "Testing" tab). Unlike the designer, the test-bench
+ * sheet is always live (it is the simulation root), so there is no `viewingLive` gate
+ * and no `path` prefix — the instance id is the flattened id as-is.
+ */
+export function testColorOf(instanceId: string, portId: string, lane?: number, inverted = false): string | undefined {
+  return colorOf(true, instanceId, portId, lane, inverted)
+}
+
+export function testValueOf(instanceId: string, portId: string): Signal | undefined {
+  return valueOf(true, instanceId, portId)
+}
+
 export function testSignalOf(instanceId: string, portId: string): Signal[] | undefined {
-  return testRawSignalOf(instanceId, portId)
+  return rawSignalOf(true, instanceId, portId)
 }

@@ -1,4 +1,4 @@
-import type { Port, PrimitiveKind, PropertyValue, Signal } from '../types'
+import type { Port, PortDirection, PrimitiveKind, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../ports'
 import type { DrawOptions, Palette, Primitive, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
@@ -11,6 +11,27 @@ export function countInputs(ports: Port[]): number {
 
 export function countOutputs(ports: Port[]): number {
   return ports.filter((p) => p.direction === 'output').length
+}
+
+/** The sum of the resolved widths of `ports` in `direction`, or null when any of those
+ *  ports is still undetermined (a lane's width not yet known). Shared by the fan-in and
+ *  fan-out sum relations. */
+export function sumLaneWidths(siblings: ReadonlyMap<string, number>, ports: Port[], direction: PortDirection): number | null {
+  let sum = 0
+  for (const p of ports) {
+    if (p.direction !== direction) continue
+    const w = siblings.get(p.id)
+    if (w === undefined) return null
+    sum += w
+  }
+  return sum
+}
+
+/** The sum of every resolved width in `siblings` (an instance's other pins). */
+export function sumResolvedWidths(siblings: ReadonlyMap<string, number> | undefined): number {
+  let sum = 0
+  for (const w of (siblings ?? new Map<string, number>()).values()) sum += w
+  return sum
 }
 
 /** The fixed two-input/one-output terminal set shared by AND/OR/XOR. */
@@ -149,6 +170,20 @@ export function deriveUnevenWidth(
   if (port.id === otherPortId) return total === undefined ? null : total - firstLanes
   const other = siblings.get(otherPortId)
   return other === undefined ? null : firstLanes + other
+}
+
+/** Resolve an instance's fixed bit width from its `width` property: `width` ≥ 1 clamps to
+ *  `[1, max]`, otherwise the `fallback` (the primitive's default count). */
+export function resolveFixedWidth(props: Record<string, PropertyValue> | undefined, max: number, fallback: number): number {
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(max, w) : fallback
+}
+
+/** The fixed bus width pinned by the `width` property, or null when the bus adopts the
+ *  connected width (`width` unset, zero, or non-numeric). */
+export function resolveBusWidth(props: Record<string, PropertyValue> | undefined, max: number): number | null {
+  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
+  return w >= 1 ? Math.min(max, w) : null
 }
 
 /**

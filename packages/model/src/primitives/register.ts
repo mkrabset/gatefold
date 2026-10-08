@@ -1,6 +1,7 @@
-import type { Port, PropertyValue, Signal } from '../types'
+import type { Port, PropertyValue } from '../types'
 import { inputPortId, outputPortId } from '../ports'
-import { Gate, gateBounds } from './gate'
+import { gateBounds, resolveBusWidth, resolveFixedWidth } from './gate'
+import { SequentialGate } from './sequential'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -13,15 +14,13 @@ export const REGISTER_MAX_WIDTH = 32
 /** Resolve an instance's register width from its `width` property, clamped to `[1, 32]`.
  *  A `width` below 1 (unset, zero, or non-numeric) falls back to the default. */
 export function registerWidthOf(props: Record<string, PropertyValue> | undefined): number {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
-  return w >= 1 ? Math.min(REGISTER_MAX_WIDTH, w) : REGISTER_DEFAULT_WIDTH
+  return resolveFixedWidth(props, REGISTER_MAX_WIDTH, REGISTER_DEFAULT_WIDTH)
 }
 
 /** The fixed bus width of a register's `DATA`/`Q` buses, or null when they adopt the
  *  connected width (`width` unset, zero, or non-numeric). Used only in BUS terminal type. */
 export function registerBusWidth(props: Record<string, PropertyValue> | undefined): number | null {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
-  return w >= 1 ? Math.min(REGISTER_MAX_WIDTH, w) : null
+  return resolveBusWidth(props, REGISTER_MAX_WIDTH)
 }
 
 /**
@@ -58,23 +57,13 @@ export function registerPorts(terminalType: 'wire' | 'bus', width: number): Port
  * `deriveWidth`): it is adopted from the connection when `width` is 0, else fixed to
  * `width` (pinned, so a mismatched connection conflicts).
  */
-export class Register extends Gate {
+export class Register extends SequentialGate {
   readonly kind = 'register' as const
   readonly label = 'REGISTER'
   readonly glyph = 'REG'
-  readonly fixedInputs = true
-  readonly fixedOutputs = true
 
   defaultPorts(): Port[] {
     return registerPorts('bus', REGISTER_DEFAULT_WIDTH)
-  }
-
-  nextInputName(): string | null {
-    return null
-  }
-
-  isSequential(_props?: Record<string, PropertyValue>): boolean {
-    return true
   }
 
   clockPortId(): string {
@@ -83,10 +72,6 @@ export class Register extends Gate {
 
   resetPortId(): string {
     return 'in:1'
-  }
-
-  showTerminalNames(): boolean {
-    return true
   }
 
   properties(): PropertySpec[] {
@@ -116,21 +101,9 @@ export class Register extends Gate {
     return port.name === 'DATA' || port.name === 'Q' ? '?' : null
   }
 
-  transfer(): Signal[][] {
-    // Stateful (edge-triggered): driven by the simulator's sequential path.
-    return []
-  }
-
-  bodySize(): { w: number; h: number } {
-    return { w: 56, h: 48 }
-  }
-
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { l, r, t, b, cx, cy } = gateBounds(opts)
-    ctx.beginPath()
-    ctx.roundRect(l, t, r - l, b - t, 6)
-    ctx.fill(opts.palette.gateFill)
-    ctx.stroke(opts.palette.gateStroke, 1.5)
+    const { t, b, cx, cy } = gateBounds(opts)
+    this.drawBody(ctx, opts)
     // A small register glyph: two parallel bars (a stored bit).
     const scale = (b - t) / this.bodySize().h
     const s = 3 * scale

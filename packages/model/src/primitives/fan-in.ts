@@ -1,6 +1,6 @@
 import type { Port, PropertyValue, Signal } from '../types'
 import { inputPortId, outputPortId } from '../ports'
-import { countInputs, drawBusTrapezoidRight, Gate } from './gate'
+import { countInputs, drawBusTrapezoidRight, Gate, sumLaneWidths, sumResolvedWidths } from './gate'
 import type { DrawOptions } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -29,14 +29,7 @@ export class FanIn extends Gate {
     if (port.direction === 'input') return null
     // The bus output is the concatenation of every input's bits: the sum of their widths,
     // undetermined until every lane is known.
-    const inputs = (ports ?? []).filter((p) => p.direction === 'input')
-    let sum = 0
-    for (const p of inputs) {
-      const w = siblings.get(p.id)
-      if (w === undefined) return null
-      sum += w
-    }
-    return sum
+    return sumLaneWidths(siblings, ports ?? [], 'input')
   }
 
   defaultWidth(port: Port): number | null {
@@ -52,9 +45,7 @@ export class FanIn extends Gate {
   widthError(port: Port, width: number, siblings?: ReadonlyMap<string, number>): string | null {
     // The bus output must equal the sum of its input lanes' widths.
     if (port.direction !== 'output') return null
-    let sum = 0
-    for (const w of (siblings ?? new Map<string, number>()).values()) sum += w
-    return sum === width ? null : 'Bus width mismatch'
+    return sumResolvedWidths(siblings) === width ? null : 'Bus width mismatch'
   }
 
   bodySize(): { w: number; h: number } {

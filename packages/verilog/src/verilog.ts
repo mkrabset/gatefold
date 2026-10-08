@@ -378,6 +378,39 @@ class Generator {
       const net = (id: string): string => netOf(pin(id))
       const inv = (port: { inverted?: boolean } | undefined, s: string): string => (port?.inverted ? `~(${s})` : s)
 
+      // Shared emission for the REGISTER and COUNTER: a single internal reg drives every
+      // output pin (the whole bus, or one wire each), sampled on the clock edge with a
+      // sync/async reset and a power-on `initial` block. `nextExpr` is the clock-edge
+      // next-state expression (register's sampled data, or the counter's `+ 1'b1`).
+      const emitEdgeTriggeredReg = (clkId: string, rstId: string, outs: Port[], busMode: boolean, width: number, internalName: string, nextExpr: string): void => {
+        const clkPort = ports.find((p) => p.id === clkId)
+        const rstPort = ports.find((p) => p.id === rstId)
+        const clk = net(clkId)
+        const rst = net(rstId)
+        const clkInverted = clkPort?.inverted === true
+        const rstInverted = rstPort?.inverted === true
+        const resetStyle = inst.props?.resetStyle === 'async' ? 'async' : 'sync'
+        const effEdge = clkInverted ? 'negedge' : 'posedge'
+        const effActiveHigh = !rstInverted
+        const rstCond = effActiveHigh ? rst : `!${rst}`
+        const zero = `{${width}{1'b0}}`
+
+        decls.push(width > 1 ? `reg [${width - 1}:0] ${internalName};` : `reg ${internalName};`)
+        for (let i = 0; i < outs.length; i++) {
+          const raw = busMode ? internalName : `${internalName}[${i}]`
+          const rhs = outs[i].inverted ? `~(${raw})` : raw
+          stmts.push(`assign ${net(outs[i].id)} = ${rhs};`)
+        }
+
+        if (resetStyle === 'async') {
+          const rstKw = effActiveHigh ? 'posedge' : 'negedge'
+          stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${internalName} <= ${zero}; else ${internalName} <= ${nextExpr};`)
+        } else {
+          stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${internalName} <= ${zero}; else ${internalName} <= ${nextExpr};`)
+        }
+        stmts.push(`initial ${internalName} = ${zero};`)
+      }
+
       if (kind === 'and' || kind === 'or' || kind === 'xor' || kind === 'not' || kind === 'buffer') {
         const op = kind === 'and' ? ' & ' : kind === 'or' ? ' | ' : kind === 'xor' ? ' ^ ' : null
         const inputs = inputPorts(ports)
@@ -509,40 +542,11 @@ class Generator {
         const prim = primitiveOf('counter')
         const clkId = prim.clockPortId?.() ?? 'in:0'
         const rstId = prim.resetPortId?.() ?? 'in:1'
-        const clkPort = ports.find((p) => p.id === clkId)
-        const rstPort = ports.find((p) => p.id === rstId)
         const outs = outputPorts(ports)
         const busMode = outs.length === 1
         const width = busMode ? (netWidthByName.get(net(outs[0].id)) ?? 1) : outs.length
-        const clk = net(clkId)
-        const rst = net(rstId)
-        const clkInverted = clkPort?.inverted === true
-        const rstInverted = rstPort?.inverted === true
-        const resetStyle = inst.props?.resetStyle === 'async' ? 'async' : 'sync'
-        const effEdge = clkInverted ? 'negedge' : 'posedge'
-        const effActiveHigh = !rstInverted
-        const rstCond = effActiveHigh ? rst : `!${rst}`
-        const zero = `{${width}{1'b0}}`
-
-        // A single internal count register drives every output pin (the whole bus, or one
-        // wire each), so a WIRE-mode counter and terminal inversion both stay continuous
-        // assignments from one reg.
         const cnt = uniqueName(`${inst.name || 'u'}_cnt`, used)
-        decls.push(width > 1 ? `reg [${width - 1}:0] ${cnt};` : `reg ${cnt};`)
-        for (let i = 0; i < outs.length; i++) {
-          const raw = busMode ? cnt : `${cnt}[${i}]`
-          const rhs = outs[i].inverted ? `~(${raw})` : raw
-          stmts.push(`assign ${net(outs[i].id)} = ${rhs};`)
-        }
-
-        const inc = `${cnt} + 1'b1`
-        if (resetStyle === 'async') {
-          const rstKw = effActiveHigh ? 'posedge' : 'negedge'
-          stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
-        } else {
-          stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${cnt} <= ${zero}; else ${cnt} <= ${inc};`)
-        }
-        stmts.push(`initial ${cnt} = ${zero};`)
+        emitEdgeTriggeredReg(clkId, rstId, outs, busMode, width, cnt, `${cnt} + 1'b1`)
         return
       }
 
@@ -550,45 +554,17 @@ class Generator {
         const prim = primitiveOf('register')
         const clkId = prim.clockPortId?.() ?? 'in:0'
         const rstId = prim.resetPortId?.() ?? 'in:1'
-        const clkPort = ports.find((p) => p.id === clkId)
-        const rstPort = ports.find((p) => p.id === rstId)
         const outs = outputPorts(ports)
         const busMode = outs.length === 1
         const width = busMode ? (netWidthByName.get(net(outs[0].id)) ?? 1) : outs.length
         const dataPorts = inputPorts(ports).filter((p) => p.id !== clkId && p.id !== rstId)
-        const clk = net(clkId)
-        const rst = net(rstId)
-        const clkInverted = clkPort?.inverted === true
-        const rstInverted = rstPort?.inverted === true
-        const resetStyle = inst.props?.resetStyle === 'async' ? 'async' : 'sync'
-        const effEdge = clkInverted ? 'negedge' : 'posedge'
-        const effActiveHigh = !rstInverted
-        const rstCond = effActiveHigh ? rst : `!${rst}`
-        const zero = `{${width}{1'b0}}`
-
-        // A single internal register drives every output pin (the whole bus, or one wire
-        // each), so a WIRE-mode register and terminal inversion both stay continuous
-        // assignments from one reg.
         const reg = uniqueName(`${inst.name || 'u'}_reg`, used)
-        decls.push(width > 1 ? `reg [${width - 1}:0] ${reg};` : `reg ${reg};`)
-        for (let i = 0; i < outs.length; i++) {
-          const raw = busMode ? reg : `${reg}[${i}]`
-          const rhs = outs[i].inverted ? `~(${raw})` : raw
-          stmts.push(`assign ${net(outs[i].id)} = ${rhs};`)
-        }
-
         // The sampled data expression: the DATA bus (BUS mode) or the D(n-1)..D0 wires
         // concatenated LSB-first (WIRE mode), each with terminal inversion.
         const dExpr = busMode
           ? (dataPorts[0].inverted ? `~(${net(dataPorts[0].id)})` : net(dataPorts[0].id))
           : `{${dataPorts.map((p) => (p.inverted ? `~(${net(p.id)})` : net(p.id))).reverse().join(', ')}}`
-        if (resetStyle === 'async') {
-          const rstKw = effActiveHigh ? 'posedge' : 'negedge'
-          stmts.push(`always @(${effEdge} ${clk} or ${rstKw} ${rst}) if (${rstCond}) ${reg} <= ${zero}; else ${reg} <= ${dExpr};`)
-        } else {
-          stmts.push(`always @(${effEdge} ${clk}) if (${rstCond}) ${reg} <= ${zero}; else ${reg} <= ${dExpr};`)
-        }
-        stmts.push(`initial ${reg} = ${zero};`)
+        emitEdgeTriggeredReg(clkId, rstId, outs, busMode, width, reg, dExpr)
         return
       }
 

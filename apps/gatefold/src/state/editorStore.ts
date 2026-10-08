@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { temporal } from 'zundo'
-import type { ChildDef, CompositeDef, Design, Instance, PinRef, Port, PortDirection, PrimitiveKind, PropertyValue, PullDirection, Testbench, ArrayChain, ArrayOrientation } from '@gatefold/model'
+import type { ChildDef, CompositeDef, Connection, Design, Instance, PinRef, Port, PortDirection, PrimitiveKind, PropertyValue, PullDirection, Testbench, ArrayChain, ArrayOrientation } from '@gatefold/model'
 import {
   allCompositeIds,
   allowInversion,
@@ -334,6 +334,54 @@ export function endMoveTransaction(): void {
 
 // Small helper for generating a name/id that is unique among a set of existing ones.
 const uniqueAgainst = (existing: Set<string>, base: string): string => uniqueId(existing, base, '')
+
+/**
+ * Validate and append a connection, enforcing the single-driver invariant and width
+ * consistency. Returns an error message, or null on success (mutating `connections`).
+ * Shared by the main design and the test-bench sheet (whose width root is the synthesized
+ * test-bench composite).
+ */
+function tryAppendConnection(connections: Connection[], root: CompositeDef, def: CompositeDef, from: PinRef, to: PinRef): string | null {
+  if (findConnectionTo(connections, to)) return 'Input already has a driver'
+  const err = connectionError(root, def, from, to)
+  if (err) return err
+  connections.push({ id: nextConnectionId(connections), from, to })
+  return null
+}
+
+/** Re-target an existing connection to `to`, enforcing the single-driver invariant and
+ *  width consistency. Returns an error message, or null on success (mutating the target). */
+function tryRetargetConnection(connections: Connection[], root: CompositeDef, def: CompositeDef, id: string, to: PinRef): string | null {
+  const original = connections.find((c) => c.id === id)
+  if (!original) return null
+  const conflict = findConnectionTo(connections, to)
+  if (conflict && conflict.id !== id) return 'Input already has a driver'
+  const err = connectionError(root, def, original.from, to)
+  if (err) return err
+  original.to = to
+  return null
+}
+
+/**
+ * Place a child def as a fresh, deeply-copied instance (copy-on-place). `keepLabel`
+ * decides which primitive kinds keep their label as the default instance name (CLOCK/DFF).
+ * Returns the new instance id.
+ */
+function instantiateChild(
+  instances: Instance[],
+  srcDef: ChildDef,
+  pos: { x: number; y: number },
+  usedIds: Set<string>,
+  keepLabel: (kind: PrimitiveKind | null) => boolean,
+): string {
+  const kind = childPrimitive(srcDef)
+  const name = kind && keepLabel(kind) ? childLabel(srcDef) : ''
+  const id = uniqueAgainst(new Set(instances.map((i) => i.id)), childLabel(srcDef))
+  const copied = cloneChildDef(srcDef, usedIds)
+  const props = kind ? defaultPropsOf(kind) : {}
+  instances.push({ id, name, def: copied, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
+  return id
+}
 
 /** The outside-world components placeable in the test-bench sheet (the "Testing" tab). */
 export const TEST_IO_KINDS: PrimitiveKind[] = ['clock', 'switch-array', 'led-array', 'seven-seg', 'probe']
@@ -941,33 +989,16 @@ export const useEditorStore = create<EditorState>()(
           let srcDef: ChildDef | undefined = s.design.library[kindOrId]
           if (!srcDef && isPrimitiveKind(kindOrId)) srcDef = kindOrId === 'join-point' ? builtinOf('join-point') : forkOf(kindOrId)
           if (!srcDef) return
-          const kind = childPrimitive(srcDef)
           // Default instance name is empty, except for CLOCK/DFF which keep their label.
-          const name = kind === 'clock' || kind === 'dff' ? childLabel(srcDef) : ''
-          const id = uniqueAgainst(new Set(def.instances.map((i) => i.id)), childLabel(srcDef))
-          // Deep copy-on-place: the instance gets its own copy def, independent of the
-          // library template.
-          const copied = cloneChildDef(srcDef, usedIds)
-          const props = kind ? defaultPropsOf(kind) : {}
-          def.instances.push({ id, name, def: copied, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
+          const id = instantiateChild(def.instances, srcDef, pos, usedIds, (kind) => kind === 'clock' || kind === 'dff')
           s.selectedIds = [id]
         }),
       addConnection: (from, to) =>
         set((s) => {
           const def = currentDef(s)
           if (!def || def.kind !== 'composite') return
-          // Enforce the single-driver invariant: reject if the target is already driven.
-          if (findConnectionTo(def.connections, to)) {
-            s.notice = 'Input already has a driver'
-            return
-          }
-          // Width must be consistent (and splitters require even buses).
-          const err = connectionError(currentWidthRoot(s), def, from, to)
-          if (err) {
-            s.notice = err
-            return
-          }
-          def.connections.push({ id: nextConnectionId(def.connections), from, to })
+          const err = tryAppendConnection(def.connections, currentWidthRoot(s), def, from, to)
+          if (err) s.notice = err
         }),
       connectAutoMatches: () =>
         set((s) => {
@@ -1006,20 +1037,8 @@ export const useEditorStore = create<EditorState>()(
         set((s) => {
           const def = currentDef(s)
           if (!def || def.kind !== 'composite') return
-          const conns = def.connections
-          const original = conns.find((c) => c.id === id)
-          if (!original) return
-          const conflict = findConnectionTo(conns, to)
-          if (conflict && conflict.id !== id) {
-            s.notice = 'Input already has a driver'
-            return
-          }
-          const err = connectionError(currentWidthRoot(s), def, original.from, to)
-          if (err) {
-            s.notice = err
-            return
-          }
-          original.to = to
+          const err = tryRetargetConnection(def.connections, currentWidthRoot(s), def, id, to)
+          if (err) s.notice = err
         }),
       removeConnection: (id) =>
         set((s) => {
@@ -1184,13 +1203,8 @@ export const useEditorStore = create<EditorState>()(
           if (!isPrimitiveKind(kind) || !TEST_IO_KINDS.includes(kind)) return
           const tb = ensureTestbench(s)
           const srcDef = forkOf(kind)
-          const primitive = childPrimitive(srcDef)
           // Default instance name is empty, except CLOCK which keeps its label.
-          const name = primitive === 'clock' ? childLabel(srcDef) : ''
-          const id = uniqueAgainst(new Set(tb.instances.map((i) => i.id)), childLabel(srcDef))
-          const copied = cloneChildDef(srcDef, allCompositeIds(s.design))
-          const props = primitive ? defaultPropsOf(primitive) : {}
-          tb.instances.push({ id, name, def: copied, pos: { x: pos.x, y: pos.y }, ...(Object.keys(props).length ? { props } : {}) })
+          instantiateChild(tb.instances, srcDef, pos, allCompositeIds(s.design), (k) => k === 'clock')
         }),
 
       setMainPos: (pos) =>
@@ -1232,35 +1246,16 @@ export const useEditorStore = create<EditorState>()(
         set((s) => {
           const tb = ensureTestbench(s)
           const composite = testbenchComposite(s.design, tb)
-          if (findConnectionTo(tb.connections, to)) {
-            s.notice = 'Input already has a driver'
-            return
-          }
-          const err = connectionError(composite, composite, from, to)
-          if (err) {
-            s.notice = err
-            return
-          }
-          tb.connections.push({ id: nextConnectionId(tb.connections), from, to })
+          const err = tryAppendConnection(tb.connections, composite, composite, from, to)
+          if (err) s.notice = err
         }),
 
       retargetTestConnection: (id, to) =>
         set((s) => {
           const tb = ensureTestbench(s)
-          const original = tb.connections.find((c) => c.id === id)
-          if (!original) return
-          const conflict = findConnectionTo(tb.connections, to)
-          if (conflict && conflict.id !== id) {
-            s.notice = 'Input already has a driver'
-            return
-          }
           const composite = testbenchComposite(s.design, tb)
-          const err = connectionError(composite, composite, original.from, to)
-          if (err) {
-            s.notice = err
-            return
-          }
-          original.to = to
+          const err = tryRetargetConnection(tb.connections, composite, composite, id, to)
+          if (err) s.notice = err
         }),
 
       removeTestConnection: (id) =>

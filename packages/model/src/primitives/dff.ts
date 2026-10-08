@@ -1,6 +1,6 @@
-import type { Port, PropertyValue, Signal } from '../types'
+import type { Port } from '../types'
 import { inputPortId, outputPortId } from '../ports'
-import { Gate, gateBounds } from './gate'
+import { SequentialGate } from './sequential'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -11,12 +11,10 @@ import type { VectorContext } from './vector'
  * `transfer`, so it maps 1:1 to a real register (and, later, to
  * `always @(posedge clk) …` in Verilog).
  */
-export class Dff extends Gate {
+export class Dff extends SequentialGate {
   readonly kind = 'dff' as const
   readonly label = 'DFF'
   readonly glyph = 'D'
-  readonly fixedInputs = true
-  readonly fixedOutputs = true
 
   defaultPorts(): Port[] {
     return [
@@ -26,14 +24,6 @@ export class Dff extends Gate {
       { id: outputPortId(0), name: 'Q', direction: 'output' },
       { id: outputPortId(1), name: '!Q', direction: 'output' },
     ]
-  }
-
-  nextInputName(): string | null {
-    return null
-  }
-
-  isSequential(_props?: Record<string, PropertyValue>): boolean {
-    return true
   }
 
   clockPortId(): string {
@@ -48,10 +38,6 @@ export class Dff extends Gate {
     return 'out:1'
   }
 
-  showTerminalNames(): boolean {
-    return true
-  }
-
   properties(): PropertySpec[] {
     return [
       { name: 'edge', label: 'Edge', type: 'select', default: 'posedge', options: ['posedge', 'negedge'] },
@@ -60,20 +46,7 @@ export class Dff extends Gate {
     ]
   }
 
-  transfer(): Signal[][] {
-    // Stateful (edge-triggered): driven by the simulator's sequential path.
-    return []
-  }
-
-  bodySize(): { w: number; h: number } {
-    return { w: 56, h: 48 }
-  }
-
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { l, r, t, b } = gateBounds(opts)
-    ctx.beginPath()
-    ctx.roundRect(l, t, r - l, b - t, 6)
-    ctx.fill(opts.palette.gateFill)
-    ctx.stroke(opts.palette.gateStroke, 1.5)
+    this.drawBody(ctx, opts)
   }
 }

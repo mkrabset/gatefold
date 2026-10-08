@@ -1,6 +1,7 @@
-import type { Port, PropertyValue, Signal } from '../types'
+import type { Port, PropertyValue } from '../types'
 import { inputPortId, outputPortId } from '../ports'
-import { Gate, gateBounds } from './gate'
+import { gateBounds, resolveBusWidth, resolveFixedWidth } from './gate'
+import { SequentialGate } from './sequential'
 import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
 
@@ -13,15 +14,13 @@ export const COUNTER_MAX_WIDTH = 32
 /** Resolve an instance's counter width from its `width` property, clamped to `[1, 32]`.
  *  A `width` below 1 (unset, zero, or non-numeric) falls back to the default. */
 export function counterWidthOf(props: Record<string, PropertyValue> | undefined): number {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
-  return w >= 1 ? Math.min(COUNTER_MAX_WIDTH, w) : COUNTER_DEFAULT_WIDTH
+  return resolveFixedWidth(props, COUNTER_MAX_WIDTH, COUNTER_DEFAULT_WIDTH)
 }
 
 /** The fixed bus width of a counter's `Q` bus, or null when the bus adopts the connected
  *  width (`width` unset, zero, or non-numeric). Used only in BUS terminal type. */
 export function counterBusWidth(props: Record<string, PropertyValue> | undefined): number | null {
-  const w = typeof props?.width === 'number' ? Math.floor(props.width) : 0
-  return w >= 1 ? Math.min(COUNTER_MAX_WIDTH, w) : null
+  return resolveBusWidth(props, COUNTER_MAX_WIDTH)
 }
 
 /**
@@ -54,23 +53,13 @@ export function counterPorts(terminalType: 'wire' | 'bus', width: number): Port[
  * connection when `width` is 0, else fixed to `width`. Maps 1:1 to a `always @(posedge
  * clk)` counter in Verilog.
  */
-export class Counter extends Gate {
+export class Counter extends SequentialGate {
   readonly kind = 'counter' as const
   readonly label = 'COUNTER'
   readonly glyph = '+1'
-  readonly fixedInputs = true
-  readonly fixedOutputs = true
 
   defaultPorts(): Port[] {
     return counterPorts('wire', COUNTER_DEFAULT_WIDTH)
-  }
-
-  nextInputName(): string | null {
-    return null
-  }
-
-  isSequential(_props?: Record<string, PropertyValue>): boolean {
-    return true
   }
 
   clockPortId(): string {
@@ -79,10 +68,6 @@ export class Counter extends Gate {
 
   resetPortId(): string {
     return 'in:1'
-  }
-
-  showTerminalNames(): boolean {
-    return true
   }
 
   properties(): PropertySpec[] {
@@ -100,21 +85,9 @@ export class Counter extends Gate {
     return 1
   }
 
-  transfer(): Signal[][] {
-    // Stateful (edge-triggered): driven by the simulator's sequential path.
-    return []
-  }
-
-  bodySize(): { w: number; h: number } {
-    return { w: 56, h: 48 }
-  }
-
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { l, r, t, b, cx, cy } = gateBounds(opts)
-    ctx.beginPath()
-    ctx.roundRect(l, t, r - l, b - t, 6)
-    ctx.fill(opts.palette.gateFill)
-    ctx.stroke(opts.palette.gateStroke, 1.5)
+    const { t, b, cx, cy } = gateBounds(opts)
+    this.drawBody(ctx, opts)
     // A small "+" glyph (increment) centred in the body, scaled with the body height.
     const scale = (b - t) / this.bodySize().h
     const s = 3 * scale

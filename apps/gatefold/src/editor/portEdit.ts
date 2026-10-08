@@ -33,6 +33,17 @@ export function pruneInstancePorts(parent: CompositeDef, instanceId: string, por
   )
 }
 
+/** Replace a fork's ports with `newPorts`, pruning connections to the removed pins. */
+function regeneratePorts(parentDef: CompositeDef, inst: Instance, newPorts: Port[]): void {
+  const def = inst.def
+  if (def.kind !== 'fork') return
+  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
+  def.ports = newPorts
+  if (removed.size > 0) {
+    pruneInstancePorts(parentDef, inst.id, removed)
+  }
+}
+
 /** Set an array's terminal type, regenerating its ports and pruning all connections on change. */
 export function applyArrayTerminalType(parentDef: CompositeDef, inst: Instance, terminalType: 'wire' | 'bus'): void {
   const def = inst.def
@@ -52,14 +63,7 @@ export function applyArrayTerminalType(parentDef: CompositeDef, inst: Instance, 
 export function applyArrayPortCount(parentDef: CompositeDef, inst: Instance, count: number): void {
   const def = inst.def
   if (def.kind !== 'fork') return
-  const newPorts = arrayPorts(arrayDirection(def), 'wire', count)
-  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
-  def.ports = newPorts
-  if (removed.size > 0) {
-    parentDef.connections = parentDef.connections.filter(
-      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
-    )
-  }
+  regeneratePorts(parentDef, inst, arrayPorts(arrayDirection(def), 'wire', count))
 }
 
 /** Regenerate a counter's output ports from its `terminalType`/`width` props, keeping the
@@ -68,14 +72,7 @@ export function applyCounterPorts(parentDef: CompositeDef, inst: Instance): void
   const def = inst.def
   if (def.kind !== 'fork') return
   const type: 'wire' | 'bus' = inst.props?.terminalType === 'bus' ? 'bus' : 'wire'
-  const newPorts = counterPorts(type, counterWidthOf(inst.props))
-  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
-  def.ports = newPorts
-  if (removed.size > 0) {
-    parentDef.connections = parentDef.connections.filter(
-      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
-    )
-  }
+  regeneratePorts(parentDef, inst, counterPorts(type, counterWidthOf(inst.props)))
 }
 
 /** Change a counter's terminal type, regenerating its output ports and pruning every
@@ -100,14 +97,7 @@ export function applyRegisterPorts(parentDef: CompositeDef, inst: Instance): voi
   const def = inst.def
   if (def.kind !== 'fork') return
   const type: 'wire' | 'bus' = inst.props?.terminalType === 'wire' ? 'wire' : 'bus'
-  const newPorts = registerPorts(type, registerWidthOf(inst.props))
-  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
-  def.ports = newPorts
-  if (removed.size > 0) {
-    parentDef.connections = parentDef.connections.filter(
-      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
-    )
-  }
+  regeneratePorts(parentDef, inst, registerPorts(type, registerWidthOf(inst.props)))
 }
 
 /** Change a register's terminal type, regenerating its DATA/Q ports and pruning every
@@ -133,14 +123,7 @@ export function applyRomAccess(parentDef: CompositeDef, inst: Instance, access: 
   if (def.kind !== 'fork') return
   if (!inst.props) inst.props = {}
   inst.props.access = access
-  const newPorts = romPorts(access)
-  const removed = new Set(def.ports.map((p) => p.id).filter((id) => !newPorts.some((p) => p.id === id)))
-  def.ports = newPorts
-  if (removed.size > 0) {
-    parentDef.connections = parentDef.connections.filter(
-      (c) => !(c.from.instanceId === inst.id && removed.has(c.from.portId)) && !(c.to.instanceId === inst.id && removed.has(c.to.portId)),
-    )
-  }
+  regeneratePorts(parentDef, inst, romPorts(access))
 }
 
 /** Default placement for a newly-added port group: just outside the component bounds

@@ -330,6 +330,7 @@ function drawInstance(
         h: h * vp.zoom,
         palette: p,
         pinRadius: pinRadiusOf,
+        props: instance.props,
       })
     }
     // Terminal names inside the body for primitives with distinct terminals (DFF).

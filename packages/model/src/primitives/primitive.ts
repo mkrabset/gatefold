@@ -44,6 +44,9 @@ export interface DrawOptions {
   palette: Palette
   /** Radius (screen px) of the pin with the given port id, so shapes can size their bus neck. */
   pinRadius?: (portId: string) => number
+  /** The instance's property record, for primitives that render property-dependent
+   *  visuals (e.g. the BUS primitive's `flip` twist). */
+  props?: Record<string, PropertyValue>
 }
 
 /**

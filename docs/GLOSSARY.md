@@ -237,7 +237,8 @@ authoritative — update this when a term's meaning changes.
 - **Bus (primitive)** — a passthrough (single bus in → single bus out) whose `lanes` property
   fixes the width of both terminals, used to pin a bus to a specific width. Its `flip`
   property (boolean, default false) reverses the lane order — the input LSB becomes the output
-  MSB — so a bus can also reorder bits (width is unchanged).
+  MSB — so a bus can also reorder bits (width is unchanged). A flipped bus renders a small
+  diagonal **X** (a crossing) in place of its middle lane to show the reversal.
 - **Compare** — a primitive with two bus inputs of **equal derived width** and one single-wire
   output (`EQ`) that is `1` when the two input vectors match, `0` when they differ, and `x`
   when either carries an unknown bit. The two inputs adopt the same width (neither is fixed),

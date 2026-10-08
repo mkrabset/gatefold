@@ -433,7 +433,10 @@ UI preferences persisted to `localStorage` (`gatefold-ui`):
 - **Gate shapes**: AND (elliptical right side), OR/XOR (quadratic curves), NOT (triangle +
   bubble), CLOCK (rounded rect + zoom-scaled square-wave glyph), FAN-IN/FAN-OUT and
   BUS-SPLIT/BUS-MERGE (trapezoids, sized via shared `gateBounds`/`fillAndStroke`/
-  `drawBusTrapezoid*` helpers), COMPARE (a rounded box with an `=` glyph).
+  `drawBusTrapezoid*` helpers), COMPARE (a rounded box with an `=` glyph). A **BUS** draws its
+  three horizontal bus strokes normally, but when `flip` is set it swaps the middle stroke for a
+  small diagonal **X** (a crossing) to show the lane reversal — the first primitive to render
+  from instance props via `DrawOptions.props`.
 - **Terminals**: each pin is a vertical **stroke** along the component edge (blue sink / green
   source), its length `2·pinRadiusWorld(width)`. Hovering a terminal turns its marker **red**
   (`pinHighlight`) instead of drawing a separate ring. A composite port wired to an internal

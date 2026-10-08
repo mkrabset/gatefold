@@ -45,17 +45,35 @@ export class Bus extends Gate {
   }
 
   draw(ctx: VectorContext, opts: DrawOptions): void {
-    const { l, r, t, b, cy } = gateBounds(opts)
+    const { l, r, t, b, cx, cy } = gateBounds(opts)
     ctx.beginPath()
     ctx.roundRect(l, t, r - l, b - t, 6)
     ctx.fill(opts.palette.gateFill)
     ctx.stroke(opts.palette.gateStroke, 1.5)
-    // Three horizontal strokes to read as a bus.
-    for (const dy of [-4, 0, 4]) {
+    if (opts.props?.flip === true) {
+      // Flipped: the outer lanes stay straight while the middle lanes cross over — a
+      // small diagonal "X" in the centre reads as the lane reversal.
+      for (const dy of [-4, 4]) {
+        ctx.beginPath()
+        ctx.moveTo(l + 6, cy + dy)
+        ctx.lineTo(r - 6, cy + dy)
+        ctx.stroke(opts.palette.gateStroke, 1)
+      }
+      const s = 6
       ctx.beginPath()
-      ctx.moveTo(l + 6, cy + dy)
-      ctx.lineTo(r - 6, cy + dy)
+      ctx.moveTo(cx - s, cy - s)
+      ctx.lineTo(cx + s, cy + s)
+      ctx.moveTo(cx - s, cy + s)
+      ctx.lineTo(cx + s, cy - s)
       ctx.stroke(opts.palette.gateStroke, 1)
+    } else {
+      // Three horizontal strokes to read as a bus.
+      for (const dy of [-4, 0, 4]) {
+        ctx.beginPath()
+        ctx.moveTo(l + 6, cy + dy)
+        ctx.lineTo(r - 6, cy + dy)
+        ctx.stroke(opts.palette.gateStroke, 1)
+      }
     }
   }
 }

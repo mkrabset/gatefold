@@ -20,6 +20,9 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
   - **Verilog** (`verilog.ts`) — a flipped BUS emits the LSB-first concatenation
     `{in[0], in[1], …, in[n-1]}`, with input/output inversion applied afterwards (a 1-lane bus
     flips to itself).
+  - **Rendering** — `DrawOptions` gained an optional `props` field (threaded from
+    `drawInstance`), so a flipped BUS draws a small diagonal **X** (a crossing) in place of its
+    middle bus stroke to show the reversal.
   - Tests in `primitives.test.ts`/`transfer.test.ts`, `engine.test.ts` (sim propagation), and
     `verilog.test.ts`; docs updated (`GLOSSARY.md`, `USER_GUIDE.md`, `ARCHITECTURE.md`).
 

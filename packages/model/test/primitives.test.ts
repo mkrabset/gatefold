@@ -23,6 +23,8 @@ import {
   registerPorts,
   registerBusWidth,
   registerWidthOf,
+  triggerOnOf,
+  triggerPauseOf,
   romAddressWidthOf,
   romDataWidthOf,
   romContentsOf,
@@ -485,7 +487,28 @@ describe('model primitives', () => {
     expect(portWidth(def('probe'), inP('probe')[0])).toBe(1)
     expect(isProbeDef(def('probe'))).toBe(true)
     expect(isProbeDef(def('and'))).toBe(false)
-    expect(defaultPropsOf('probe')).toEqual({})
+    expect(defaultPropsOf('probe')).toEqual({ triggerPause: false, triggerOn: 'RISING_EDGE' })
+  })
+
+  it('declares the PROBE trigger-pause properties and resolvers', () => {
+    const props = primitiveOf('probe').properties()
+    expect(props.map((p) => p.name)).toEqual(['triggerPause', 'triggerOn'])
+    const pause = props.find((p) => p.name === 'triggerPause')!
+    expect(pause.type).toBe('boolean')
+    expect(pause.default).toBe(false)
+    const on = props.find((p) => p.name === 'triggerOn')!
+    expect(on.type).toBe('select')
+    expect(on.default).toBe('RISING_EDGE')
+    if (on.type === 'select') expect(on.options).toEqual(['RISING_EDGE', 'FALLING_EDGE', 'EDGE'])
+
+    // Resolvers: unknown/absent defaults, exact-true gating.
+    expect(triggerPauseOf(undefined)).toBe(false)
+    expect(triggerPauseOf({ triggerPause: true })).toBe(true)
+    expect(triggerPauseOf({ triggerPause: false })).toBe(false)
+    expect(triggerOnOf(undefined)).toBe('RISING_EDGE')
+    expect(triggerOnOf({ triggerOn: 'FALLING_EDGE' })).toBe('FALLING_EDGE')
+    expect(triggerOnOf({ triggerOn: 'EDGE' })).toBe('EDGE')
+    expect(triggerOnOf({ triggerOn: 'bogus' })).toBe('RISING_EDGE')
   })
 
   it('declares COMPARE with two equal derived-width inputs and one single-wire output', () => {

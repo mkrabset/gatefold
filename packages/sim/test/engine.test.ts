@@ -1515,3 +1515,66 @@ describe('Simulation probe history', () => {
     expect(events).toEqual([{ value: 1 }])
   })
 })
+
+describe('Simulation probe trigger', () => {
+  const probeDesign = (props: Instance['props']) =>
+    mkDesign([clk('clk', { period: 1000 }), inst('p', 'probe', props)], [conn('c1', iref('clk', 'out:0'), iref('p', 'in:0'))])
+
+  it('does not fire when triggerPause is disabled', () => {
+    const sim = new Simulation(probeDesign(undefined))
+    sim.advanceTo(1200)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(false)
+  })
+
+  it('fires on a rising edge only when RISING_EDGE is armed', () => {
+    const sim = new Simulation(probeDesign({ triggerPause: true, triggerOn: 'RISING_EDGE' }))
+    // Clock powers on high: 1→0 at t=500 (falling), 0→1 at t=1000 (rising).
+    sim.advanceTo(600)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(false)
+    sim.advanceTo(1200)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(true)
+  })
+
+  it('fires on a falling edge with FALLING_EDGE', () => {
+    const sim = new Simulation(probeDesign({ triggerPause: true, triggerOn: 'FALLING_EDGE' }))
+    sim.advanceTo(600)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(true)
+  })
+
+  it('fires on either edge with EDGE', () => {
+    const sim = new Simulation(probeDesign({ triggerPause: true, triggerOn: 'EDGE' }))
+    sim.advanceTo(600)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(true)
+  })
+
+  it('clears the latch after being consumed', () => {
+    const sim = new Simulation(probeDesign({ triggerPause: true, triggerOn: 'EDGE' }))
+    sim.advanceTo(600)
+    sim.settle()
+    expect(sim.consumeTrigger()).toBe(true)
+    expect(sim.consumeTrigger()).toBe(false)
+  })
+
+  it('fires when any lane of a bus probe meets the condition', () => {
+    const sim = new Simulation(
+      mkDesign(
+        [inst('a', 'switch-array'), inst('b', 'switch-array'), inst('fi', fanIn2), inst('p', 'probe', { triggerPause: true, triggerOn: 'RISING_EDGE' })],
+        [
+          conn('c0', iref('a', 'out:0'), iref('fi', 'in:0')),
+          conn('c1', iref('b', 'out:0'), iref('fi', 'in:1')),
+          conn('c2', iref('fi', 'out:0'), iref('p', 'in:0')),
+        ],
+      ),
+    )
+    expect(sim.consumeTrigger()).toBe(false)
+    // Only lane 0 rises (0→1); lane 1 stays 0.
+    sim.setSwitch('a', 1)
+    sim.step()
+    expect(sim.consumeTrigger()).toBe(true)
+  })
+})

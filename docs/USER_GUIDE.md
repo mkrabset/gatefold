@@ -485,12 +485,16 @@ its properties, and what it does.
   **Order** picks which end of the bus is the least-significant bit for the display.
 
 ### PROBE
-- **Inputs:** 1 (`IN`) · **Outputs:** none · Properties none
+- **Inputs:** 1 (`IN`) · **Outputs:** none · Properties: **Pause on trigger**, **Trigger on**
 - A monitoring tap: it records the signal on whatever it is wired to (a single wire or a whole
   bus, adopting the connected width) so you can inspect it in the **Simulation timeline** (§7).
   It has no effect on the circuit. Probes are **not grouped** — if you select a probe alongside
   other components and click **Group**, the probe stays on the sheet and keeps tapping the new
   component's output. A probe is ignored by the Verilog export.
+- **Pause on trigger** arms a run pause: when enabled, the simulation stops the moment the
+  probe's input meets the **Trigger on** condition. The condition is an edge — `RISING_EDGE`
+  (`0`→`1`), `FALLING_EDGE` (`1`→`0`), or `EDGE` (either). On a **bus** input the trigger fires
+  if *any* lane meets the condition. Only strict `0`↔`1` transitions count (`x` never triggers).
 
 > **Internal primitives** (`INPUT-PORT` / `OUTPUT-PORT`) are not in the palette: they model a
 > composite's own input/output terminals internally and are created automatically when you

@@ -1,8 +1,21 @@
-import type { Port, PrimitiveKind, Signal } from '../types'
+import type { Port, PrimitiveKind, PropertyValue, Signal } from '../types'
 import { inputPortId } from '../ports'
 import { Gate, fillAndStroke, gateBounds } from './gate'
-import type { DrawOptions } from './primitive'
+import type { DrawOptions, PropertySpec } from './primitive'
 import type { VectorContext } from './vector'
+
+/** The edge condition that arms a probe's pause trigger. */
+export type TriggerOn = 'RISING_EDGE' | 'FALLING_EDGE' | 'EDGE'
+
+/** Resolve an instance's trigger condition from its `triggerOn` property (absent/unknown → RISING_EDGE). */
+export function triggerOnOf(props?: Record<string, PropertyValue>): TriggerOn {
+  return props?.triggerOn === 'FALLING_EDGE' || props?.triggerOn === 'EDGE' ? props.triggerOn : 'RISING_EDGE'
+}
+
+/** Whether an instance's `triggerPause` property is enabled (pauses the simulation on a trigger). */
+export function triggerPauseOf(props?: Record<string, PropertyValue>): boolean {
+  return props?.triggerPause === true
+}
 
 /**
  * A monitoring probe: a single input terminal that taps a wire (single) or bus and is
@@ -10,6 +23,8 @@ import type { VectorContext } from './vector'
  * outputs and does not affect the circuit. Its input adopts the connected width (neutral
  * single-wire or bus). Probes are excluded from grouping, so a probe selected alongside
  * real components stays in the parent sheet rather than moving into the new component.
+ * When `triggerPause` is enabled, an edge on the input (per the `triggerOn` condition,
+ * met on any lane of a bus) pauses a running simulation.
  */
 export class Probe extends Gate {
   readonly kind: PrimitiveKind = 'probe'
@@ -34,6 +49,13 @@ export class Probe extends Gate {
   /** A neutral (adopting) terminal: single-wire or bus, whichever it is connected to. */
   intrinsicWidth(): number | null {
     return null
+  }
+
+  properties(): PropertySpec[] {
+    return [
+      { name: 'triggerPause', label: 'Pause on trigger', type: 'boolean', default: false, tooltip: 'Pause a running simulation when this probe\'s input meets the trigger condition (any lane of a bus).' },
+      { name: 'triggerOn', label: 'Trigger on', type: 'select', default: 'RISING_EDGE', options: ['RISING_EDGE', 'FALLING_EDGE', 'EDGE'], tooltip: 'The edge that arms the pause trigger: a 0→1 rising edge, a 1→0 falling edge, or either.' },
+    ]
   }
 
   transfer(): Signal[][] {

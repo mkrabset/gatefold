@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-08 (BUS `flip` property; DRY refactor of the sequential/generator/store layers).
+Last updated: 2026-10-09 (probe `triggerPause`/`triggerOn` pause trigger).
 
 ## Where we are
 
@@ -12,6 +12,24 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Probe pause trigger** — the PROBE primitive gained two properties that pause a running
+  simulation when its input crosses a configured edge:
+  - **Model** (`primitives/probe.ts`) — `properties()` declares `triggerPause` (boolean, default
+    `false`) and `triggerOn` (`select`, default `RISING_EDGE`, options `RISING_EDGE`/`FALLING_EDGE`/
+    `EDGE`); `triggerPauseOf`/`triggerOnOf` resolve them (unknown → `RISING_EDGE`, exact-true
+    gating for `triggerPause`). Exported from `primitives/index.ts` with the `TriggerOn` type.
+  - **Sim** (`engine.ts` + `signals.ts`) — `isTriggerEdge(trigger, prev, next)` matches strict
+    `0↔1` transitions (`x` never triggers). Probe lanes now enumerate regardless of a
+    `HistoryBuffer` (previously gated on it), each carrying its `trigger` mode; `setNet` latches
+    `triggerFired` when a trigger-armed lane crosses its edge (any lane of a bus), and
+    `consumeTrigger()` returns+clears the latch. The history recording and trigger check share
+    the same `prev`/`next` computation in `setNet`.
+  - **App** (`simStore.run()`) — discards any latch left by manual stepping on play, and pauses
+    (`stop()`) each run tick when `consumeTrigger()` is true (alongside the history-full check).
+  - Tests: `primitives.test.ts` (defaults + resolvers), `engine.test.ts` (`Simulation probe
+    trigger`: disabled, rising/falling/EDGE, latch clearing, bus any-lane). Docs updated
+    (`GLOSSARY.md`, `USER_GUIDE.md`, `ARCHITECTURE.md`).
 
 - **BUS `flip` property** — the BUS primitive gained a boolean `flip` property (default `false`)
   that reverses the lane order, so the input LSB becomes the output MSB (width is unchanged).

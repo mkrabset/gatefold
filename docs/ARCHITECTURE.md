@@ -240,6 +240,10 @@ design.root.instances = [
   (§6c) and **excluded from grouping** — `isProbeDef` marks it non-groupable in `group.ts`
   (alongside port groups), so a probe selected with real components stays in the parent and its
   input reads as an external target of the new component's output. The Verilog exporter ignores it.
+  It declares two **trigger** properties: `triggerPause` (boolean, default false) arms a
+  simulation pause, and `triggerOn` (`RISING_EDGE`/`FALLING_EDGE`/`EDGE`, default `RISING_EDGE`)
+  picks the edge condition (resolved by `triggerPauseOf`/`triggerOnOf`); the pause fires on
+  **any** lane of a bus probe, for strict `0↔1` transitions only.
   The **NODE join-point** (`join-point`) is a single-wire passthrough with coincident terminals:
   its `coincidentTerminals()` drives special geometry (`portPosition` returns the body center,
   `instanceBodySize` stays a dot), `hitTestPort`'s `prefer` role disambiguates press (source) vs
@@ -677,7 +681,11 @@ A pure, framework-free package (`packages/sim`, depends only on `@gatefold/model
 (each `probe` leaf's input net, one lane per wire) and seeds their base from the settled power-on
 state; every net write flows through a `setNet` helper that records a probe-lane event when a bit
 actually changes (in `drainEvents` — covering clock toggles and gate/DFF events — and in
-`driveSource` — covering switch toggles).
+`driveSource` — covering switch toggles). Each probe lane also carries its **pause-trigger**
+condition (from `triggerPauseOf`/`triggerOnOf`), and `setNet` latches `triggerFired` when a
+trigger-armed lane crosses its edge (`isTriggerEdge`, strict `0↔1`). `consumeTrigger()` returns
+and clears the latch; the app's `simStore.run()` polls it each tick to `stop()` the simulation
+(and discards any latch left by manual stepping on the next `run()`).
 
 `Primitive.transfer(inputs: Signal[][], props?: Record<string, PropertyValue>): Signal[][]` is the
 per-kind combinational function

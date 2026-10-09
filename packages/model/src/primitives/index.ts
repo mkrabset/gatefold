@@ -22,7 +22,9 @@ import { Register } from './register'
 import { Counter } from './counter'
 import { Rom } from './rom'
 import { JoinPoint } from './join-point'
-import { Probe } from './probe'
+import { Probe, triggerOnOf, triggerPauseOf } from './probe'
+export type { TriggerOn } from './probe'
+export { triggerOnOf, triggerPauseOf }
 
 export type { Primitive, Palette, DrawOptions, PropertySpec } from './primitive'
 export type { VectorContext } from './vector'

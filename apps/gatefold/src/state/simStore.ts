@@ -155,8 +155,9 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
       if (get().mode === 'design') enterSim()
       const engine = get().engine
       if (!engine) return
-      // Fresh timing lamps on each play/resume.
+      // Fresh timing lamps on each play/resume; discard any trigger latched while stepping.
       engine.resetTiming()
+      engine.consumeTrigger()
       set({ running: true })
       runTimer = setInterval(() => {
         const { engine, history } = get()
@@ -168,8 +169,9 @@ export const useSimStore = create<SimState>()((set, get): SimState => {
         engine.advanceTo(engine.time + slice)
         engine.settle()
         set((s) => ({ version: s.version + 1 }))
-        // STOP limit mode: pause once the history buffer is full.
-        if (history?.full) get().stop()
+        // STOP limit mode: pause once the history buffer is full; pause on a probe trigger.
+        const triggered = engine.consumeTrigger()
+        if (history?.full || triggered) get().stop()
       }, 16)
     },
 

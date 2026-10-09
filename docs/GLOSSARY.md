@@ -89,7 +89,10 @@ authoritative — update this when a term's meaning changes.
   width (neutral: single-wire or bus), it has no outputs, it does not affect the circuit, and
   inversion is disabled (it reads the raw net). Probes are **excluded from grouping**: a probe
   selected alongside real components stays in the parent sheet (its input reads as an external
-  target of the new component's output), and Verilog export ignores it.
+  target of the new component's output), and Verilog export ignores it. A **trigger** can pause a
+  running simulation: `triggerPause` (boolean, default false) arms it, and `triggerOn`
+  (`RISING_EDGE` / `FALLING_EDGE` / `EDGE`) picks the edge — met on **any** lane of a bus probe,
+  for strict `0↔1` transitions only (`x` never triggers).
 - **Switches / LEDs** — multi-lane source/sink probes. A `terminalType` property picks
   `wire` (one single-wire terminal per lane, added/removed via the ports editor) or `bus`
   (one terminal whose width is adopted from the connection, rendering a `?` while

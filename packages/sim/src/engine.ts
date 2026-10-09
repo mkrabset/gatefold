@@ -1,8 +1,8 @@
-import type { Design, Signal } from '@gatefold/model'
-import { incrementSwitchLanes, primitiveOf, periodOf, switchInitialLanes, valueOrderOf } from '@gatefold/model'
+import type { Design, Signal, TriggerOn } from '@gatefold/model'
+import { incrementSwitchLanes, primitiveOf, periodOf, switchInitialLanes, triggerOnOf, triggerPauseOf, valueOrderOf } from '@gatefold/model'
 import { DEFAULT_CONFIG, delayOf, type SimConfig } from './config'
 import { flatten, type FlatInstance, type FlatPort } from './netlist'
-import { clockValue, equalVectors, incrementVector, invert, invertVector } from './signals'
+import { clockValue, equalVectors, incrementVector, invert, invertVector, isTriggerEdge } from './signals'
 import type { HistoryBuffer } from './history'
 
 /** Per-net change threshold above which a net is considered oscillating. */
@@ -131,7 +131,9 @@ export class Simulation {
   /** Optional probe-signal history recorder (one entry per lane signal change). */
   private history?: HistoryBuffer
   /** The probe lanes to record: each maps a net + bit to a global history lane index. */
-  private probeLanes: { net: number; lane: number; globalLane: number }[] = []
+  private probeLanes: { net: number; lane: number; globalLane: number; trigger: TriggerOn | null }[] = []
+  /** Latched: a probe's pause-trigger condition has been met (cleared by `consumeTrigger`). */
+  private triggerFired = false
   /** Latched: the logic has failed to settle within half a clock period. */
   timingHalfViolation = false
   /** Latched: the logic has failed to settle within a full clock period. */
@@ -148,25 +150,25 @@ export class Simulation {
     this.stepMode = config.stepMode
     this.history = history
 
-    // Enumerate probe lanes for the history recorder: one group per probe (a single-wire
-    // probe contributes one lane, a bus probe one per wire). Lanes stay contiguous per
-    // group, so the timeline can move a whole probe (bus) as one unit.
-    if (this.history) {
-      const groups: { label: string; lanes: number }[] = []
-      let laneIndex = 0
-      for (const inst of this.instances) {
-        if (inst.kind !== 'probe') continue
-        const input = inst.inputs[0]
-        if (!input) continue
-        const width = this.netWidths[input.net] || 1
-        groups.push({ label: inst.label, lanes: width })
-        for (let lane = 0; lane < width; lane++) {
-          this.probeLanes.push({ net: input.net, lane, globalLane: laneIndex })
-          laneIndex++
-        }
+    // Enumerate probe lanes (one group per probe; a single-wire probe contributes one
+    // lane, a bus probe one per wire). Lanes stay contiguous per group, so the timeline
+    // can move a whole probe (bus) as one unit. Needed for the history recorder and for
+    // pause triggers, so it runs even without a history buffer.
+    const groups: { label: string; lanes: number }[] = []
+    let laneIndex = 0
+    for (const inst of this.instances) {
+      if (inst.kind !== 'probe') continue
+      const input = inst.inputs[0]
+      if (!input) continue
+      const width = this.netWidths[input.net] || 1
+      const trigger = triggerPauseOf(inst.props) ? triggerOnOf(inst.props) : null
+      groups.push({ label: inst.label, lanes: width })
+      for (let lane = 0; lane < width; lane++) {
+        this.probeLanes.push({ net: input.net, lane, globalLane: laneIndex, trigger })
+        laneIndex++
       }
-      this.history.setGroups(groups)
     }
+    this.history?.setGroups(groups)
 
     const n = netlist.netCount
     // Power-on: driven nets start at 0; floating (undriven) nets stay unknown, except
@@ -231,15 +233,15 @@ export class Simulation {
     return this.values[net] ?? ['x']
   }
 
-  /** Assign a net's value, recording any probe-lane signal changes into the history. */
+  /** Assign a net's value, recording any probe-lane signal changes into the history and
+   *  latching a pause trigger when a trigger-armed probe lane crosses its edge condition. */
   private setNet(net: number, value: Signal[], t: number): void {
-    if (this.history) {
-      for (const pl of this.probeLanes) {
-        if (pl.net !== net) continue
-        const prev = this.valueOf(net)[pl.lane] ?? 'x'
-        const next = value[pl.lane] ?? 'x'
-        if (next !== prev) this.history.record(pl.globalLane, t, next)
-      }
+    for (const pl of this.probeLanes) {
+      if (pl.net !== net) continue
+      const prev = this.valueOf(net)[pl.lane] ?? 'x'
+      const next = value[pl.lane] ?? 'x'
+      if (this.history && next !== prev) this.history.record(pl.globalLane, t, next)
+      if (pl.trigger && isTriggerEdge(pl.trigger, prev, next)) this.triggerFired = true
     }
     this.values[net] = value
   }
@@ -525,6 +527,14 @@ export class Simulation {
   resetTiming(): void {
     this.timingHalfViolation = false
     this.timingFullViolation = false
+  }
+
+  /** True once since the last call if a trigger-armed probe fired its pause condition,
+   *  clearing the latch. The app's run loop polls this to pause the simulation. */
+  consumeTrigger(): boolean {
+    const fired = this.triggerFired
+    this.triggerFired = false
+    return fired
   }
 
   /** Advance time to `t`, processing every event (including clock edges) up to `t`. */

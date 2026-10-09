@@ -1,4 +1,4 @@
-import { invertSignal, type Signal } from '@gatefold/model'
+import { invertSignal, type Signal, type TriggerOn } from '@gatefold/model'
 
 /** 3-state NOT of a single bit (the canonical model implementation). */
 export const invert = invertSignal
@@ -19,6 +19,13 @@ export function equalVectors(a: Signal[], b: Signal[]): boolean {
 export function clockValue(period: number, t: number): Signal {
   if (period <= 0) return 0
   return t % period < period / 2 ? 1 : 0
+}
+
+/** Whether `prev → next` is an edge matching `trigger` (strict 0↔1 transitions only). */
+export function isTriggerEdge(trigger: TriggerOn, prev: Signal, next: Signal): boolean {
+  if (trigger === 'RISING_EDGE') return prev === 0 && next === 1
+  if (trigger === 'FALLING_EDGE') return prev === 1 && next === 0
+  return (prev === 0 && next === 1) || (prev === 1 && next === 0)
 }
 
 /**

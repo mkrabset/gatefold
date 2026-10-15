@@ -33,6 +33,7 @@ import {
   isPrimitiveKind,
   isProbeDef,
   isTemplateDef,
+  LIBRARY_KINDS,
   MAIN_INSTANCE_ID,
   nextConnectionId,
   newUuid,
@@ -240,7 +241,7 @@ interface EditorState {
   exportLibrary: () => void
   importLibrary: (json: string) => void
   exportVerilog: () => void
-  addTestInstance: (kind: string, pos: { x: number; y: number }) => void
+  addTestInstance: (kind: string, pos: { x: number; y: number }) => string | undefined
   setMainPos: (pos: { x: number; y: number }) => void
   setTestInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
   setTestInstanceProp: (id: string, name: string, value: PropertyValue) => void
@@ -383,8 +384,12 @@ function instantiateChild(
   return id
 }
 
-/** The outside-world components placeable in the test-bench sheet (the "Testing" tab). */
-export const TEST_IO_KINDS: PrimitiveKind[] = ['clock', 'switch-array', 'led-array', 'seven-seg', 'probe']
+/**
+ * The components placeable in the test-bench sheet (the "Testing" tab): the full set of
+ * library primitives, so any primitive can model external circuitry around `main`. Port
+ * groups are internal-only and are never in `LIBRARY_KINDS`.
+ */
+export const TEST_IO_KINDS: PrimitiveKind[] = LIBRARY_KINDS
 
 /** Return the design's test bench, creating an empty one on first use. */
 function ensureTestbench(s: EditorState): Testbench {
@@ -1198,14 +1203,17 @@ export const useEditorStore = create<EditorState>()(
         }
       },
 
-      addTestInstance: (kind, pos) =>
+      addTestInstance: (kind, pos) => {
+        if (!isPrimitiveKind(kind) || !TEST_IO_KINDS.includes(kind)) return undefined
+        let id: string | undefined
         set((s) => {
-          if (!isPrimitiveKind(kind) || !TEST_IO_KINDS.includes(kind)) return
           const tb = ensureTestbench(s)
           const srcDef = forkOf(kind)
           // Default instance name is empty, except CLOCK which keeps its label.
-          instantiateChild(tb.instances, srcDef, pos, allCompositeIds(s.design), (k) => k === 'clock')
-        }),
+          id = instantiateChild(tb.instances, srcDef, pos, allCompositeIds(s.design), (k) => k === 'clock')
+        })
+        return id
+      },
 
       setMainPos: (pos) =>
         set((s) => {

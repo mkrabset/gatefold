@@ -1001,6 +1001,31 @@ describe('editorStore testbench actions', () => {
     expect(tb().instances[0].props?.period).toBeDefined()
   })
 
+  it('adds any library primitive as an external instance', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('dff', { x: -100, y: 0 })
+    s.addTestInstance('and', { x: -80, y: 0 })
+    expect(tb().instances).toHaveLength(2)
+    expect(tb().instances[0].def.kind).toBe('fork')
+    expect(tb().instances[0].props?.initialValue).toBeDefined()
+    expect(tb().instances[1].def.kind).toBe('fork')
+  })
+
+  it('returns the id of the newly added external instance', () => {
+    resetTb()
+    const id = useEditorStore.getState().addTestInstance('clock', { x: -100, y: 0 })
+    expect(id).toBeDefined()
+    expect(tb().instances).toHaveLength(1)
+    expect(tb().instances[0].id).toBe(id)
+  })
+
+  it('returns undefined for a non-placeable kind', () => {
+    resetTb()
+    expect(useEditorStore.getState().addTestInstance('input-port', { x: -100, y: 0 })).toBeUndefined()
+    expect(useEditorStore.getState().design.testbench).toBeUndefined()
+  })
+
   it('wires a switch to main and rejects a second driver on the same pin', () => {
     resetTb()
     const s = useEditorStore.getState()

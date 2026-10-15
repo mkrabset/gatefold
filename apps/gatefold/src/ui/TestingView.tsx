@@ -400,7 +400,8 @@ function TestingCanvas() {
     const rect = wrapRef.current!.getBoundingClientRect()
     const wx = state.viewport.x + (e.clientX - rect.left - rect.width / 2) / state.viewport.zoom
     const wy = state.viewport.y + (e.clientY - rect.top - rect.height / 2) / state.viewport.zoom
-    useEditorStore.getState().addTestInstance(kind, { x: wx, y: wy })
+    const id = useEditorStore.getState().addTestInstance(kind, { x: wx, y: wy })
+    if (id) useTestStore.getState().setSelection([id])
   }
 
   return (
@@ -434,7 +435,7 @@ export function TestingView() {
             </button>
           )
         })}
-        <span className="testing-hint">Drag a component onto the sheet to drive or read the “{useEditorStore.getState().design.root.name}” ports</span>
+        <span className="testing-hint">Drag a component onto the sheet to model external circuitry around the “{useEditorStore.getState().design.root.name}” ports</span>
       </div>
       <TestingCanvas />
     </div>

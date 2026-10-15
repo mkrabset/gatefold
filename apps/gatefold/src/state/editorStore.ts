@@ -249,6 +249,8 @@ interface EditorState {
   retargetTestConnection: (id: string, to: PinRef) => void
   removeTestConnection: (id: string) => void
   deleteTestInstances: (ids: string[]) => void
+  copyTestSelection: (ids: string[]) => void
+  pasteTest: () => string[]
 }
 
 /** Prune the parent sheet's wires to the current scope's removed ports (a no-op unless
@@ -1110,6 +1112,33 @@ export const useEditorStore = create<EditorState>()(
           })
           s.selectedIds = newIds
         }),
+      copyTestSelection: (ids) => {
+        const s = get()
+        const tb = s.design.testbench
+        if (!tb) return
+        const clip = captureClipboard(testbenchComposite(s.design, tb), ids)
+        if (clip) {
+          clipboard = clip
+          pasteOffset = 0
+        }
+      },
+      pasteTest: () => {
+        if (!clipboard) return []
+        pasteOffset += 24
+        let newIds: string[] = []
+        set((s) => {
+          const tb = ensureTestbench(s)
+          const composite = testbenchComposite(s.design, tb)
+          newIds = instantiateClipboard(composite, clipboard!, allCompositeIds(s.design), {
+            x: pasteOffset,
+            y: pasteOffset,
+          })
+          // Write the pasted instances back to the Testbench shape (connections are
+          // mutated in place via the shared `composite.connections` reference).
+          tb.instances = composite.instances.filter((i) => i.id !== MAIN_INSTANCE_ID)
+        })
+        return newIds
+      },
       applyTemplateToInstances: (templateId) =>
         set((s) => {
           const def = currentDef(s)

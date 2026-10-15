@@ -61,10 +61,18 @@ export default function App() {
       const key = e.key.toLowerCase()
       if (mod && key === 'c') {
         e.preventDefault()
-        useEditorStore.getState().copySelection()
+        if (useUiStore.getState().middleTab === 'testing') {
+          useEditorStore.getState().copyTestSelection(useTestStore.getState().selectedIds)
+        } else {
+          useEditorStore.getState().copySelection()
+        }
       } else if (mod && key === 'v') {
         e.preventDefault()
-        useEditorStore.getState().paste()
+        if (useUiStore.getState().middleTab === 'testing') {
+          useTestStore.getState().setSelection(useEditorStore.getState().pasteTest())
+        } else {
+          useEditorStore.getState().paste()
+        }
       } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault()
         if (useUiStore.getState().middleTab === 'testing') {

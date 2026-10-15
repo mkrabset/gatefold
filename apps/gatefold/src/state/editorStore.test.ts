@@ -1082,4 +1082,30 @@ describe('editorStore testbench actions', () => {
     expect(tb().instances[0].props?.terminalType).toBe('wire')
     expect(tb().instances[0].def.kind).toBe('fork')
   })
+
+  it('copies from the test bench and pastes into the design', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    const id = s.addTestInstance('clock', { x: -100, y: 0 })!
+    const before = mainInstances().length
+    s.copyTestSelection([id])
+    s.paste()
+    expect(mainInstances().length).toBe(before + 1)
+    const pasted = mainInstances()[mainInstances().length - 1]
+    expect(pasted.def.kind === 'fork' && pasted.def.primitive).toBe('clock')
+  })
+
+  it('copies a primitive from the design and pastes into the test bench', () => {
+    reset()
+    const s = useEditorStore.getState()
+    s.setSelection(['inv1'])
+    s.copySelection()
+    const ids = s.pasteTest()
+    expect(ids).toHaveLength(1)
+    expect(tb().instances).toHaveLength(1)
+    const pasted = tb().instances[0]
+    expect(pasted.id).toBe(ids[0])
+    expect(pasted.def.kind === 'fork' && pasted.def.primitive).toBe('not')
+    expect(tb().instances.some((i) => i.id === MAIN_INSTANCE_ID)).toBe(false)
+  })
 })

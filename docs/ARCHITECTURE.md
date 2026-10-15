@@ -535,9 +535,14 @@ Delete/Backspace delete, Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z / Ctrl/Cmd+Y redo.
   instance's id). Port add/remove is gated by `fixedInputs`/`fixedOutputs`, rename by
   `allowRenameTerminals`; reorder is animated via @dnd-kit. The store port actions take an
   optional instance id, and `removePort` prunes the parent sheet's wires to a removed terminal.
-- **Library panel** (right) — primitive palette + user composites (drag onto the canvas to
-  place a deep copy; embedded copies are not listed as templates). The "My components" grid
-  scrolls independently when it overflows.
+- **Library panel** (right) — user composites only (drag onto the canvas to place a deep copy;
+  embedded copies are not listed as templates). The "My components" grid scrolls independently
+  when it overflows.
+- **Primitive palette** (`ui/PrimitivePalette.tsx`) — a horizontal strip of draggable primitive
+  cards shared by the **Designer** (`ui/DesignerView.tsx`, above the `Canvas`) and **Testing**
+  views; it replaced the primitives section formerly in the right-hand library panel. Drag sets
+  the `application/x-gatefold-def` payload the canvas drop handlers expect, with a custom
+  join-point dot drag image sized to the active view's zoom.
 - **GroupDialog** — names the inferred ports before creating a composite.
 - **NewComponentDialog** — names a brand-new empty composite; `confirmNewComponent` places it
   as a live copy with no template/uuid (promoted to the library by grouping later).
@@ -870,13 +875,15 @@ input ports and read its outputs — without polluting the design or its Verilog
   existing zundo `partialize({ design })`), via new actions `addTestInstance`, `setMainPos`,
   `setTestInstancesPosition`, `addTestConnection`/`retargetTestConnection`/`removeTestConnection`,
   and `deleteTestInstances` (which never deletes `main`). A separate transient `testStore` holds the
-  canvas viewport/selection/hover/marquee/pending-wire.
-- **UI** — `uiStore.MiddleTab` gains `'testing'`; `ui/TestingView.tsx` renders a small IO palette
-  (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) above a canvas that reuses `drawScene`/`hitTest`/
-  `hitTestPort`/`wireSearch` against `currentTestbenchComposite(design)` (memoized on the root and
-  test-bench object identities, so the width solver's cache stays warm). Interactions are a focused
-  subset: place (drag), move (incl. `main`), wire/grab/re-target/delete, marquee select, pan/zoom,
-  and in simulate mode switch toggling + the `#` set-value dialog. `main` is non-deletable.
+  canvas viewport/selection/hover/marquee/pending-wire. `addTestInstance` returns the new instance's
+  id (or `undefined` when the kind is rejected), so the drop handler can select the placed instance.
+- **UI** — `uiStore.MiddleTab` gains `'testing'`; `ui/TestingView.tsx` renders the shared
+  `PrimitivePalette` (the full primitive set, not just the IO kinds) above a canvas that reuses
+  `drawScene`/`hitTest`/`hitTestPort`/`wireSearch` against `currentTestbenchComposite(design)`
+  (memoized on the root and test-bench object identities, so the width solver's cache stays warm).
+  Interactions are a focused subset: place (drag), move (incl. `main`), wire/grab/re-target/delete,
+  marquee select, pan/zoom, and in simulate mode switch toggling + the `#` set-value dialog. `main`
+  is non-deletable.
 
 ---
 
@@ -993,12 +1000,14 @@ beside the data they operate on.
 | `editor/routing.ts` / `wireSearch.ts` | Bezier routing / wire-crossing search |
 | `editor/viewport.ts` | `w2s` / `s2w` transforms |
 | `editor/Canvas.tsx` | Canvas controller (pointer/wheel/drop interaction) |
+| `ui/DesignerView.tsx` | Designer tab: primitive strip above the canvas |
+| `ui/PrimitivePalette.tsx` | Shared draggable primitive strip (designer + testing) |
 | `state/editorStore.ts` | Document + editing store (immer + zundo) |
 | `state/simStore.ts` | Simulation runtime store (engine + history buffer) |
 | `state/uiStore.ts` | Persisted UI preferences (theme, panels, history settings, tab) |
 | `state/defaultState.ts` | `localStorage` default design |
 | `state/testStore.ts` | Transient canvas state for the "Testing" tab |
 | `ui/TimelineView.tsx` | Simulation timeline (probe waveform canvas) |
-| `ui/TestingView.tsx` | Test-bench sheet (IO palette + canvas) |
+| `ui/TestingView.tsx` | Test-bench sheet (primitive strip + canvas) |
 | `ui/*` | React panels/dialogs (toolbar, sidebar, library, dialogs) |
 | `util/*` | Downloads, share links, formatting |

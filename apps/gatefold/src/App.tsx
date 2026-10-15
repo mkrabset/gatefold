@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { Canvas } from './editor/Canvas'
 import { Toolbar } from './ui/Toolbar'
 import { Sidebar } from './ui/Sidebar'
 import { LibraryPanel } from './ui/LibraryPanel'
@@ -16,6 +15,7 @@ import { SwitchValueDialog } from './ui/SwitchValueDialog'
 import { RomContentsDialog } from './ui/RomContentsDialog'
 import { TimelineView } from './ui/TimelineView'
 import { TestingView } from './ui/TestingView'
+import { DesignerView } from './ui/DesignerView'
 import { Toast } from './ui/Toast'
 import { useUiStore } from './state/uiStore'
 import { useEditorStore } from './state/editorStore'
@@ -134,7 +134,7 @@ export default function App() {
             </button>
           </div>
           <div className="center-content">
-            {middleTab === 'designer' ? <Canvas /> : middleTab === 'timeline' ? <TimelineView /> : <TestingView />}
+            {middleTab === 'designer' ? <DesignerView /> : middleTab === 'timeline' ? <TimelineView /> : <TestingView />}
           </div>
         </div>
         {/* direction=-1: library is right of the handle, drag right shrinks it */}

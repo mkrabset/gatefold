@@ -1,30 +1,14 @@
 import { useRef, useState } from 'react'
-import { libraryPrimitives, isTemplateDef, templateCategory, templateCategories, UNCATEGORIZED } from '@gatefold/model'
+import { isTemplateDef, templateCategory, templateCategories, UNCATEGORIZED } from '@gatefold/model'
 import type { CompositeDef } from '@gatefold/model'
 import { useEditorStore } from '../state/editorStore'
 import { useSimStore } from '../state/simStore'
-import { useUiStore } from '../state/uiStore'
-import { darkPalette, lightPalette } from '../editor/palette'
-import { PRIMITIVE_ICONS } from '../icons'
 
 /**
- * Right panel: a palette of placeable primitives plus the user's composite
- * components (derived from the design's definitions). Drag a card to place a copy;
- * double-click a composite card to edit its template; import/export the custom
- * component library as JSON.
+ * Right panel: the user's composite components (derived from the design's definitions).
+ * Drag a card to place a copy; double-click a composite card to edit its template;
+ * import/export the custom component library as JSON.
  */
-
-/** A filled-circle drag image, sized to match the dropped NODE dot (`radius = 4·zoom`). */
-function joinpointDragImage(diameter: number, color: string): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = diameter
-  const ctx = canvas.getContext('2d')!
-  ctx.beginPath()
-  ctx.arc(diameter / 2, diameter / 2, diameter / 2, 0, Math.PI * 2)
-  ctx.fillStyle = color
-  ctx.fill()
-  return canvas
-}
 
 export function LibraryPanel({ width }: { width: number }) {
   const [active, setActive] = useState<string | null>(null)
@@ -75,41 +59,6 @@ export function LibraryPanel({ width }: { width: number }) {
   return (
     <aside className="library" style={{ width }}>
       <div className="side-title">Library</div>
-      <div className="lib-section-label">Primitives</div>
-      <div className="lib-grid">
-        {libraryPrimitives().map((p) => (
-          <button
-            key={p.kind}
-            className={`lib-card${active === p.kind ? ' active' : ''}`}
-            draggable={!simulating}
-            onDragStart={(e) => {
-              e.dataTransfer.setData('application/x-gatefold-def', p.kind)
-              if (p.kind === 'join-point') {
-                // Show the NODE as the filled dot it becomes on drop, sized to the
-                // current zoom (radius 4 world units → 4·zoom screen px).
-                const zoom = useEditorStore.getState().viewport.zoom
-                const diameter = Math.max(2, Math.ceil(8 * zoom))
-                const theme = useUiStore.getState().theme
-                const img = joinpointDragImage(diameter, (theme === 'dark' ? darkPalette : lightPalette).wire)
-                img.style.position = 'fixed'
-                img.style.left = img.style.top = '-9999px'
-                document.body.appendChild(img)
-                e.dataTransfer.setDragImage(img, diameter / 2, diameter / 2)
-                setTimeout(() => img.remove(), 0)
-              }
-            }}
-            onClick={() => setActive(p.kind)}
-            title={`Drag to place ${p.label}`}
-          >
-            {PRIMITIVE_ICONS[p.kind] ? (
-              <img className="lib-icon" src={PRIMITIVE_ICONS[p.kind]} alt={p.label} draggable={false} />
-            ) : (
-              <span className="lib-glyph">{p.glyph}</span>
-            )}
-            <span className="lib-label">{p.label}</span>
-          </button>
-        ))}
-      </div>
       <div className="lib-section-label">My components</div>
       <div className="lib-filter">
         <select value={effectiveFilter} onChange={(e) => setFilter(e.target.value)} title="Show one category at a time">

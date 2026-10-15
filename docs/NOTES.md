@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-09 (probe `triggerPause`/`triggerOn` pause trigger).
+Last updated: 2026-10-15 (primitive strip in the Designer tab; full primitive set in Testing).
 
 ## Where we are
 
@@ -12,6 +12,27 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Primitive strip in the Designer tab; library panel slimmed** — the placeable primitives moved
+  from the right-hand library panel to a horizontal strip above the Designer canvas, mirroring the
+  Testing tab's strip, so primitives aren't shown in two places:
+  - **App** — new shared `ui/PrimitivePalette.tsx` (draggable primitive cards; sets the
+    `application/x-gatefold-def` payload, with the join-point dot drag image sized to the active
+    view's zoom via a `zoomOf` callback). New `ui/DesignerView.tsx` renders the strip
+    (`LIBRARY_KINDS`) above `Canvas`; `App.tsx` renders it for the Designer tab. `ui/TestingView.tsx`
+    now reuses the same component (`TEST_IO_KINDS`). `ui/LibraryPanel.tsx` drops its "Primitives"
+    grid (and the now-unused `libraryPrimitives`/icon/joinpoint-drag-image imports), keeping only
+    "My components". CSS: `.testing*` palette classes renamed to generic `.canvas-view` /
+    `.palette-strip` / `.palette-item` / `.palette-hint`.
+
+- **Testing panel: any primitive, and select-on-drop** —
+  - `TEST_IO_KINDS` (`state/editorStore.ts`) is now the full `LIBRARY_KINDS` set, so every
+    placeable primitive can model external circuitry around `main` (port groups stay internal-only).
+    `addTestInstance` returns the new instance's id (or `undefined` when the kind is rejected), and
+    `ui/TestingView.tsx`'s drop handler selects it (clearing any prior selection) via `testStore`.
+    The Designer already selected on drop (`addInstance` sets `selectedIds = [id]`).
+  - Tests: `editorStore.test.ts` (non-IO primitives addable; returned id; rejected kind returns
+    `undefined` without creating a test bench).
 
 - **Probe pause trigger** — the PROBE primitive gained two properties that pause a running
   simulation when its input crosses a configured edge:

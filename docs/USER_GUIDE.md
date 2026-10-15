@@ -16,11 +16,12 @@ The screen is split into four areas:
 | **Toolbar** | Top | Actions, simulation controls, navigation, save/load, theme |
 | **Sidebar** | Left | Component tree, selected component's properties, port editor |
 | **Canvas** | Center | The schematic — place, select, wire, pan, zoom |
-| **Library** | Right | The primitive palette and your custom components |
+| **Library** | Right | Your custom components |
 
 The center panel has a **tab bar** with three views: **Designer** (the schematic canvas),
 **Simulation timeline** (the recorded probe waveforms — see §7), and **Testing** (the test-bench
-sheet — see §6b).
+sheet — see §6b). The **Designer** and **Testing** views each have a horizontal **primitive strip**
+above the canvas — drag a card from it to place that primitive on the canvas below.
 
 ### Toolbar
 
@@ -67,7 +68,6 @@ Left to right:
 
 ### Library (right)
 
-- **Primitives** — the built-in components (§6). Drag one onto the canvas to place it.
 - **My components** — your composite components. Drag to place; double-click to edit its
   template; **×** deletes it. **Export** / **Import** exchange your component library as JSON,
   and **Apply to scope** / **Apply to all** (shown when a template is selected) propagate that
@@ -167,7 +167,7 @@ Wire several nearby components at once instead of drawing each wire by hand:
 
 ## 3. Building circuits
 
-1. **Place** — drag a primitive from the library onto the canvas.
+1. **Place** — drag a primitive from the strip above the canvas onto the canvas.
 2. **Wire** — connect outputs to inputs.
 3. **Configure** — select a component and set its properties in the sidebar.
 4. **Group** — select a sub-circuit and press **Group** to turn it into a named composite.
@@ -445,7 +445,7 @@ its properties, and what it does.
   **Alt+press** grabs the incoming wire. To move it, drag the ring just around the dot (or region-select
   it first). The dot is wire-colored, signal-colored in simulation, and red while hovered.
 - Two shortcuts insert a NODE *into* an existing wire, splitting it in two:
-  - **Drop** a NODE from the library straight onto a wire.
+  - **Drop** a NODE from the primitive strip straight onto a wire.
   - **Ctrl/Cmd+drag** across a wire — an imaginary dashed line is drawn, and on release a NODE is
     inserted where the line crosses the wire.
 
@@ -496,7 +496,7 @@ its properties, and what it does.
   (`0`→`1`), `FALLING_EDGE` (`1`→`0`), or `EDGE` (either). On a **bus** input the trigger fires
   if *any* lane meets the condition. Only strict `0`↔`1` transitions count (`x` never triggers).
 
-> **Internal primitives** (`INPUT-PORT` / `OUTPUT-PORT`) are not in the palette: they model a
+> **Internal primitives** (`INPUT-PORT` / `OUTPUT-PORT`) are not in the primitive strip: they model a
 > composite's own input/output terminals internally and are created automatically when you
 > group components or edit a composite's ports.
 
@@ -511,10 +511,12 @@ them to the design itself.
 - The design appears as a single fixed **main** box (named after the top-level sheet) with its
   input ports on the left and output ports on the right. It is **movable** (drag it) but **not
   deletable**.
-- A small palette above the canvas offers the interface primitives — **CLOCK**, **SWITCHES**,
-  **LEDS**, **7-SEG**, and **PROBE**. Drag one onto the sheet, then wire it to a `main` port exactly
-  like on the designer canvas (drag from an output pin to an input pin; grab an existing wire to
-  re-target or delete it).
+- A horizontal **primitive strip** above the canvas offers every primitive (the same set as the
+  Designer tab), so you can model arbitrary external circuitry — not just **CLOCK**, **SWITCHES**,
+  **LEDS**, **7-SEG**, and **PROBE**, but also gates, buses, and stateful parts. Drag one onto the
+  sheet, then wire it to a `main` port exactly like on the designer canvas (drag from an output pin
+  to an input pin; grab an existing wire to re-target or delete it). The component you just placed
+  becomes the selection.
 - Editing works like the designer: drag components, marquee/Shift-click to select, **Delete** to
   remove a component, and pan (Shift+drag) / zoom (mouse wheel).
 - In **simulate** mode the test-bench components drive and read `main`: toggle a **SWITCHES** lane

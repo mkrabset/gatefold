@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { CompositeDef, Instance } from '@gatefold/model'
-import { MAIN_INSTANCE_ID, childPrimitive, findConnectionTo, pinRefEquals, primitiveOf, valueFormatOf, valueOrderOf } from '@gatefold/model'
+import { MAIN_INSTANCE_ID, childPrimitive, findConnectionTo, pinRefEquals, valueFormatOf, valueOrderOf } from '@gatefold/model'
 import { drawScene } from '../editor/renderer'
 import { hitTest, hitTestPort, instanceBounds, hitArrayIndicator, defContentsBounds, arrayLaneCount, switchValueBadge, switchStepBadges, setLaneDistance } from '../editor/geometry'
 import { s2w } from '../editor/viewport'
@@ -10,7 +10,7 @@ import { useTestStore } from '../state/testStore'
 import { currentTestbenchComposite, useEditorStore, beginMoveTransaction, endMoveTransaction, TEST_IO_KINDS } from '../state/editorStore'
 import { useUiStore } from '../state/uiStore'
 import { useSimStore, testColorOf, testValueOf, testSignalOf } from '../state/simStore'
-import { PRIMITIVE_ICONS } from '../icons'
+import { PrimitivePalette } from './PrimitivePalette'
 import type { Viewport } from '../editor/types'
 
 /**
@@ -414,29 +414,13 @@ function TestingCanvas() {
 export function TestingView() {
   const simulating = useSimStore((s) => s.mode) === 'simulate'
   return (
-    <div className="testing">
-      <div className="testing-palette">
-        {TEST_IO_KINDS.map((kind) => {
-          const prim = primitiveOf(kind)
-          return (
-            <button
-              key={kind}
-              className="testing-palette-item"
-              draggable={!simulating}
-              onDragStart={(e) => e.dataTransfer.setData('application/x-gatefold-def', kind)}
-              title={`Drag to place ${prim.label}`}
-            >
-              {PRIMITIVE_ICONS[kind] ? (
-                <img className="lib-icon" src={PRIMITIVE_ICONS[kind]} alt={prim.label} draggable={false} />
-              ) : (
-                <span className="lib-glyph">{prim.glyph}</span>
-              )}
-              <span className="lib-label">{prim.label}</span>
-            </button>
-          )
-        })}
-        <span className="testing-hint">Drag a component onto the sheet to model external circuitry around the “{useEditorStore.getState().design.root.name}” ports</span>
-      </div>
+    <div className="canvas-view">
+      <PrimitivePalette
+        kinds={TEST_IO_KINDS}
+        simulating={simulating}
+        hint={`Drag a component onto the sheet to model external circuitry around the “${useEditorStore.getState().design.root.name}” ports`}
+        zoomOf={() => useTestStore.getState().viewport.zoom}
+      />
       <TestingCanvas />
     </div>
   )

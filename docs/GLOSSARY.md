@@ -155,9 +155,10 @@ authoritative — update this when a term's meaning changes.
 - **Root** — the top-level composite (`design.root`, usually `main`); the outermost sheet, in the
   content tree.
 - **Test bench** — the "Testing" tab sheet, one level *above* the root, where outside-world
-  components (CLOCK, SWITCHES, LEDS, 7-SEG, PROBE) drive the root's input ports and read its
-  output ports. The root appears as a single fixed **main** box (non-deletable but movable, named
-  after the root). Stored in `Design.testbench` (optional — `{ main.pos, instances, connections }`);
+  components drive the root's input ports and read its output ports. Any primitive may be placed
+  here (the full set, not just CLOCK/SWITCHES/LEDS/7-SEG/PROBE), so it can model arbitrary external
+  circuitry. The root appears as a single fixed **main** box (non-deletable but movable, named after
+  the root). Stored in `Design.testbench` (optional — `{ main.pos, instances, connections }`);
   the `main` instance itself is synthesized on demand with `def = design.root` (never stored), so
   it always reflects the root's live interface. The test bench is the simulation root (the engine
   runs `withTestbench(design)`), so the outside world drives `main` during simulation; it is
@@ -339,9 +340,14 @@ authoritative — update this when a term's meaning changes.
   breach (after a whole period), derived from gate delays vs. the clock period.
 - **Signal coloring** — wires/markers colored by their simulated value: red = `1`, black = `0`,
   yellow = `x` (floating/unknown).
-- **Middle-panel tabs** — a tab bar above the canvas with two views: **Designer** (the schematic
-  canvas) and **Simulation timeline** (the recorded probe waveforms). The active tab is a
-  session UI preference.
+- **Middle-panel tabs** — a tab bar above the canvas with three views: **Designer** (the schematic
+  canvas), **Simulation timeline** (the recorded probe waveforms), and **Testing** (the test-bench
+  sheet). The active tab is a session UI preference. The Designer and Testing views each show a
+  horizontal **primitive strip** (see *Primitive strip*) above their canvas.
+- **Primitive strip** — the horizontal row of draggable primitive cards above the Designer and
+  Testing canvases (see *Primitive*). Dragging a card places that primitive on the canvas below;
+  the strip replaces the primitives section formerly in the right-hand library panel, which now
+  lists only the user's custom components.
 - **Simulation timeline** — a waveform view of every **probe** lane across the whole design: one
   horizontal row per probe lane (label on the left), whose line color follows the recorded signal
   over simulated time. The x-axis is **time-proportional** (distance between events is

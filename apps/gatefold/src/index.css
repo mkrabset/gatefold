@@ -1132,15 +1132,15 @@ body {
   text-align: center;
 }
 
-/* ---------- Testing (test-bench) ---------- */
-.testing {
+/* ---------- Canvas views (designer / testing) ---------- */
+.canvas-view {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.testing-palette {
+.palette-strip {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1151,7 +1151,7 @@ body {
   overflow-x: auto;
 }
 
-.testing-palette-item {
+.palette-item {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -1164,15 +1164,15 @@ body {
   flex-shrink: 0;
 }
 
-.testing-palette-item:hover {
+.palette-item:hover {
   border-color: var(--accent);
 }
 
-.testing-palette-item:active {
+.palette-item:active {
   cursor: grabbing;
 }
 
-.testing-hint {
+.palette-hint {
   margin-left: auto;
   font-size: 11px;
   color: var(--text-faint);

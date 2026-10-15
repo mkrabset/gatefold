@@ -528,6 +528,9 @@ export function Canvas() {
         if (sim.mode === 'simulate') {
           sim.ascend()
         }
+      } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && pointerOver) {
+        e.preventDefault()
+        useEditorStore.getState().selectAll()
       } else if ((e.key === 'i' || e.key === 'I') && pointerOver) {
         const hover = useEditorStore.getState().hoverPort
         if (hover) {

@@ -346,6 +346,9 @@ function TestingCanvas() {
       if (useSimStore.getState().switchDialog) return
       if (e.key === 'Escape' && pointerOver && useSimStore.getState().mode === 'simulate') {
         useSimStore.getState().toggleMode()
+      } else if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey) && pointerOver) {
+        e.preventDefault()
+        useTestStore.getState().setSelection(useEditorStore.getState().selectAllTest())
       }
     }
 

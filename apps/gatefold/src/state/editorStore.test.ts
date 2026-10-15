@@ -669,6 +669,19 @@ describe('editorStore undo/redo + clipboard', () => {
     useEditorStore.getState().connectAutoMatches()
     expect(mainDef().connections).toHaveLength(0)
   })
+
+  it('select all selects every non-port-group instance in the current scope', () => {
+    reset()
+    useEditorStore.getState().selectAll()
+    expect(useEditorStore.getState().selectedIds).toEqual(['clk', 'inv1', 'and1', 'xor1', 'ha1', 'or1'])
+  })
+
+  it('select all excludes the input/output port groups', () => {
+    reset()
+    useEditorStore.setState({ design: makePortGroupDesign(), navStack: [{ kind: 'root' }], selectedIds: [] })
+    useEditorStore.getState().selectAll()
+    expect(useEditorStore.getState().selectedIds).toEqual(['a'])
+  })
 })
 
 describe('array', () => {
@@ -1107,5 +1120,19 @@ describe('editorStore testbench actions', () => {
     expect(pasted.id).toBe(ids[0])
     expect(pasted.def.kind === 'fork' && pasted.def.primitive).toBe('not')
     expect(tb().instances.some((i) => i.id === MAIN_INSTANCE_ID)).toBe(false)
+  })
+
+  it('select all test returns every test-bench instance (main is separate)', () => {
+    resetTb()
+    const s = useEditorStore.getState()
+    s.addTestInstance('clock', { x: -100, y: 0 })
+    s.addTestInstance('led-array', { x: 120, y: 0 })
+    expect(s.selectAllTest()).toEqual(tb().instances.map((i) => i.id))
+    expect(s.selectAllTest()).toHaveLength(2)
+  })
+
+  it('select all test returns nothing without a test bench', () => {
+    resetTb()
+    expect(useEditorStore.getState().selectAllTest()).toEqual([])
   })
 })

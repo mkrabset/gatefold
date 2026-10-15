@@ -168,6 +168,7 @@ interface EditorState {
   romDialog: { instanceId: string } | null
   setViewport: (viewport: Viewport) => void
   setSelection: (ids: string[]) => void
+  selectAll: () => void
   toggleSelected: (id: string) => void
   setInstancesPosition: (ids: string[], positions: { x: number; y: number }[]) => void
   setMarquee: (rect: Rect | null) => void
@@ -251,6 +252,7 @@ interface EditorState {
   deleteTestInstances: (ids: string[]) => void
   copyTestSelection: (ids: string[]) => void
   pasteTest: () => string[]
+  selectAllTest: () => string[]
 }
 
 /** Prune the parent sheet's wires to the current scope's removed ports (a no-op unless
@@ -456,6 +458,12 @@ export const useEditorStore = create<EditorState>()(
       romDialog: null,
       setViewport: (viewport) => set((s) => void (s.viewport = viewport)),
       setSelection: (ids) => set((s) => void (s.selectedIds = ids)),
+      selectAll: () =>
+        set((s) => {
+          const def = currentDef(s)
+          if (!def || def.kind !== 'composite') return
+          s.selectedIds = def.instances.filter((i) => !isPortGroupDef(i.def)).map((i) => i.id)
+        }),
       toggleSelected: (id) =>
         set((s) => {
           const i = s.selectedIds.indexOf(id)
@@ -1138,6 +1146,10 @@ export const useEditorStore = create<EditorState>()(
           tb.instances = composite.instances.filter((i) => i.id !== MAIN_INSTANCE_ID)
         })
         return newIds
+      },
+      selectAllTest: () => {
+        const tb = get().design.testbench
+        return tb ? tb.instances.map((i) => i.id) : []
       },
       applyTemplateToInstances: (templateId) =>
         set((s) => {

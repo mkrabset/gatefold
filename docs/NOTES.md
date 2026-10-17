@@ -1,6 +1,6 @@
 # Session Notes
 
-Last updated: 2026-10-15 (primitive strip in the Designer tab; full primitive set in Testing).
+Last updated: 2026-10-15 (Ctrl/Cmd+A select-all; cross-canvas copy/paste; primitive strip in Designer).
 
 ## Where we are
 
@@ -12,6 +12,21 @@ its children as inline `ChildDef`s (a shared `builtin`, an owned `fork`, or a ne
 `docs/ARCHITECTURE.md` (as-built design) and `docs/GLOSSARY.md` (terminology).
 
 ## Latest (this session)
+
+- **Ctrl/Cmd+A select-all** — pressing Ctrl/Cmd+A with the pointer over a canvas selects every
+  instance in the current scope:
+  - **App** — `editorStore.selectAll()` selects all instances of the current def (including the
+    input/output **port groups**, which are themselves selectable); `editorStore.selectAllTest()`
+    returns every test-bench instance id (`main` is a separate field, so it stays excluded).
+    `ui/Canvas.tsx` and `ui/TestingView.tsx` handle the key only while their `pointerOver` flag is
+    set (the test bench writes the result to `testStore`). Tests cover the full-scope selection and
+    port-group inclusion.
+
+- **Cross-canvas copy/paste** — the shared in-memory clipboard now routes by active tab, so all four
+  directions work (design↔design, testing↔testing, testing→design, design→testing):
+  - `editorStore.copyTestSelection(ids)` captures from the test-bench sheet and `pasteTest()` pastes
+    into it (returning the new ids); `App.tsx` dispatches Ctrl+C/V by `middleTab` (mirroring the
+    existing Delete routing), and pasting into the test bench selects the pasted instances.
 
 - **Primitive strip in the Designer tab; library panel slimmed** — the placeable primitives moved
   from the right-hand library panel to a horizontal strip above the Designer canvas, mirroring the

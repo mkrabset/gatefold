@@ -462,7 +462,7 @@ export const useEditorStore = create<EditorState>()(
         set((s) => {
           const def = currentDef(s)
           if (!def || def.kind !== 'composite') return
-          s.selectedIds = def.instances.filter((i) => !isPortGroupDef(i.def)).map((i) => i.id)
+          s.selectedIds = def.instances.map((i) => i.id)
         }),
       toggleSelected: (id) =>
         set((s) => {

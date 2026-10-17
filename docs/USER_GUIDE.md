@@ -154,6 +154,7 @@ Wire several nearby components at once instead of drawing each wire by hand:
 |----------|--------|
 | Ctrl/Cmd + C | Copy selection |
 | Ctrl/Cmd + V | Paste |
+| Ctrl/Cmd + A | Select all components on the canvas (when the pointer is over a canvas) |
 | Delete / Backspace | Delete selection |
 | Ctrl/Cmd + Z | Undo |
 | Ctrl/Cmd + Shift + Z / Ctrl/Cmd + Y | Redo |

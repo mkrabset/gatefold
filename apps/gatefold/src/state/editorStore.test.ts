@@ -670,17 +670,17 @@ describe('editorStore undo/redo + clipboard', () => {
     expect(mainDef().connections).toHaveLength(0)
   })
 
-  it('select all selects every non-port-group instance in the current scope', () => {
+  it('select all selects every instance in the current scope', () => {
     reset()
     useEditorStore.getState().selectAll()
     expect(useEditorStore.getState().selectedIds).toEqual(['clk', 'inv1', 'and1', 'xor1', 'ha1', 'or1'])
   })
 
-  it('select all excludes the input/output port groups', () => {
+  it('select all includes the input/output port groups', () => {
     reset()
     useEditorStore.setState({ design: makePortGroupDesign(), navStack: [{ kind: 'root' }], selectedIds: [] })
     useEditorStore.getState().selectAll()
-    expect(useEditorStore.getState().selectedIds).toEqual(['a'])
+    expect(useEditorStore.getState().selectedIds).toEqual(['in', 'a', 'out'])
   })
 })
 

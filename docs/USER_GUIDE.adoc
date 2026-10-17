@@ -202,6 +202,9 @@ without connecting.
 
 |Ctrl/Cmd {plus} V |Paste
 
+|Ctrl/Cmd {plus} A |Select all components on the canvas (when the
+pointer is over a canvas)
+
 |Delete / Backspace |Delete selection
 
 |Ctrl/Cmd {plus} Z |Undo
